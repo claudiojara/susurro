@@ -15,9 +15,35 @@ public struct RawTranscript: Sendable, Equatable {
 public struct RecognitionOptions: Sendable, Equatable {
     /// A language code such as "es", or nil for automatic detection.
     public var language: String?
+    /// Terms the recognizer should favor. A recognizer that cannot bias its output ignores them.
+    public var vocabulary: [String]
 
-    public init(language: String? = nil) {
+    public init(language: String? = nil, vocabulary: [String] = []) {
         self.language = language
+        self.vocabulary = vocabulary
+    }
+}
+
+/// Why a recognizer produced no transcript. A cancelled call throws `CancellationError`, never one of these.
+public enum RecognitionError: Error, Sendable, Equatable {
+    /// `transcribe` was called before `readiness()` reported `.ready`.
+    case notReady
+    /// The engine failed. The text is the underlying error.
+    case engineFailed(String)
+}
+
+/// Whether a recognizer keeps audio on this Mac or sends it to a service.
+public enum Locality: Sendable, Equatable {
+    case local
+    case cloud
+}
+
+/// The stable name under which a recognizer is selected and recorded.
+public struct ASRProviderID: Sendable, Hashable {
+    public let rawValue: String
+
+    public init(_ rawValue: String) {
+        self.rawValue = rawValue
     }
 }
 
