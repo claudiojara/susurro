@@ -109,11 +109,13 @@ struct ParakeetPrepareTests {
     }
 
     @Test(
-        "load progress keeps the highest fraction and caps it below complete",
+        "load progress keeps the highest fraction, in steps, and caps it below complete",
         arguments: [
             ([0.1, 0.3, 0.2], [0.1, 0.3]),
             ([0.5, 1.0, 0.5, 1.0], [0.5, 0.99]),
             ([Double.nan, 0.4, -1, 2], [0.4, 0.99]),
+            // A download reports thousands of tiny steps. Only a step of a hundredth or more is worth publishing.
+            ([0.004, 0.009, 0.012, 0.015, 0.025], [0.012, 0.025]),
         ]
     )
     func loadProgressObserve(fractions: [Double], advances: [Double]) {
