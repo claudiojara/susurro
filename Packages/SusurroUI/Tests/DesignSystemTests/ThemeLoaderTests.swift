@@ -9,8 +9,26 @@ struct ThemeLoaderTests {
         ThemeLoader.load(data: Data(json.utf8))
     }
 
+    /// `body` is a JSON object holding the keys to add to a file that has the right version.
+    private func load(adding body: String) -> ThemeLoadResult {
+        load(#"{"schemaVersion": 1, "# + body.dropFirst())
+    }
+
     private func color(_ hex: String) throws -> RGBAColor {
         try #require(RGBAColor(hex: hex))
+    }
+
+    /// One short label per error, so a test can assert which problems were found and in what order without quoting
+    /// the wording of each reason.
+    private func labels(_ errors: [ThemeError]) -> [String] {
+        errors.map { error in
+            switch error {
+            case .invalidValue(let path, _): "invalid \(path)"
+            case .unknownToken(let key): "unknown \(key)"
+            case .missingPaletteKey(let token, let key): "dangling \(token) -> \(key)"
+            default: "\(error)"
+            }
+        }
     }
 
     // MARK: Valid files
@@ -159,6 +177,149 @@ struct ThemeLoaderTests {
             ])
     }
 
+    @Test(
+        "a typo inside a token is reported with its path, not ignored",
+        arguments: [
+            (#"{"typography": {"body": {"sizee": 20}}}"#, "typography.body.sizee"),
+            (#"{"typography": {"body": {"size": 14, "weigth": "bold"}}}"#, "typography.body.weigth"),
+            (##"{"palette": {"blue": {"ligth": "#000000"}}}"##, "palette.blue.ligth"),
+            (
+                ##"{"palette": {"ocean": {"light": "#000000", "dark": "#111111", "mid": "#222222"}}}"##,
+                "palette.ocean.mid"
+            ),
+            (#"{"overlay": {"widht": 400}}"#, "overlay.widht"),
+        ])
+    func typoInsideAToken(body: String, expectedPath: String) {
+        let result = load(adding: body)
+        #expect(result.theme == .default)
+        #expect(result.errors == [.unknownToken(expectedPath)])
+    }
+
+    @Test("typos in different places are all reported, in name order")
+    func typosAddUp() {
+        let result = load(
+            adding:
+                ##"{"typography": {"body": {"sizee": 20}}, "palette": {"blue": {"ligth": "#000000"}}, "spacing": {"huge": 1}}"##
+        )
+        #expect(
+            labels(result.errors) == [
+                "unknown palette.blue.ligth", "unknown spacing.huge", "unknown typography.body.sizee",
+            ])
+    }
+
+    @Test("a typo in a new palette entry does not hide a bad color in the same entry")
+    func typoNextToABadColor() {
+        let result = load(adding: ##"{"palette": {"ocean": {"ligth": "#000000", "dark": "#GG0000"}}}"##)
+        #expect(
+            labels(result.errors) == [
+                "unknown palette.ocean.ligth", "invalid palette.ocean.dark", "invalid palette.ocean.light",
+            ])
+    }
+
+    // MARK: Every problem, not the first
+
+    @Test("two bad values are both reported")
+    func twoBadValues() {
+        let result = load(adding: #"{"spacing": {"md": "wide"}, "overlay": {"edge": "left"}}"#)
+        #expect(result.theme == .default)
+        #expect(labels(result.errors) == ["invalid overlay.edge", "invalid spacing.md"])
+    }
+
+    @Test("several bad values in one table are all reported, in path order")
+    func badValuesInOneTable() {
+        let result = load(adding: #"{"spacing": {"xl": "a", "md": true, "lg": [1]}}"#)
+        #expect(labels(result.errors) == ["invalid spacing.lg", "invalid spacing.md", "invalid spacing.xl"])
+    }
+
+    @Test("a bad value, a missing part, a bad table, and a bad hex are found in one pass")
+    func mixedBadValues() {
+        let result = load(
+            adding: ##"""
+                {"name": 7, "radii": [1, 2], "typography": {"body": {"weight": "heavy"}},
+                 "palette": {"ocean": {"light": "#GG0000", "dark": "#000000"}, "lake": {"dark": "#000000"}}}
+                """##)
+        #expect(
+            labels(result.errors) == [
+                "invalid name", "invalid palette.lake.light", "invalid palette.ocean.light", "invalid radii",
+                "invalid typography.body.weight",
+            ])
+    }
+
+    @Test(
+        "a color that points at a palette entry whose own value is bad is not also reported as dangling",
+        arguments: [
+            (##"{"ocean": {"light": "#GG0000", "dark": "#000000"}}"##, "invalid palette.ocean.light"),
+            (##"{"ocean": "#0077B6"}"##, "invalid palette.ocean"),
+        ])
+    func badEntryIsNotDangling(palette: String, expectedLabel: String) {
+        let result = load(adding: #"{"palette": \#(palette), "colors": {"accent.primary": "ocean"}}"#)
+        #expect(labels(result.errors) == [expectedLabel])
+    }
+
+    @Test("every kind of problem is reported together, in a fixed order")
+    func everyKindTogether() {
+        let result = load(
+            adding: ##"""
+                {"spacing": {"huge": 40, "md": "wide"}, "radii": {"lg": -2},
+                 "palette": {"ocean": {"light": "#GG0000", "dark": "#000000"}},
+                 "colors": {"accent.primary": "nowhere", "accent.recording": "ocean"}}
+                """##)
+        #expect(result.theme == .default)
+        #expect(
+            labels(result.errors) == [
+                "unknown spacing.huge", "invalid palette.ocean.light", "invalid spacing.md",
+                "dangling accent.primary -> nowhere", "invalid radii.lg",
+            ])
+    }
+
+    // MARK: Numbers
+
+    @Test(
+        "a negative number is rejected with its path, wherever a theme holds a number",
+        arguments: [
+            (#"{"spacing": {"md": -4}}"#, "spacing.md"),
+            (#"{"radii": {"lg": -1}}"#, "radii.lg"),
+            (#"{"motion": {"fast": -0.5}}"#, "motion.fast"),
+            (#"{"typography": {"body": {"size": -13}}}"#, "typography.body.size"),
+            (#"{"overlay": {"width": -380}}"#, "overlay.width"),
+            (#"{"overlay": {"cornerRadius": -1}}"#, "overlay.cornerRadius"),
+            (#"{"overlay": {"offset": -80}}"#, "overlay.offset"),
+        ])
+    func negativeNumber(body: String, expectedPath: String) {
+        let result = load(adding: body)
+        #expect(result.theme == .default)
+        #expect(labels(result.errors) == ["invalid \(expectedPath)"])
+        if case .invalidValue(_, let reason) = result.errors.first {
+            #expect(reason.contains("0 or more"))
+        }
+    }
+
+    @Test("zero is allowed: no spacing, no radius, and no animation are real choices")
+    func zeroIsAllowed() {
+        let result = load(adding: #"{"spacing": {"xs": 0}, "radii": {"sm": 0}, "motion": {"fast": 0}}"#)
+        #expect(result.errors == [])
+        #expect(result.theme.spacing["xs"] == 0)
+    }
+
+    @Test("a number that JSON text can only spell as infinity is rejected, and does not trap")
+    func infinity() {
+        // Foundation reads -1e999 as -infinity but cannot write it back, so merging used to crash on it.
+        let result = load(adding: #"{"spacing": {"md": -1e999}}"#)
+        #expect(result.theme == .default)
+        #expect(labels(result.errors) == ["invalid spacing.md"])
+    }
+
+    @Test("a number too large for a double is malformed JSON")
+    func tooLarge() {
+        let result = load(adding: #"{"spacing": {"md": 1e999}}"#)
+        #expect(result.theme == .default)
+        #expect(result.errors.count == 1)
+        if case .malformedJSON = result.errors.first {
+        } else {
+            Issue.record("expected malformedJSON, got \(result.errors)")
+        }
+    }
+
     @Test("each error reads as one sentence that names what is wrong")
     func errorsDescribeThemselves() {
         let expected: [(ThemeError, String)] = [
@@ -171,7 +332,7 @@ struct ThemeLoaderTests {
                 .invalidValue(path: "spacing.md", reason: "Expected a number."),
                 "spacing.md is not valid: Expected a number."
             ),
-            (.unknownToken("spacing.huge"), "spacing.huge is not a token of the theme."),
+            (.unknownToken("spacing.huge"), "spacing.huge is not a key of the theme."),
             (.unreadable(file: "night.json", reason: "No such file."), "Cannot read night.json: No such file."),
             (.themeNotFound("night"), "There is no theme named night."),
         ]
