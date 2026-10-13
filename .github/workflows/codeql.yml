@@ -28,14 +28,14 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Install tools
+        run: command -v xcodegen >/dev/null || brew install xcodegen
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
         with:
           languages: swift
           build-mode: manual
-
-      - name: Install tools
-        run: command -v xcodegen >/dev/null || brew install xcodegen
 
       # Build each package on its own so sources the app does not link are analyzed too,
       # then build the app (xcodegen + xcodebuild) for the App/ sources.
