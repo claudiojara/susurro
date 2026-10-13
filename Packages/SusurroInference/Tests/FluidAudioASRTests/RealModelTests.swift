@@ -8,16 +8,16 @@ import Testing
 @testable import FluidAudioASR
 
 /// Checks against the real Parakeet model. They are off unless `SUSURRO_REAL_MODELS=1`, so CI and the default test run
-/// never download a model. The first run downloads about 460 MB into the app's model folder
-/// (`~/Library/Application Support/Susurro/Models`); later runs reuse it. They speak with the Spanish system voice
-/// Paulina and are skipped when it is not installed:
+/// never download a model. The first run downloads about 600 MB into the app's model folder
+/// (`~/Library/Application Support/Susurro/Models`); later runs reuse it. They speak with the Spanish system voices
+/// Paulina and, for one check, Mónica, and each test is skipped when its voice is not installed:
 ///
 ///     SUSURRO_REAL_MODELS=1 swift test --package-path Packages/SusurroInference --filter RealModelTests
 @Suite(
     "Real Parakeet model",
     .enabled(
         if: ProcessInfo.processInfo.environment["SUSURRO_REAL_MODELS"] == "1",
-        "Set SUSURRO_REAL_MODELS=1 to check against the real model. The first run downloads about 460 MB."
+        "Set SUSURRO_REAL_MODELS=1 to check against the real model. The first run downloads about 600 MB."
     ),
     .serialized,
     .timeLimit(.minutes(30))
