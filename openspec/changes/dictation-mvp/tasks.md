@@ -4,10 +4,10 @@
 
 | Field | Value |
 |-------|-------|
-| Estimated changed lines | ~23,600 authored (range 19,000-28,000): code + tests + docs. Excludes snapshot PNGs, `Package.resolved`, generated `.xcodeproj` |
-| 400-line budget risk | High (32 of 37 PRs forecast above 400; every slice exceeds 800). Project budget is 800 (`openspec/config.yaml`); every PR is planned at or below it |
+| Estimated changed lines | ~25,700 authored (range 21,500-32,000): code + tests + docs. Includes ~2,000 lines of walking-skeleton code that later PRs rework or delete. Excludes snapshot PNGs, `Package.resolved`, generated `.xcodeproj` |
+| 400-line budget risk | High (37 of 42 PRs forecast above 400; every slice exceeds 800). Project budget is 800 (`openspec/config.yaml`); every PR is planned at or below it |
 | Chained PRs recommended | Yes |
-| Suggested split | 9 slices -> 37 stacked PRs: 1a-1f, 2a-2e, 3a-3c, 4a-4d, 5a-5b, 6a-6c, 7a-7e, 8a-8b, 9a-9g |
+| Suggested split | Walking skeleton + 9 slices -> 42 stacked PRs in delivery order: 1a, WS1-WS5 (first usable build at WS5), then 1b-1f, 2a-2e, 3a-3c, 4a-4d, 5a-5b, 6a-6c, 7a-7e, 8a-8b, 9a-9g |
 | Delivery strategy | auto-chain (resolved from auto-forecast) |
 | Chain strategy | stacked-to-main |
 
@@ -18,26 +18,31 @@ Chain strategy: stacked-to-main
 
 Preconditions (not decisions): the project dir is not yet a git repository; PR delivery and CI presuppose a GitHub remote and an available `xcode-27-arm64` runner label (task 1a.0).
 
+Delivery order: 1a, then the walking skeleton WS1-WS5, then the deferred PRs in file order (1b-1f, 2a-2e, 3a-3c, 4a-4d, 5a-5b, 6a-6c, 7a-7e, 8a-8b, 9a-9g). FIRST USABLE BUILD = WS5, five PRs after 1a. Every deferred PR hardens or replaces a skeleton seam and says which one in its first affected task, so the post-milestone order can be re-prioritized (for example pulling 5a-5b forward) without rework.
+
 ### Forecast per slice
 
 | Slice | Scope | PRs | Est. lines |
 |-------|-------|-----|-----------|
-| 1 | Bootstrap, engineering process, theme/UI scaffolding, permissions onboarding | 1a-1f | 3,950 |
-| 2 | Activation reducer, coordinator loop, hotkeys, overlay | 2a-2e | 2,700 |
-| 3 | Audio capture, durable store, VAD | 3a-3c | 1,900 |
-| 4 | ASR protocol, Parakeet, chunker, queue, history repo, raw end to end | 4a-4d | 2,950 |
+| 1a | Bootstrap and engineering process | 1a | 700 |
+| WS | Walking skeleton, first usable build: hold-to-talk, 16 kHz capture, Parakeet v3, clipboard paste, Mic/Accessibility prompts, bare overlay | WS1-WS5 | 3,150 |
+| 1b-1f | Deferred: theme/UI scaffolding, snapshots, full onboarding | 1b-1f | 3,100 |
+| 2 | Activation reducer, hands-free, Esc, hotkey configuration, themed overlay | 2a-2e | 2,600 |
+| 3 | Durable audio, capture hardening, VAD | 3a-3c | 1,500 |
+| 4 | Recognizer registry, chunker, queue, history repo, durable pipeline | 4a-4d | 2,550 |
 | 5 | Reliable text insertion | 5a-5b | 1,400 |
 | 6 | Style resolution, context capture | 6a-6c | 1,950 |
 | 7 | Cleanup: prompt, guard, shaping, stage, FoundationModels | 7a-7e | 2,650 |
 | 8 | Vocabulary, OCR | 8a-8b | 1,400 |
 | 9 | Retention/retry, history UI, settings UI, optional providers | 9a-9g | 4,700 |
-| Total | | 37 | ~23,600 |
+| Total | | 42 | ~25,700 |
 
 Forecast rules:
 - The proposal's "each slice under 800 lines" does not hold. Each slice is split into stacked sub-PRs (letter suffix).
 - Estimates are +/-25%. Re-measure at PR open with `git diff --shortstat main...HEAD`, excluding PNGs.
 - If a PR measures over 800, split along its own task groups. Adjacent PRs MAY merge when the combined diff is 800 or less. No `size:exception` is planned.
-- Eleven PRs sit within 50 lines of the cap: 1b, 1d, 3b, 4c, 4d, 5a, 6b, 8a, 9a, 9b, 9c. If one overshoots, defer its edge-case table rows to a follow-up PR.
+- Nine PRs sit within 50 lines of the cap: 1b, 4c, 4d, 5a, 6b, 8a, 9a, 9b, 9c. If one overshoots, defer its edge-case table rows to a follow-up PR.
+- Walking-skeleton PRs use the prefix `WS` and keep the 800-line cap. Skeleton code that a later PR replaces is counted twice (once added, once deleted); the totals above include both.
 - Stacked-to-main: branch `feat/dictation-mvp-<unit>` from latest `main`; open the PR against `main`; merge in order; rebase the next branch after each merge. Every PR leaves `main` green.
 
 ### Suggested Work Units
@@ -47,25 +52,30 @@ Test commands use the package paths from `openspec/config.yaml`. "Whole PR" proo
 | Unit | Goal | Est. | Focused test command | Runtime harness | Rollback boundary |
 |------|------|------|----------------------|-----------------|-------------------|
 | 1a | Process and skeletons: 5 SPM packages, xcodegen app, Makefile, swift-format, CI, ADRs | 700 | `swift test --package-path Packages/SusurroCore --filter ModuleSmokeTests` | `make bootstrap && make run`: menu bar item appears; CI green on `xcode-27-arm64` | Revert PR; nothing depends on it |
+| WS1 | Walking skeleton: core ports and hold-to-talk coordinator with fakes | 700 | `swift test --package-path Packages/SusurroCore --filter SkeletonCoordinatorTests` | N/A: fakes only | Revert; app stays on the 1a placeholder |
+| WS2 | Walking skeleton: fixed hotkey (KeyboardShortcuts) and 16 kHz mic capture | 650 | `swift test --package-path Packages/SusurroPlatform --filter AudioIOTests` | N/A: wired in WS5; adapters proven by seam tests | Revert; ports keep fakes |
+| WS3 | Walking skeleton: Mic/Accessibility permission checker, simple clipboard paste with basic restore | 650 | `swift test --package-path Packages/SusurroPlatform --filter SimplePasteInserterTests` | N/A: wired in WS5 | Revert; no consumers |
+| WS4 | Walking skeleton: Parakeet v3 whole-clip transcription (FluidAudio) | 450 | `swift test --package-path Packages/SusurroInference --filter ParakeetMappingTests` | N/A: no model download in tests; live check in WS5 | Revert; no consumers |
+| WS5 | **FIRST USABLE BUILD**: bare overlay, launch prompts, menu bar, wiring | 700 | `swift test --package-path Packages/SusurroFeatures --filter SkeletonOverlayPresenterTests` | `make run`: hold Control+Option+D in any app, speak, release; text pastes (see "First usable build") | Revert to the 1a placeholder app |
 | 1b | Theme model, default JSON, ThemeLoader, ThemeStore | 800 | `swift test --package-path Packages/SusurroUI --filter ThemeLoaderTests` | N/A: pure decoding, no runtime surface yet | Revert; DesignSystem returns to skeleton |
 | 1c | Token lint, atoms, snapshot infra, CI record job | 650 | `make snapshots` | N/A: views render only in tests/previews; `record-snapshots` workflow run on the branch | Revert; atoms unused by app |
-| 1d | ManualClock, permission domain/policy, system checker, SettingsStore | 800 | `swift test --package-path Packages/SusurroCore --filter PermissionPolicyTests` | N/A: adapters not wired yet | Revert; no consumers |
+| 1d | ManualClock, permission policy, Input Monitoring/Screen Recording probes, SettingsStore | 650 | `swift test --package-path Packages/SusurroCore --filter PermissionPolicyTests` | N/A: adapters extend WS3 checker | Revert; no consumers |
 | 1e | PermissionsMonitor, onboarding view model and contracts | 550 | `swift test --package-path Packages/SusurroFeatures --filter OnboardingViewModelTests` | N/A: wired in 1f | Revert; no consumers |
 | 1f | Onboarding UI, menu bar shell, AppEnvironment | 450 | `make snapshots` | `make run`: revoke Accessibility in System Settings; banner within ~1 s | Revert; app returns to placeholder menu bar |
 | 2a | ActivationMachine reducer, StartPreconditions | 500 | `swift test --package-path Packages/SusurroCore --filter ActivationMachineTests` | N/A: pure reducer, fakes | Revert; no consumers |
-| 2b | DictationCoordinator activation loop (timers, Esc arming) | 500 | `swift test --package-path Packages/SusurroCore --filter DictationCoordinatorActivationTests` | N/A: fakes + ManualClock | Revert; hotkeys not wired yet |
-| 2c | Hotkeys adapter (KeyboardShortcuts, modifier-only, Esc, Secure Input) | 450 | `swift test --package-path Packages/SusurroPlatform --filter HotkeyConfigurationTests` | `make run` + `log stream --predicate 'subsystem == "dev.claudiojara.susurro"'`: hold, tap, double-tap, Esc transitions; Esc passes through when idle | Revert; app falls back to no hotkeys |
+| 2b | Reducer-driven DictationCoordinator (timers, Esc arming) replacing the skeleton's inline hold logic | 550 | `swift test --package-path Packages/SusurroCore --filter DictationCoordinatorActivationTests` | N/A: fakes + ManualClock | Revert to the skeleton hold-only coordinator |
+| 2c | Hotkey configuration (modifier-only/fn, Secure Input warning, Esc registration, settings keys) | 350 | `swift test --package-path Packages/SusurroPlatform --filter HotkeyConfigurationTests` | `make run` + `log stream --predicate 'subsystem == "dev.claudiojara.susurro"'`: hold, tap, double-tap, Esc transitions; Esc passes through when idle | Revert; fixed default hotkey remains |
 | 2d | Overlay contracts, mapper, throttle, placement, auto-dismiss | 650 | `swift test --package-path Packages/SusurroFeatures --filter OverlayViewModelTests` | N/A: pure mapping; UI in 2e | Revert; no consumers |
-| 2e | Overlay HUD, variant registry, NSPanel host, wiring | 600 | `make snapshots` | `make run`: hold hotkey; HUD appears and TextEdit keeps focus | Revert; app returns to log-only states |
-| 3a | RecordingSession, audio domain, fakes | 700 | `swift test --package-path Packages/SusurroCore --filter RecordingSessionTests` | N/A: fakes | Revert; coordinator keeps interim controller |
-| 3b | CAF store, AVAudioEngine capture adapter, wiring | 750 | `swift test --package-path Packages/SusurroPlatform --filter AudioIOTests` | `make run`: record 5 s, `afplay` the CAF in Application Support; unplug USB mic mid-record | Revert to `NoopRecordingController` |
+| 2e | Themed overlay HUD, variant registry, panel host; replaces the skeleton overlay | 550 | `make snapshots` | `make run`: hold hotkey; HUD appears and TextEdit keeps focus | Revert; skeleton overlay returns |
+| 3a | RecordingSession (durable, bounded), store ports, fakes | 650 | `swift test --package-path Packages/SusurroCore --filter RecordingSessionTests` | N/A: fakes | Revert; coordinator keeps in-memory capture |
+| 3b | CAF store, device-removal handling, RecordingSession wiring | 400 | `swift test --package-path Packages/SusurroPlatform --filter CAFRecordingStoreTests` | `make run`: record 5 s, `afplay` the CAF in Application Support; unplug USB mic mid-record | Revert to in-memory capture |
 | 3c | VAD span/silence logic, Silero adapter | 450 | `swift test --package-path Packages/SusurroCore --filter SpeechSpanTests` | Manual: Silero on a recorded CAF (no model download in tests) | Revert; VAD unused |
-| 4a | ASR domain, registry, runner, readiness wait | 700 | `swift test --package-path Packages/SusurroCore --filter RecognitionRunnerTests` | N/A: fakes | Revert; no consumers |
-| 4b | AudioChunker, Parakeet adapter | 700 | `swift test --package-path Packages/SusurroCore --filter AudioChunkerTests` | `make run` debug: measure Parakeet clip limit on 30/60/120 s clips | Revert; chunker unused |
+| 4a | Recognizer registry, runner (timeout, cloud fallback), readiness wait | 650 | `swift test --package-path Packages/SusurroCore --filter RecognitionRunnerTests` | N/A: fakes | Revert; coordinator keeps inline readiness wait |
+| 4b | AudioChunker, ChunkedTranscriber, Parakeet clip-limit measurement | 400 | `swift test --package-path Packages/SusurroCore --filter AudioChunkerTests` | `make run` debug: measure Parakeet clip limit on 30/60/120 s clips | Revert; chunker unused |
 | 4c | ProcessingQueue, GRDB HistoryRepository | 750 | `swift test --package-path Packages/SusurroPlatform --filter GRDBHistoryRepositoryTests` | N/A: in-memory and temp-file DB | Revert; no consumers |
-| 4d | Raw dictation end to end (interim clipboard inserter) | 800 | `swift test --package-path Packages/SusurroCore --filter DictationPipelineE2ETests` | `make run`: dictate Spanish; text on clipboard in under 2 s after release | Revert to log-only recording (3b state) |
-| 5a | PasteTransaction policy and fakes | 800 | `swift test --package-path Packages/SusurroCore --filter PasteTransactionTests` | N/A: FakePasteboard + ManualClock | Revert; interim inserter stays |
-| 5b | NSPasteboard and CGEvent adapters, replace interim inserter | 600 | `swift test --package-path Packages/SusurroPlatform --filter TextInsertionTests` | `make run`: paste in Mail, Slack, Terminal, ChatGPT; rich clipboard restored | Revert to `ClipboardOnlyInserter` |
+| 4d | Durable pipeline end to end (VAD, chunker, queue, history record) replacing the skeleton flow | 750 | `swift test --package-path Packages/SusurroCore --filter DictationPipelineE2ETests` | `make run`: dictate Spanish; text pastes in under 2 s after release; CAF file and history row exist | Revert to the skeleton pipeline |
+| 5a | PasteTransaction policy and fakes | 800 | `swift test --package-path Packages/SusurroCore --filter PasteTransactionTests` | N/A: FakePasteboard + ManualClock | Revert; `SimplePasteInserter` stays |
+| 5b | NSPasteboard and CGEvent adapters, replace `SimplePasteInserter` | 600 | `swift test --package-path Packages/SusurroPlatform --filter TextInsertionTests` | `make run`: paste in Mail, Slack, Terminal, ChatGPT; rich clipboard restored | Revert to `SimplePasteInserter` |
 | 6a | StyleResolver, seeds, override persistence | 650 | `swift test --package-path Packages/SusurroCore --filter StyleResolverTests` | N/A: pure | Revert; no consumers |
 | 6b | Context domain/assembler, AXContextReader | 800 | `swift test --package-path Packages/SusurroPlatform --filter AXContextReaderTests` | Manual: Safari URL, Notes cursor text, password field, Slack (Electron) | Revert; context unused |
 | 6c | Coordinator context integration and privacy lifetime | 500 | `swift test --package-path Packages/SusurroCore --filter ContextIntegrationTests` | `make run` + `log stream`: `category=... tone=... source=...` (no text) | Disable `useAppContext`, or revert |
@@ -90,12 +100,14 @@ Test commands use the package paths from `openspec/config.yaml`. "Whole PR" proo
 - Strict TDD: every behavior is RED (failing Swift Testing test, committed first) then GREEN (minimum code) then REFACTOR (tests stay green). DOC and VERIFY tasks are marked as such.
 - Every PR is done when `make lint test build` and CI pass. Snapshot references are recorded only by the CI `record-snapshots` job, never locally. No model download and no network in `swift test`. UI test suites are `@MainActor`.
 - Paths are relative to the repo root. Test targets mirror source targets, e.g. `Packages/SusurroCore/Tests/ActivationTests/`.
-- Interim seams not in the design: `RecordingControlling` (2b, replaced in 3b) and `TextInserter` with `ClipboardOnlyInserter` (4d, replaced in 5b).
+- Walking-skeleton seams, each hardened or replaced by a later PR: hold-only logic inline in the skeleton `DictationCoordinator` (WS1; replaced by the reducer-driven coordinator in 2b), in-memory clip accumulation with a 60 s cap (WS1/WS2; replaced by `RecordingSession` in 3a/3b and chunking in 4b), the fixed `DefaultHotkey` constant (WS2; configurable in 2c), `SimplePasteInserter` (WS3; replaced by `PasteTransaction` in 5b), and the unthemed overlay and launch `PermissionPrompter` under `Presentation/Skeleton/` (WS5; replaced in 2e and 1e/1f).
+- Skeleton ports (WS1) use the design's signatures, so later PRs extend them instead of renaming them. Skeleton code stays out of the `DesignSystem` and `SusurroUI` targets, so the token lint added in 1c never scans it.
+- `TextInserter` is a port not in the design's port list; it is the coordinator's insertion seam and `PasteTransaction` conforms to it (5a).
 - Commits: conventional commits, no AI attribution.
 
 ---
 
-## Slice 1: Bootstrap, engineering process, design-system scaffolding, permissions
+## Slice 1: Bootstrap and engineering process (PR 1a)
 
 ### PR 1a: Engineering bootstrap (~700)
 
@@ -109,7 +121,7 @@ Test commands use the package paths from `openspec/config.yaml`. "Whole PR" proo
 - [x] 1a.7 GREEN: Extend the existing root `.gitignore` with `*.xcodeproj`, `build/`, and `Local.xcconfig` (it already covers `.build/` and `DerivedData/`). Keep all existing entries. `Package.resolved` stays committed.
 - [x] 1a.8 GREEN: `.github/workflows/ci.yml`: `runs-on: xcode-27-arm64`; PR and push-to-main triggers; steps bootstrap, lint, test, build; cancel superseded runs; cache `.build`.
 - [x] 1a.9 DOC: `docs/adr/0000-template.md` (MADR), `docs/adr/README.md` index, and ADRs 0001 SPM-first hexagonal + five-package split, 0002 xcodegen app project, 0003 identity (`dev.claudiojara.susurro`) + external Keychain service `app.tuminuta`, 0004 GRDB + per-key UserDefaults, 0005 hotkeys (Carbon first, Input Monitoring only for modifier-only) + Esc semantics (armed only in flight; cancel keeps audio), 0006 cloud data boundary (`CloudCleanupRequest`), 0007 tooling (swift-format, token-lint test, snapshots on `xcode-27-arm64`).
-- [ ] 1a.10 VERIFY: A scratch mis-formatted file makes `make lint` fail and `make format` fixes it (not committed). CI green. `make run` shows the menu bar item.
+- [ ] 1a.10 VERIFY: A scratch mis-formatted file makes `make lint` fail and `make format` fixes it (not committed). CI green. `make run` shows the menu bar item. Status: lint/format check and `make run` verified locally; CI is blocked, the job stays queued because no runner carries the `xcode-27-arm64` label.
 
 ### PR 1b: Theme model and loader (~800)
 
