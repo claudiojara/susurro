@@ -44,7 +44,8 @@ public final class FakeSleeper: Sendable {
         }
         if hasFired { return }
         await gate.wait()
-        // A gate that was opened by `fire` ends the sleep. One that was cancelled ends it with an error.
-        if !state.withLock({ $0.fired.contains(duration) }) { try Task.checkCancellation() }
+        // The gate opens when `fire` ends the sleep, and also when the task is cancelled. Like `Task.sleep`, a sleep
+        // whose task was cancelled throws, whatever ended the wait.
+        try Task.checkCancellation()
     }
 }
