@@ -1,7 +1,7 @@
 import Foundation
 
-/// What counts as a theme file, and how one is read safely. The store lists theme files, the debug watcher watches them,
-/// and the loader reads them, all by these rules.
+/// What counts as a theme file, and how one is read safely. The store lists theme files, the debug watcher watches
+/// them, and the loader reads them, all by these rules.
 ///
 /// A theme file is a `*.json` entry that is a regular file, or a symlink that leads to one. A pipe, a device, or a
 /// folder named `x.json` is not a theme file and is never read, because reading it could wait forever or never end.
