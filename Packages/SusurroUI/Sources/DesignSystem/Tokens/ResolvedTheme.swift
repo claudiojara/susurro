@@ -54,18 +54,48 @@ nonisolated extension Dictionary {
 
 nonisolated extension Theme {
     /// Everything that keeps this theme from being used: tokens it lacks, then colors that point at a palette entry
-    /// it lacks.
+    /// it lacks, then numbers that are negative or not finite.
     public func problems() -> [ThemeError] {
         let missing = ThemeTokenCatalog.missingKeys(in: self).map(ThemeError.missingToken)
         let dangling = colors.sorted { $0.key < $1.key }
             .filter { palette[$0.value] == nil }
             .map { ThemeError.missingPaletteKey(token: $0.key, paletteKey: $0.value) }
-        return missing + dangling
+        let outOfRange = numbers.sorted { $0.key < $1.key }
+            .filter { !ThemeError.isAllowed($0.value) }
+            .map { ThemeError.notAllowed($0.value, at: $0.key) }
+        return missing + dangling + outOfRange
     }
 
     /// The theme in light or dark appearance. It throws the first of `problems()`.
     public func resolved(for appearance: Appearance) throws(ThemeError) -> ResolvedTheme {
         if let problem = problems().first { throw problem }
         return ResolvedTheme(self, appearance: appearance)
+    }
+
+    /// Every number of the theme by its path: sizes, spaces, radii, durations, and the overlay geometry.
+    private var numbers: [String: Double] {
+        var numbers: [String: Double] = [:]
+        for (name, value) in spacing { numbers["\(SpacingToken.group).\(name)"] = value }
+        for (name, value) in radii { numbers["\(RadiusToken.group).\(name)"] = value }
+        for (name, value) in motion { numbers["\(MotionToken.group).\(name)"] = value }
+        for (name, style) in typography { numbers["\(TypeToken.group).\(name).size"] = style.size }
+        for (field, value) in [
+            ("width", overlay.width), ("cornerRadius", overlay.cornerRadius), ("offset", overlay.offset),
+        ] {
+            numbers["\(OverlayGeometry.group).\(field)"] = value
+        }
+        return numbers
+    }
+}
+
+nonisolated extension ThemeError {
+    /// Lengths, sizes, and durations are finite and not negative. Zero is allowed: no space and no animation are
+    /// real choices.
+    static func isAllowed(_ number: Double) -> Bool {
+        number.isFinite && number >= 0
+    }
+
+    static func notAllowed(_ number: Double, at path: String) -> ThemeError {
+        .invalidValue(path: path, reason: "\(number) is not allowed. Use a finite number of 0 or more.")
     }
 }
