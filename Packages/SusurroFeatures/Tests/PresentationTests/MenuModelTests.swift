@@ -44,7 +44,10 @@ struct MenuModelTests {
     func initialContent() {
         let model = makeModel(StatusBoard([:]))
 
-        #expect(model.content == MenuContent.make(microphone: .notDetermined, accessibility: .notDetermined, readiness: .loading(progress: 0)))
+        #expect(
+            model.content
+                == MenuContent.make(
+                    microphone: .notDetermined, accessibility: .notDetermined, readiness: .loading(progress: 0)))
     }
 
     @Test("refresh reads both statuses")

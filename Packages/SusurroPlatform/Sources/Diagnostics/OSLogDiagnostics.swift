@@ -29,6 +29,11 @@ public struct OSLogDiagnostics: DiagnosticsLog {
         case .clipboardRestoreFailed: (.error, "the pasteboard refused the old contents")
         case .captureFirstBuffer(let frames, let sampleRate):
             (.info, "first tap buffer: \(frames) frames at \(Int(sampleRate)) Hz")
+        case .appLaunched: (.info, "app launched")
+        case .modelPrepareRequested: (.info, "speech model: prepare requested")
+        case .modelReadiness(let state): (.info, "speech model: \(state)")
+        case .launchPermissions(let microphone, let accessibility):
+            (.info, "permissions at launch: microphone \(microphone), accessibility \(accessibility)")
         }
     }
 }

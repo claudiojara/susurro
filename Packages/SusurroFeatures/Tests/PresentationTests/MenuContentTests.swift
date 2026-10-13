@@ -76,6 +76,7 @@ struct MenuContentTests {
             microphone: .granted, accessibility: .granted, readiness: .unavailable(reason, retryable: true)
         ).modelLine
 
-        #expect(line == "Speech model: could not load (\(String(repeating: "x", count: 80))…). Hold the key to try again.")
+        #expect(
+            line == "Speech model: could not load (\(String(repeating: "x", count: 80))…). Hold the key to try again.")
     }
 }

@@ -19,6 +19,15 @@ public enum DiagnosticEvent: Sendable, Equatable {
     case clipboardRestoreFailed
     /// The first buffer the microphone tap delivered in a capture. Its size sets how soon the first chunk arrives.
     case captureFirstBuffer(frames: Int, sampleRate: Double)
+    /// The app finished launching and started its work.
+    case appLaunched
+    /// The app asked the speech recognizer to load its model.
+    case modelPrepareRequested
+    /// The speech model changed state. `state` is one of "loading", "ready", "unavailable", or "notInstalled".
+    case modelReadiness(String)
+    /// The status of the two required permissions once the launch prompts were answered. Each is "granted", "denied",
+    /// or "notDetermined".
+    case launchPermissions(microphone: String, accessibility: String)
 }
 
 /// Where the pipeline reports what it would otherwise swallow. The live log lives in the platform package.
