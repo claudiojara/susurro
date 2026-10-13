@@ -8,6 +8,8 @@ import Testing
 struct SkeletonCoordinatorTests {
     private static let clip: [Float] = [0.1, 0.2, 0.3]
     private static let capSamples = 60 * 16_000
+    /// Presses happen away from the timestamp origin, so a hold is measured from its own press.
+    private static let pressTime = Duration.seconds(10)
 
     private struct Failure: Error {}
 
@@ -58,16 +60,16 @@ struct SkeletonCoordinatorTests {
             return seen
         }
 
-        /// Presses at t=0, delivers one chunk, and waits for the recording state.
+        /// Presses, delivers one chunk, and waits for the recording state.
         mutating func startRecording(samples: [Float] = SkeletonCoordinatorTests.clip) async {
-            await sut.handle(.down(at: .zero))
+            await sut.handle(.down(at: SkeletonCoordinatorTests.pressTime))
             capture.emit(AudioChunk(samples: samples))
             _ = await read(through: .recording(.hold))
         }
 
-        /// Releases at the given time and reads the rest of the cycle.
-        mutating func release(at milliseconds: Int = 1200) async -> [PipelineState] {
-            await sut.handle(.up(at: .milliseconds(milliseconds)))
+        /// Releases after the given hold and reads the rest of the cycle.
+        mutating func release(after milliseconds: Int = 1200) async -> [PipelineState] {
+            await sut.handle(.up(at: SkeletonCoordinatorTests.pressTime + .milliseconds(milliseconds)))
             return await read(through: .idle)
         }
     }
@@ -80,11 +82,11 @@ struct SkeletonCoordinatorTests {
         let sut = h.sut
         let loop = Task { await sut.run() }
 
-        h.hotkeys.send(.down(at: .zero))
+        h.hotkeys.send(.down(at: Self.pressTime))
         h.capture.emit(AudioChunk(samples: [0.1, 0.2]))
         h.capture.emit(AudioChunk(samples: [0.3]))
         let recording = await h.read(through: .recording(.hold))
-        h.hotkeys.send(.up(at: .milliseconds(1200)))
+        h.hotkeys.send(.up(at: Self.pressTime + .milliseconds(1200)))
         let rest = await h.read(through: .idle)
         h.hotkeys.finish()
         await loop.value
@@ -113,7 +115,7 @@ struct SkeletonCoordinatorTests {
         var h = await Harness()
         await h.startRecording()
 
-        let states = await h.release(at: heldMilliseconds)
+        let states = await h.release(after: heldMilliseconds)
 
         #expect(states == [.idle])
         #expect(h.capture.stopCount == 1)
@@ -126,7 +128,7 @@ struct SkeletonCoordinatorTests {
         var h = await Harness()
         await h.startRecording()
 
-        let states = await h.release(at: 300)
+        let states = await h.release(after: 300)
 
         #expect(states == [.transcribing(progress: nil), .inserted, .idle])
         #expect(h.recognizer.transcribedClips == [AudioClip(samples: Self.clip)])
@@ -135,7 +137,7 @@ struct SkeletonCoordinatorTests {
     @Test("a release before any audio arrived is a capture failure, not an empty transcription")
     func releaseWithoutAudio() async {
         var h = await Harness()
-        await h.sut.handle(.down(at: .zero))
+        await h.sut.handle(.down(at: Self.pressTime))
 
         let states = await h.release()
 
@@ -204,6 +206,15 @@ struct SkeletonCoordinatorTests {
         #expect(h.capture.startCount == 1)
     }
 
+    @Test("audio delivered after stop returns is still part of the clip")
+    func audioDeliveredAfterStop() async {
+        var h = await Harness(capture: FakeAudioCaptureSource(tailAfterStop: [0.9]))
+        await h.startRecording(samples: [0.1])
+
+        #expect(await h.release() == [.transcribing(progress: nil), .inserted, .idle])
+        #expect(h.recognizer.transcribedClips == [AudioClip(samples: [0.1, 0.9])])
+    }
+
     @Test("a capture stream that fails mid-recording keeps the audio captured so far")
     func captureStreamFailure() async {
         var h = await Harness()
@@ -245,10 +256,10 @@ struct SkeletonCoordinatorTests {
     func pressWhileProcessing() async {
         var h = await Harness(recognizer: FakeRecognizer(transcript: "uno", gated: true))
         await h.startRecording()
-        await h.sut.handle(.up(at: .milliseconds(1200)))
+        await h.sut.handle(.up(at: Self.pressTime + .milliseconds(1200)))
         _ = await h.read(through: .transcribing(progress: nil))
 
-        await h.sut.handle(.down(at: .milliseconds(1300)))
+        await h.sut.handle(.down(at: Self.pressTime + .milliseconds(1300)))
         h.recognizer.releaseTranscription()
 
         #expect(await h.read(through: .idle) == [.inserted, .idle])
@@ -261,7 +272,7 @@ struct SkeletonCoordinatorTests {
         var h = await Harness()
         await h.startRecording()
 
-        await h.sut.handle(.down(at: .milliseconds(1100)))
+        await h.sut.handle(.down(at: Self.pressTime + .milliseconds(1100)))
 
         // A restarted hold would measure 100 ms and be discarded.
         #expect(await h.release() == [.transcribing(progress: nil), .inserted, .idle])
@@ -273,7 +284,7 @@ struct SkeletonCoordinatorTests {
     @Test("reaching the 60 s clip cap finishes the recording and says so")
     func clipCapFinishesRecording() async {
         var h = await Harness()
-        await h.sut.handle(.down(at: .zero))
+        await h.sut.handle(.down(at: Self.pressTime))
         h.capture.emit(AudioChunk(samples: [Float](repeating: 0.5, count: Self.capSamples)))
 
         let states = await h.read(through: .idle)
@@ -291,7 +302,7 @@ struct SkeletonCoordinatorTests {
         var h = await Harness()
         await h.startRecording(samples: [Float](repeating: 0.5, count: Self.capSamples - 1))
 
-        #expect(await h.release(at: 61_000) == [.transcribing(progress: nil), .inserted, .idle])
+        #expect(await h.release(after: 61_000) == [.transcribing(progress: nil), .inserted, .idle])
         #expect(h.recognizer.transcribedClips.map(\.samples.count) == [Self.capSamples - 1])
     }
 }
