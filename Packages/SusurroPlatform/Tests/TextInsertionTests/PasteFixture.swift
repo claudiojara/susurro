@@ -82,10 +82,12 @@ protocol PasteTestCase {
 
 extension PasteTestCase {
     // The timings, spelled out once. The quiet period (200 ms) and the receipt timeout (8 s) are the spec's; the
-    // modifier timeout (500 ms), the minimum dwell (1 s), and the two poll intervals come from the tasks and the review.
-    // They are not read from `PasteTiming`, so changing a constant there fails these tests.
+    // modifier timeout (500 ms), the minimum dwell (1 s), the wait for an earlier paste (1 s), and the two poll
+    // intervals come from the tasks and the review. They are not read from `PasteTiming`, so changing a constant there
+    // fails these tests.
     static var restoreDelay: Duration { .milliseconds(200) }
     static var minimumDwell: Duration { .seconds(1) }
+    static var overlapWait: Duration { .seconds(1) }
     static var modifierTimeout: Duration { .milliseconds(500) }
     static var receiptTimeout: Duration { .seconds(8) }
     static var modifierPollInterval: Duration { .milliseconds(20) }
