@@ -51,8 +51,8 @@ Some things stop the report early, because nothing after them can be read:
 
 - Text that is not a JSON object is reported alone.
 - A file that cannot be read is reported alone. Only regular files are read, or symlinks that lead to one: a pipe, a
-  device, or a folder named `x.json` is never read. A file over 256 KB is refused with an error instead of being
-  read.
+  device, or a folder named `x.json` is never read, and the store does not list it as a theme. A file over 256 KB is
+  refused with an error instead of being read.
 - A missing or unsupported `schemaVersion` is reported alone, because a file of another version may have another shape.
 - A file with more than 50 bad values is reported for the first 50, since the loader reads the whole file again for each
   one it finds.
@@ -71,6 +71,18 @@ Some things stop the report early, because nothing after them can be read:
   `title` for type sizes. A test checks the order of the default.
 - **Adding a token** means a case and a value in `DefaultTheme.json`; the default-theme test fails until both exist.
   **Renaming or removing one** breaks every theme file that uses it, so it needs a new `schemaVersion`.
+- **Adding a group** (a new table of tokens, such as `shadows`) touches these places, and no others:
+  1. `Tokens/ThemeToken.swift`: an enum of the tokens, whose `group` is the key in the file.
+  2. `Tokens/Theme.swift`: a property of `Theme` with that same name. If a token is an object, its type gets an explicit
+     `CodingKeys: CaseIterable` enum, since the loader reads the field names from it.
+  3. `Resources/DefaultTheme.json`: a value for every case.
+  4. `Tokens/ThemeTokenCatalog.swift`: a `Group` in `groups`, which says how to read the names a theme defines (and,
+     for object tokens, `fields:`). The loader's check for unknown keys and the catalog counts follow from it.
+  5. `Tokens/ResolvedTheme.swift`: a table and an accessor in `ResolvedTheme`, and, if the values are numbers, their
+     paths in `Theme.numbers` so that negative or infinite ones are rejected.
+  6. This file: the table of keys above.
+  7. `DefaultThemeTests`: the test that ties each group to its `Theme` property and to its key in the file lists the
+     group names, so it fails until the new one is added.
 - **`default` is reserved.** In the themes folder `default.json` is ignored: `default` always means the bundled theme.
 
 ## In code
@@ -78,5 +90,6 @@ Some things stop the report early, because nothing after them can be read:
 Views read `@Environment(\.theme)`, a `ResolvedTheme` with the light or dark value of each color already picked.
 `View.themed(_:override:)` provides it, following the system appearance unless the override is `.light` or `.dark`.
 `ThemeLoader` is `nonisolated`, so files can be read off the main actor. `ThemeStore` keeps the theme in use and
-publishes it through `updates()`. In debug builds `ThemeFileWatcher` calls `store.reload()` when a file in the folder
+publishes it through `updates()`; an observer that is slow to read is given only the latest theme, not every one it
+missed. In debug builds `ThemeFileWatcher` calls `store.reload()` when a file in the folder
 changes, which is hot reload.
