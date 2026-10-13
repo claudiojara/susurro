@@ -32,6 +32,16 @@ struct ReceiptWatchTests {
         #expect(verdict(&watch, reads: 2, after: .seconds(8)) == .failed)
     }
 
+    @Test("a read is seen as soon as the count rises above the baseline, long before the restore")
+    func hasRead() {
+        var watch = newWatch(baseline: 2)
+
+        #expect(verdict(&watch, reads: 2, after: .milliseconds(100)) == .wait)
+        #expect(!watch.hasRead)
+        #expect(verdict(&watch, reads: 3, after: .milliseconds(150)) == .wait)
+        #expect(watch.hasRead)
+    }
+
     @Test("a read at once still waits for the minimum dwell of 1 s")
     func dwell() {
         var watch = newWatch()

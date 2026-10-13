@@ -10,5 +10,7 @@ struct PipelineErrorTests {
         #expect(PipelineError.captureFailed("device").remedy == .retry)
         #expect(PipelineError.recognitionFailed("model").remedy == .retry)
         #expect(PipelineError.timedOut(.transcription).remedy == .retry)
+        #expect(PipelineError.notInserted(.clipboardChanged).remedy == .retry)
+        #expect(PipelineError.notInserted(.clipboardWriteFailed).remedy == .retry)
     }
 }

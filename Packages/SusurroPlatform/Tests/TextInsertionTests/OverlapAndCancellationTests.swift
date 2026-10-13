@@ -24,12 +24,18 @@ struct OverlapAndCancellationTests: PasteTestCase {
         }
         let sut = makeInserter(keys)
         var second: Task<InsertionOutcome, Never>?
+        var pauses = 0
         onSleep = { _ in
-            if second == nil { second = Task { await sut.insert("two") } }  // the first is still waiting out its dwell
+            pauses += 1
+            // Halfway through the dwell. Both insertions pause on the one stepped clock, which they move twice as fast
+            // together, so starting the second later leaves its wait room to outlast what is left of the first.
+            if pauses == 10 { second = Task { await sut.insert("two") } }
         }
 
         let first = await sut.insert("one")
+        await sut.drain()  // by now the first has waited out its dwell, so the hook has started the second
         let secondOutcome = await second?.value
+        await sut.drain()
 
         #expect([first, secondOutcome] == [.inserted, .inserted])
         #expect(textsWhenPosted == ["one", "two"])
@@ -37,24 +43,68 @@ struct OverlapAndCancellationTests: PasteTestCase {
         #expect(contents() == before)
     }
 
-    @Test("a second insertion does not wait for ever for a first one that is stuck")
+    @Test("a second insertion does not wait for ever for a first one that is stuck, and leaves its text instead")
     func waitForTheFirstIsBounded() async {
         putRichContent()
         let keys = FakeKeystrokePoster()
-        var postedAt: [Duration] = []
-        keys.onPost = { [clock] in postedAt.append(clock.elapsed) }
         let sut = makeInserter(keys)
         let stuck = clock.suspendNextSleep()
 
         let first = Task { await sut.insert("one") }
         await stuck.entered.wait()
         let secondOutcome = await sut.insert("two")
+        let waited = clock.elapsed
         stuck.release.open()
         _ = await first.value
 
         #expect(secondOutcome == .copiedToClipboard(.pasteFailed))
-        #expect(postedAt.count == 2)
-        #expect(postedAt.last.map { $0 >= Self.modifierTimeout + Self.receiptTimeout + Self.restoreDelay } == true)
+        #expect(waited == Self.overlapWait)
+        #expect(keys.postCount == 1)  // the second posts no chord, and its snapshot would have been the first's text
+        expectMarkedTextLeft("two")
+    }
+
+    @Test("a second insertion whose pause fails while it waits for the first leaves its text instead of pasting")
+    func failingPauseEndsTheWaitForTheFirst() async {
+        putRichContent()
+        let keys = FakeKeystrokePoster()
+        let sut = makeInserter(keys)
+        let stuck = clock.suspendNextSleep()
+        let first = Task { await sut.insert("one") }
+        await stuck.entered.wait()
+        onSleep = { _ in throw CancellationError() }
+
+        let secondOutcome = await sut.insert("two")
+        stuck.release.open()
+        _ = await first.value
+
+        #expect(secondOutcome == .copiedToClipboard(.pasteFailed))
+        #expect(keys.postCount == 1)
+        #expect(sleeps == [Self.receiptPollInterval, Self.receiptPollInterval])
+        expectMarkedTextLeft("two")
+    }
+
+    @Test("a caller cancelled while it waits for the first insertion writes nothing")
+    func cancelledWhileWaitingForTheFirst() async {
+        putRichContent()
+        let keys = FakeKeystrokePoster()
+        let sut = makeInserter(keys)
+        let stuck = clock.suspendNextSleep()
+        let first = Task { await sut.insert("one") }
+        await stuck.entered.wait()
+        let changeCount = pasteboard.changeCount
+        var caller: Task<InsertionOutcome, Never>?
+        onSleep = { _ in caller?.cancel() }  // the next pause then throws, as a cancelled sleep does
+
+        caller = Task { await sut.insert("two") }
+        let outcome = await caller?.value
+        let changeCountAfter = pasteboard.changeCount
+        stuck.release.open()
+        _ = await first.value
+
+        #expect(outcome == .copiedToClipboard(.pasteFailed))
+        #expect(changeCountAfter == changeCount)
+        #expect(keys.postCount == 1)
+        expectMarkedTextLeft("one")  // the first gave up on its own, and the cancelled caller never wrote "two"
     }
 
     @Test("a caller cancelled once the modifiers are up writes nothing")
