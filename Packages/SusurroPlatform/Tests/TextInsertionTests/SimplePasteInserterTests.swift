@@ -13,6 +13,8 @@ final class SimplePasteInserterTests {
     private static let restoreDelay = Duration.milliseconds(300)
     private static let modifierTimeout = Duration.milliseconds(500)
     private static let receiptTimeout = Duration.seconds(8)
+    private static let modifierPollInterval = Duration.milliseconds(20)
+    private static let receiptPollInterval = Duration.milliseconds(50)
 
     private static let sourceBundleID = "dev.example.source"
     private static let markerTypes: Set = [
@@ -32,42 +34,39 @@ final class SimplePasteInserterTests {
 
     /// A pasteboard of its own, so the tests never touch the user's clipboard.
     private let pasteboard = NSPasteboard(name: NSPasteboard.Name("susurro-test-\(UUID().uuidString)"))
+    /// The inserter's clock. It moves when the inserter sleeps.
+    private let clock = SteppedClock()
+
     /// Every pause the inserter asked for, in order.
-    private var sleeps: [Duration] = []
+    private var sleeps: [Duration] { clock.sleeps }
     /// The pauses that ran to the end, as opposed to those that were cancelled.
-    private var completedSleeps: [Duration] = []
+    private var completedSleeps: [Duration] { clock.completedSleeps }
     /// Runs when the inserter pauses, standing in for whatever happens meanwhile. It may throw to cancel the pause.
-    private var onSleep: (Duration) throws -> Void = { _ in }
+    private var onSleep: SteppedClock.SleepHook? {
+        get { nil }
+        set { clock.setHook(newValue) }
+    }
 
     isolated deinit {
         pasteboard.releaseGlobally()
-    }
-
-    /// Like `Task.sleep`, a pause throws when its task was cancelled.
-    private func pause(_ duration: Duration) throws {
-        sleeps.append(duration)
-        try Task.checkCancellation()
-        completedSleeps.append(duration)
-        try onSleep(duration)
     }
 
     private func makeInserter(
         _ keys: FakeKeystrokePoster = FakeKeystrokePoster(),
         writeItem: ((NSPasteboard, NSPasteboardItem) -> Bool)? = nil
     ) -> SimplePasteInserter {
-        let sleep: @MainActor (Duration) async throws -> Void = { [unowned self] duration in try pause(duration) }
         guard let writeItem else {
             return SimplePasteInserter(
                 pasteboard: pasteboard,
                 keystrokes: keys,
-                sleep: sleep,
+                clock: clock,
                 sourceBundleID: Self.sourceBundleID
             )
         }
         return SimplePasteInserter(
             pasteboard: pasteboard,
             keystrokes: keys,
-            sleep: sleep,
+            clock: clock,
             sourceBundleID: Self.sourceBundleID,
             writeItem: writeItem
         )
@@ -218,7 +217,7 @@ final class SimplePasteInserterTests {
         var polls = 0
         var promisedWhilePolling: [Bool] = []
         onSleep = { [pasteboard] duration in
-            guard duration == PasteTiming.modifierPollInterval else { return }
+            guard duration == Self.receiptPollInterval else { return }
             polls += 1
             if polls < 5 {
                 let types = pasteboard.pasteboardItems?.first?.types.map(\.rawValue) ?? []
@@ -232,7 +231,7 @@ final class SimplePasteInserterTests {
 
         #expect(outcome == .inserted)
         #expect(promisedWhilePolling == [true, true, true, true])
-        #expect(sleeps == Array(repeating: PasteTiming.modifierPollInterval, count: 5) + [Self.restoreDelay])
+        #expect(sleeps == Array(repeating: Self.receiptPollInterval, count: 5) + [Self.restoreDelay])
         #expect(contents() == before)
     }
 
@@ -318,7 +317,7 @@ final class SimplePasteInserterTests {
 
         #expect(outcome == .inserted)
         #expect(keys.calls == [.modifiersHeld, .modifiersHeld, .modifiersHeld, .modifiersHeld, .postPaste])
-        #expect(sleeps == Array(repeating: PasteTiming.modifierPollInterval, count: 3) + [Self.restoreDelay])
+        #expect(sleeps == Array(repeating: Self.modifierPollInterval, count: 3) + [Self.restoreDelay])
     }
 
     @Test("while a modifier is held the user's pasteboard is untouched, and it is back at the end")
@@ -331,7 +330,7 @@ final class SimplePasteInserterTests {
         var seenDuringWait: [[[Entry]]] = []
         var changeCountsDuringWait: [Int] = []
         onSleep = { [unowned self] duration in
-            guard duration == PasteTiming.modifierPollInterval else { return }
+            guard duration == Self.modifierPollInterval else { return }
             seenDuringWait.append(contents())
             changeCountsDuringWait.append(pasteboard.changeCount)
         }
@@ -357,7 +356,7 @@ final class SimplePasteInserterTests {
     )
     func modifiersTimeout(release: Release) async {
         putRichContent()
-        let allowedPolls = Int(Self.modifierTimeout / PasteTiming.modifierPollInterval)
+        let allowedPolls = Int(Self.modifierTimeout / Self.modifierPollInterval)
         let heldFor =
             switch release {
             case .atLastPoll: allowedPolls
@@ -369,7 +368,7 @@ final class SimplePasteInserterTests {
 
         let outcome = await makeInserter(keys).insert("hello world")
 
-        let waited = sleeps.filter { $0 == PasteTiming.modifierPollInterval }.reduce(.zero, +)
+        let waited = sleeps.filter { $0 == Self.modifierPollInterval }.reduce(.zero, +)
         #expect(waited == Self.modifierTimeout)
         if release == .atLastPoll {
             #expect(keys.postCount == 1)
@@ -418,5 +417,35 @@ final class SimplePasteInserterTests {
         #expect(outcome == .copiedToClipboard(.pasteFailed))
         #expect(keys.postCount == 0)
         #expect(contents() == before)
+    }
+
+    // MARK: Wall-clock deadlines
+
+    @Test("the wait for modifiers ends by the clock, not by the number of pauses")
+    func modifierWaitFollowsTheClock() async {
+        putRichContent()
+        let keys = FakeKeystrokePoster(modifiersHeldFor: 1_000)
+        onSleep = { [clock] _ in clock.advance(by: .seconds(2)) }  // the main actor was busy for 2 s
+
+        let outcome = await makeInserter(keys).insert("hello world")
+
+        #expect(outcome == .copiedToClipboard(.pasteFailed))
+        #expect(sleeps == [Self.modifierPollInterval])
+        #expect(keys.postCount == 0)
+        #expect(pasteboardText == "hello world")
+    }
+
+    @Test("the wait for a read ends by the clock, not by the number of pauses")
+    func receiptWaitFollowsTheClock() async {
+        putRichContent()
+        let keys = FakeKeystrokePoster()
+        onSleep = { [clock] _ in clock.advance(by: .seconds(9)) }  // the main actor was busy for 9 s
+
+        let outcome = await makeInserter(keys).insert("hello world")
+
+        #expect(outcome == .copiedToClipboard(.pasteFailed))
+        #expect(sleeps == [Self.receiptPollInterval])
+        #expect(pasteboardText == "hello world")
+        #expect(contents().count == 1)
     }
 }
