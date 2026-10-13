@@ -293,6 +293,8 @@ Found in the WS5.8 manual check: Parakeet v3 sometimes returns an English transc
 
 ### PR 1b: Theme model and loader (~800)
 
+Delivered as three stacked PRs, because the whole came to about 1,700 authored lines: #32 (1b.1 to 1b.4: model, default theme, resolution, environment), #33 (1b.5 to 1b.7: loader), #34 (1b.8 to 1b.10: store, debug watcher, catalog refactor, `docs/theming.md`). Deviations from the task text: `ThemeStore` publishes a `ThemeLoadResult` (theme and errors) rather than a bare `Theme`, so a mistake in an edited file can be shown; the loader rejects a token the catalog does not list (a typo), which the spec leaves open; the DEBUG watcher watches each file as well as the folder, because saving in place does not change the folder.
+
 - [x] 1b.1 RED: `Packages/SusurroUI/Tests/DesignSystemTests/DefaultThemeTests.swift`. The bundled default defines every key in `ThemeTokenCatalog.allKeys`: colors with light and dark values, typography roles, spacing, radii, motion, overlay geometry. [THM Injected semantic Theme: Default completeness]
 - [x] 1b.2 GREEN: `Sources/DesignSystem/Tokens/Theme.swift` (`nonisolated struct Theme: Codable, Sendable` plus nested nonisolated token types; palette hex light/dark; semantic tokens referencing palette keys), `ThemeTokenCatalog.swift`, `Resources/DefaultTheme.json` (`schemaVersion` 1).
 - [x] 1b.3 RED: `ThemeResolutionTests`. Each color token resolves to its light or dark value; an appearance change re-resolves; a semantic token pointing at a missing palette key is a load error. [THM Light and dark appearance: Appearance switch]
