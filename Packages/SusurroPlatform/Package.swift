@@ -22,6 +22,10 @@ let package = Package(
             ]
         ),
         .testTarget(name: "PermissionsTests", dependencies: ["Permissions"]),
+        .testTarget(
+            name: "HotkeysTests",
+            dependencies: ["Hotkeys", .product(name: "SusurroCore", package: "SusurroCore")]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )
