@@ -10,10 +10,7 @@ public final class FakeHotkeySource: HotkeySource {
     }
 
     public func events() -> AsyncStream<HotkeyEvent> { stream }
-
     public func send(_ event: HotkeyEvent) { continuation.yield(event) }
-
     public func finish() { continuation.finish() }
-
     public func setEscapeArmed(_ armed: Bool) {}
 }

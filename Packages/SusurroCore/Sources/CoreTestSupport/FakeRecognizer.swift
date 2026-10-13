@@ -13,7 +13,7 @@ public final class FakeRecognizer: SpeechRecognizer {
         var calls: [Call] = []
     }
 
-    public let id: ASRProviderID = "fake"
+    public let id = ASRProviderID("fake")
     public let locality = Locality.local
     public let maxClipDuration: Duration? = nil
 
@@ -21,10 +21,8 @@ public final class FakeRecognizer: SpeechRecognizer {
     private let result: Result<String, any Error>
     private let gate: (stream: AsyncStream<Void>, continuation: AsyncStream<Void>.Continuation)?
 
-    /// - Parameters:
-    ///   - readiness: One value per `readiness()` call; the last one repeats.
-    ///   - failure: When set, `transcribe` throws it instead of returning `transcript`.
-    ///   - gated: When true, `transcribe` suspends until `releaseTranscription()`.
+    /// `readiness` has one value per call and the last one repeats. A `failure` makes `transcribe` throw. A `gated`
+    /// recognizer suspends in `transcribe` until `releaseTranscription()`.
     public init(
         readiness: [RecognizerReadiness] = [.ready],
         transcript: String = "hello",

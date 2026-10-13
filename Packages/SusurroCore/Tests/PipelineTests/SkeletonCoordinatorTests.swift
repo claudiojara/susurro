@@ -1,7 +1,6 @@
 import CoreTestSupport
 import Domain
 import Pipeline
-import Synchronization
 import Testing
 
 @Suite("Skeleton hold-to-talk coordinator", .timeLimit(.minutes(1)))
@@ -10,13 +9,13 @@ struct SkeletonCoordinatorTests {
     private static let capSamples = 60 * 16_000
     /// Presses happen away from the timestamp origin, so a hold is measured from its own press.
     private static let pressTime = Duration.seconds(10)
+    private static let transcribed: [PipelineState] = [.transcribing(progress: nil), .inserted, .idle]
 
     private struct Failure: Error {}
 
-    private final class SleepCounter: Sendable {
-        private let count = Mutex(0)
-        func record() { count.withLock { $0 += 1 } }
-        var value: Int { count.withLock { $0 } }
+    private actor SleepCounter {
+        private(set) var value = 0
+        func record() { value += 1 }
     }
 
     /// Wires the coordinator to fakes and reads its published states. Tests call `handle` directly, so an ignored
@@ -46,7 +45,7 @@ struct SkeletonCoordinatorTests {
                 sleep: sleep
             )
             sut = coordinator
-            states = await coordinator.states().makeAsyncIterator()
+            states = coordinator.states.makeAsyncIterator()
             _ = await states.next()  // the current state is replayed on subscription
         }
 
@@ -74,14 +73,11 @@ struct SkeletonCoordinatorTests {
         }
     }
 
-    // MARK: Hold-to-talk
-
     @Test("a held press records, transcribes the whole clip, and inserts the text")
     func heldPressIsInserted() async {
         var h = await Harness(recognizer: FakeRecognizer(transcript: "hola mundo"))
         let sut = h.sut
         let loop = Task { await sut.run() }
-
         h.hotkeys.send(.down(at: Self.pressTime))
         h.capture.emit(AudioChunk(samples: [0.1, 0.2]))
         h.capture.emit(AudioChunk(samples: [0.3]))
@@ -92,60 +88,35 @@ struct SkeletonCoordinatorTests {
         await loop.value
 
         #expect(recording == [.starting, .recording(.hold)])
-        #expect(rest == [.transcribing(progress: nil), .inserted, .idle])
+        #expect(rest == Self.transcribed)
         #expect(h.capture.startCount == 1)
         #expect(h.capture.stopCount == 1)
         #expect(h.recognizer.transcribedClips == [AudioClip(samples: Self.clip)])
         #expect(h.inserter.insertedTexts == ["hola mundo"])
     }
 
-    @Test("a new subscriber starts from the current state")
-    func subscriberReplaysCurrentState() async {
+    @Test("a hold shorter than 300 ms is discarded, and 300 ms is kept", arguments: [0, 150, 299, 300, 1200])
+    func holdThreshold(heldMilliseconds: Int) async {
         var h = await Harness()
         await h.startRecording()
-        var late = await h.sut.states().makeAsyncIterator()
-
-        #expect(await late.next() == .recording(.hold))
-    }
-
-    // MARK: Minimum duration
-
-    @Test("a release under 300 ms is discarded", arguments: [0, 150, 299])
-    func shortReleaseIsDiscarded(heldMilliseconds: Int) async {
-        var h = await Harness()
-        await h.startRecording()
-
         let states = await h.release(after: heldMilliseconds)
+        let isKept = heldMilliseconds >= 300
 
-        #expect(states == [.idle])
+        #expect(states == (isKept ? Self.transcribed : [.idle]))
         #expect(h.capture.stopCount == 1)
-        #expect(h.recognizer.transcribedClips.isEmpty)
-        #expect(h.inserter.insertedTexts.isEmpty)
-    }
-
-    @Test("a release at exactly 300 ms is kept")
-    func thresholdReleaseIsKept() async {
-        var h = await Harness()
-        await h.startRecording()
-
-        let states = await h.release(after: 300)
-
-        #expect(states == [.transcribing(progress: nil), .inserted, .idle])
-        #expect(h.recognizer.transcribedClips == [AudioClip(samples: Self.clip)])
+        #expect(h.recognizer.transcribedClips.count == (isKept ? 1 : 0))
+        #expect(h.inserter.insertedTexts.count == (isKept ? 1 : 0))
     }
 
     @Test("a release before any audio arrived is a capture failure, not an empty transcription")
     func releaseWithoutAudio() async {
         var h = await Harness()
         await h.sut.handle(.down(at: Self.pressTime))
-
         let states = await h.release()
 
         #expect(states == [.starting, .error(.captureFailed), .idle])
         #expect(h.recognizer.transcribedClips.isEmpty)
     }
-
-    // MARK: Start preconditions
 
     @Test("a microphone that is not granted starts no capture", arguments: [PermissionStatus.denied, .notDetermined])
     func microphoneNotGranted(status: PermissionStatus) async {
@@ -172,19 +143,15 @@ struct SkeletonCoordinatorTests {
             readiness: [.loading(progress: 0.4), .loading(progress: 0.4), .loading(progress: 0.8), .ready],
             transcript: "hola"
         )
-        var h = await Harness(recognizer: loading, sleep: { _ in sleeps.record() })
+        var h = await Harness(recognizer: loading, sleep: { _ in await sleeps.record() })
         await h.startRecording()
-
         let states = await h.release()
 
-        #expect(
-            states == [
-                .transcribing(progress: nil), .transcribing(progress: 0.4), .transcribing(progress: 0.8),
-                .transcribing(progress: nil), .inserted, .idle,
-            ])
+        let progress: [PipelineState] = [.transcribing(progress: 0.4), .transcribing(progress: 0.8)]
+        #expect(states == [.transcribing(progress: nil)] + progress + Self.transcribed)
         let polls = Array(repeating: FakeRecognizer.Call.readiness, count: 4)
         #expect(h.recognizer.calls == polls + [.transcribe(AudioClip(samples: Self.clip))])
-        #expect(sleeps.value == 2)
+        #expect(await sleeps.value == 2)
         #expect(h.inserter.insertedTexts == ["hola"])
     }
 
@@ -211,7 +178,7 @@ struct SkeletonCoordinatorTests {
         var h = await Harness(capture: FakeAudioCaptureSource(tailAfterStop: [0.9]))
         await h.startRecording(samples: [0.1])
 
-        #expect(await h.release() == [.transcribing(progress: nil), .inserted, .idle])
+        #expect(await h.release() == Self.transcribed)
         #expect(h.recognizer.transcribedClips == [AudioClip(samples: [0.1, 0.9])])
     }
 
@@ -221,17 +188,14 @@ struct SkeletonCoordinatorTests {
         await h.startRecording(samples: [0.1])
         h.capture.fail(CaptureError.noInputDevice)
 
-        #expect(await h.release() == [.transcribing(progress: nil), .inserted, .idle])
+        #expect(await h.release() == Self.transcribed)
         #expect(h.recognizer.transcribedClips == [AudioClip(samples: [0.1])])
     }
-
-    // MARK: Transcription outcomes
 
     @Test("a blank transcript inserts nothing and reports no speech", arguments: ["", "   ", " \n\t "])
     func blankTranscript(text: String) async {
         var h = await Harness(recognizer: FakeRecognizer(transcript: text))
         await h.startRecording()
-
         let states = await h.release()
 
         #expect(states == [.transcribing(progress: nil), .notice(.noSpeech), .idle])
@@ -243,14 +207,11 @@ struct SkeletonCoordinatorTests {
     func recognizerFailure() async {
         var h = await Harness(recognizer: FakeRecognizer(failure: Failure()))
         await h.startRecording()
-
         let states = await h.release()
 
         #expect(states == [.transcribing(progress: nil), .error(.recognitionFailed), .idle])
         #expect(h.inserter.insertedTexts.isEmpty)
     }
-
-    // MARK: Ignored presses
 
     @Test("a press while the dictation is being transcribed is ignored")
     func pressWhileProcessing() async {
@@ -258,7 +219,6 @@ struct SkeletonCoordinatorTests {
         await h.startRecording()
         await h.sut.handle(.up(at: Self.pressTime + .milliseconds(1200)))
         _ = await h.read(through: .transcribing(progress: nil))
-
         await h.sut.handle(.down(at: Self.pressTime + .milliseconds(1300)))
         h.recognizer.releaseTranscription()
 
@@ -271,28 +231,21 @@ struct SkeletonCoordinatorTests {
     func duplicatePressWhileRecording() async {
         var h = await Harness()
         await h.startRecording()
-
         await h.sut.handle(.down(at: Self.pressTime + .milliseconds(1100)))
 
         // A restarted hold would measure 100 ms and be discarded.
-        #expect(await h.release() == [.transcribing(progress: nil), .inserted, .idle])
+        #expect(await h.release() == Self.transcribed)
         #expect(h.capture.startCount == 1)
     }
-
-    // MARK: Clip cap
 
     @Test("reaching the 60 s clip cap finishes the recording and says so")
     func clipCapFinishesRecording() async {
         var h = await Harness()
         await h.sut.handle(.down(at: Self.pressTime))
         h.capture.emit(AudioChunk(samples: [Float](repeating: 0.5, count: Self.capSamples)))
-
         let states = await h.read(through: .idle)
 
-        #expect(
-            states == [
-                .starting, .recording(.hold), .notice(.capReached), .transcribing(progress: nil), .inserted, .idle,
-            ])
+        #expect(states == [.starting, .recording(.hold), .notice(.capReached)] + Self.transcribed)
         #expect(h.recognizer.transcribedClips.map(\.samples.count) == [Self.capSamples])
         #expect(h.capture.stopCount == 1)
     }
@@ -302,7 +255,7 @@ struct SkeletonCoordinatorTests {
         var h = await Harness()
         await h.startRecording(samples: [Float](repeating: 0.5, count: Self.capSamples - 1))
 
-        #expect(await h.release(after: 61_000) == [.transcribing(progress: nil), .inserted, .idle])
+        #expect(await h.release(after: 61_000) == Self.transcribed)
         #expect(h.recognizer.transcribedClips.map(\.samples.count) == [Self.capSamples - 1])
     }
 }

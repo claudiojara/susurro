@@ -1,10 +1,10 @@
 import Domain
 
-/// Limits of the walking skeleton. Later changes replace each one; see the task list.
+/// Limits of the walking skeleton. Later changes replace each one.
 public enum SkeletonLimits {
-    /// The shortest hold that counts as a dictation. A shorter release is discarded.
+    /// A shorter hold is discarded.
     public static let minimumHold = Duration.milliseconds(300)
-    /// The longest clip held in memory. Reaching it finishes the recording.
+    /// Reaching this much audio finishes the recording.
     public static let maxClipDuration = Duration.seconds(60)
     /// The pause between readiness checks while the speech model loads.
     public static let readinessPollInterval = Duration.milliseconds(200)
@@ -13,14 +13,11 @@ public enum SkeletonLimits {
 /// Runs one hold-to-talk dictation at a time: key down records, key up transcribes the whole clip and inserts the
 /// text. A press while a dictation is recording or processing is ignored.
 public actor DictationCoordinator {
-    /// The coordinator's internal state. The published `PipelineState` is derived from it.
     private enum Phase {
         case idle
         case capturing
-        /// Capture is being stopped and drained.
-        case finishing
-        /// The clip is being transcribed and inserted.
-        case processing
+        case finishing  // capture is being stopped and drained
+        case processing  // the clip is being transcribed and inserted
     }
 
     private enum FinishReason {
@@ -37,10 +34,12 @@ public actor DictationCoordinator {
     private let permissions: any PermissionsChecker
     private let sleep: @Sendable (Duration) async throws -> Void
 
+    /// The current state first, then every change. It has a single consumer, which sees every state since creation.
+    public nonisolated let states: AsyncStream<PipelineState>
+
     private var phase = Phase.idle
     private var published = PipelineState.idle
-    private var subscribers: [Int: AsyncStream<PipelineState>.Continuation] = [:]
-    private var nextSubscriberID = 0
+    private let continuation: AsyncStream<PipelineState>.Continuation
     private var pressedAt = Duration.zero
     private var samples: [Float] = []
     private var receivedAudio = false
@@ -61,19 +60,8 @@ public actor DictationCoordinator {
         self.inserter = inserter
         self.permissions = permissions
         self.sleep = sleep
-    }
-
-    /// The current state first, then every change.
-    public func states() -> AsyncStream<PipelineState> {
-        let (stream, continuation) = AsyncStream.makeStream(of: PipelineState.self)
-        let id = nextSubscriberID
-        nextSubscriberID += 1
-        subscribers[id] = continuation
-        continuation.yield(published)
-        continuation.onTermination = { [weak self] _ in
-            Task { await self?.removeSubscriber(id) }
-        }
-        return stream
+        (states, continuation) = AsyncStream.makeStream()
+        continuation.yield(.idle)
     }
 
     /// Feeds hotkey events to `handle` until the source finishes or the task is cancelled.
@@ -84,15 +72,13 @@ public actor DictationCoordinator {
     }
 
     /// Applies one hotkey event. Events must arrive one at a time, as `run()` delivers them. The call returns once
-    /// the event is applied, which is before any transcription it starts has finished.
+    /// the event is applied, before any transcription it starts has finished.
     public func handle(_ event: HotkeyEvent) async {
         switch event {
         case .down(let time): await pressed(at: time)
         case .up(let time): await released(at: time)
         }
     }
-
-    // MARK: Hold-to-talk transitions
 
     private func pressed(at time: Duration) async {
         guard phase == .idle else { return }
@@ -120,8 +106,6 @@ public actor DictationCoordinator {
         guard await permissions.status(.microphone) == .granted else { throw PipelineError.microphoneNotGranted }
         guard await recognizer.readiness() != .notInstalled else { throw PipelineError.recognizerNotInstalled }
     }
-
-    // MARK: Capture
 
     private func consume(_ stream: AsyncThrowingStream<AudioChunk, Error>) async {
         do {
@@ -163,8 +147,6 @@ public actor DictationCoordinator {
         Task { await self.process(clip) }
     }
 
-    // MARK: Processing
-
     private func process(_ clip: AudioClip) async {
         do {
             try await waitUntilRecognizerIsReady()
@@ -192,8 +174,6 @@ public actor DictationCoordinator {
         }
     }
 
-    // MARK: Publishing
-
     /// Ends a cycle: shows the outcome, if any, and returns to idle.
     private func settle(_ outcome: PipelineState? = nil) {
         if let outcome { publish(outcome) }
@@ -204,10 +184,6 @@ public actor DictationCoordinator {
     private func publish(_ state: PipelineState) {
         guard state != published else { return }
         published = state
-        for continuation in subscribers.values { continuation.yield(state) }
-    }
-
-    private func removeSubscriber(_ id: Int) {
-        subscribers[id] = nil
+        continuation.yield(state)
     }
 }

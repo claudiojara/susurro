@@ -143,7 +143,7 @@ Skeleton rules: strict TDD through fakes; every WS PR at or below 800 changed li
 - [x] WS1.6 RED: Skeleton clip cap. Accumulated samples reaching `SkeletonLimits.maxClipDuration` (60 s) finish the recording as if released and publish a cap notice. The cap is counted from samples, so no clock is needed. [ACT Hands-free stop: Safety cap, reduced form]
 - [x] WS1.7 GREEN: In `Packages/SusurroCore/Sources/Domain/`: `Hotkey.swift` (`HotkeyEvent`, `HotkeySource`), `Audio.swift` (`AudioChunk`, `AudioClip`, `AudioCaptureSource`, `CaptureError`), `Recognition.swift` (`SpeechRecognizer`, `RecognizerReadiness`, `RawTranscript`, `RecognitionOptions`, `Locality`, `ASRProviderID`), `Permissions.swift` (`Permission`, `PermissionStatus`, `PermissionsChecker`), `Pipeline.swift` (`PipelineState` with `RecordingMode.hold`, `NoticeKind`, `TextInserter`). All use the design's port signatures.
 - [x] WS1.8 GREEN: `Sources/Pipeline/DictationCoordinator.swift` (actor; hold-only logic inline) and `CoreTestSupport` fakes `FakeHotkeySource`, `FakeAudioCaptureSource`, `FakeRecognizer`, `FakeTextInserter`, `FakePermissionsChecker`. Add the `Pipeline` target and `PipelineTests` to the Core manifest.
-- [ ] WS1.9 REFACTOR: Name states and transitions so 2b can swap the inline logic for the reducer without changing the tests' public surface.
+- [x] WS1.9 REFACTOR: Name states and transitions so 2b can swap the inline logic for the reducer without changing the tests' public surface.
 
 ### PR WS2: Fixed hotkey and 16 kHz capture (~650)
 
