@@ -63,8 +63,8 @@
             await watcher.stop()
         }
 
-        @Test("it reports a file that is removed, and a file that replaces another")
-        func reportsRemovalAndReplacement() async throws {
+        @Test("it reports a file that replaces another, an edit of the replacement, and its removal")
+        func reportsReplacementThenEditThenRemoval() async throws {
             let folder = try makeFolder()
             defer { try? FileManager.default.removeItem(at: folder) }
             let file = folder.appendingPathComponent("night.json")
@@ -75,8 +75,10 @@
 
             try theme(spacingMD: 15).write(to: file, options: .atomic)
             #expect(await eventually { await calls.count >= 1 })
-            try FileManager.default.removeItem(at: file)
+            try theme(spacingMD: 16).write(to: file)
             #expect(await eventually { await calls.count >= 2 })
+            try FileManager.default.removeItem(at: file)
+            #expect(await eventually { await calls.count >= 3 })
             await watcher.stop()
         }
 
@@ -106,6 +108,7 @@
             await watcher.start()
 
             try Data().write(to: file)
+            try await Task.sleep(for: .milliseconds(100))
             try theme(spacingMD: 16).write(to: file)
             #expect(await eventually { await store.current.theme.spacing["md"] == 16 })
             let published = await updates.next()

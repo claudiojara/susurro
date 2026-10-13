@@ -300,8 +300,8 @@ Found in the WS5.8 manual check: Parakeet v3 sometimes returns an English transc
 - [x] 1b.5 RED: `ThemeLoaderTests`. A partial file overriding only accent inherits everything else with no error [THM JSON theme loading: Valid partial file]. Malformed JSON, an unsupported `schemaVersion`, and a malformed token value (bad hex) each return the default Theme plus a reported error [THM: Invalid JSON].
 - [x] 1b.6 RED: `ThemeLoaderIsolationTests`. `ThemeLoader.load` is callable from `Task.detached` (compile-time proof of `nonisolated` under `defaultIsolation(MainActor)`).
 - [x] 1b.7 GREEN: `Sources/DesignSystem/Loading/ThemeLoader.swift` returning `ThemeLoadResult { theme, errors }`, with per-key overlay merge for omitted tokens.
-- [ ] 1b.8 RED: `ThemeStoreTests`. Scan a temp `Themes/*.json` directory. Replacing a file and calling `reload()` publishes the new Theme to observers. [THM: Reload]
-- [ ] 1b.9 GREEN: `ThemeStore.swift` (AsyncStream of themes) and a DEBUG-only `ThemeFileWatcher` (DispatchSource) for hot reload.
+- [x] 1b.8 RED: `ThemeStoreTests`. Scan a temp `Themes/*.json` directory. Replacing a file and calling `reload()` publishes the new Theme to observers. [THM: Reload]
+- [x] 1b.9 GREEN: `ThemeStore.swift` (AsyncStream of themes) and a DEBUG-only `ThemeFileWatcher` (DispatchSource) for hot reload.
 - [ ] 1b.10 REFACTOR: Remove token-catalog duplication; document token naming rules.
 
 ### PR 1c: Token lint, atoms, snapshot infrastructure (~650)
