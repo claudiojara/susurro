@@ -90,16 +90,11 @@ struct ThemeLoaderTests {
 
     @Test(
         "a missing or mistyped version is reported with its path",
-        arguments: [#"{"palette": {}}"#, #"{"schemaVersion": "1"}"#])
-    func badVersion(text: String) {
+        arguments: [(#"{"palette": {}}"#, "is missing."), (#"{"schemaVersion": "1"}"#, "must be a whole number.")])
+    func badVersion(text: String, expectedReason: String) {
         let result = load(text)
         #expect(result.theme == .default)
-        #expect(result.errors.count == 1)
-        if case .invalidValue(let path, _) = result.errors.first {
-            #expect(path == "schemaVersion")
-        } else {
-            Issue.record("expected invalidValue, got \(result.errors)")
-        }
+        #expect(result.errors == [.invalidValue(path: "schemaVersion", reason: expectedReason)])
     }
 
     @Test(
@@ -162,6 +157,24 @@ struct ThemeLoaderTests {
             result.errors == [
                 .unknownToken("spacing.huge"), .missingPaletteKey(token: "accent.primary", paletteKey: "nowhere"),
             ])
+    }
+
+    @Test("each error reads as one sentence that names what is wrong")
+    func errorsDescribeThemselves() {
+        let expected: [(ThemeError, String)] = [
+            (.malformedJSON("Unterminated object."), "The file is not valid JSON: Unterminated object."),
+            (
+                .unsupportedSchemaVersion(found: 2, supported: 1),
+                "The file uses schema version 2, and this build reads version 1."
+            ),
+            (
+                .invalidValue(path: "spacing.md", reason: "Expected a number."),
+                "spacing.md is not valid: Expected a number."
+            ),
+            (.unknownToken("spacing.huge"), "spacing.huge is not a token of the theme."),
+            (.unreadable(file: "night.json", reason: "No such file."), "Cannot read night.json: No such file."),
+        ]
+        #expect(expected.map { $0.0.description } == expected.map { $0.1 })
     }
 
     // MARK: Files on disk
