@@ -237,6 +237,23 @@ struct ThemeLoaderTests {
         #expect(labels(result.errors) == ["invalid spacing.lg", "invalid spacing.md", "invalid spacing.xl"])
     }
 
+    @Test("a file with a great many bad values is cut off at the limit, so loading stays quick")
+    func manyBadValues() {
+        let entries = (1...80).map { "\"c\($0)\": 5" }.joined(separator: ", ")
+        let result = load(adding: "{\"palette\": {\(entries)}}")
+        #expect(result.theme == .default)
+        #expect(result.errors.count == ThemeLoader.valueErrorLimit)
+        #expect(ThemeLoader.valueErrorLimit == 50)
+        #expect(labels(result.errors).allSatisfy { $0.hasPrefix("invalid palette.c") })
+    }
+
+    @Test("a few bad values are all reported, below the limit")
+    func fewBadValues() {
+        let entries = (1...12).map { "\"c\($0)\": 5" }.joined(separator: ", ")
+        let result = load(adding: "{\"palette\": {\(entries)}}")
+        #expect(result.errors.count == 12)
+    }
+
     @Test("both colors of a new palette entry are reported when both are bad")
     func twoBadColorsInOneEntry() {
         let result = load(adding: ##"{"palette": {"ocean": {"light": "#GG0000", "dark": "#ZZ0000"}}}"##)
@@ -319,6 +336,13 @@ struct ThemeLoaderTests {
         let result = load(adding: #"{"spacing": {"md": -1e999}}"#)
         #expect(result.theme == .default)
         #expect(labels(result.errors) == ["invalid spacing.md"])
+    }
+
+    @Test("an infinite number inside a list is reported too, and does not trap")
+    func infinityInAList() {
+        let result = load(adding: #"{"spacing": {"md": [1, -1e999, -1e999]}, "radii": [[-1e999]]}"#)
+        #expect(result.theme == .default)
+        #expect(labels(result.errors) == ["invalid radii", "invalid spacing.md"])
     }
 
     @Test("a number too large for a double is malformed JSON")
