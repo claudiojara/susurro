@@ -20,7 +20,7 @@ change often. SwiftLint is not installed, and snapshot images differ across OS a
 - Design values: a token-lint test scans the UI sources and fails on literal colors, fonts, spacing, radii, and durations
   outside the token files.
 - Snapshots: swift-snapshot-testing on presentational views. References are recorded only by a CI job on the
-  `xcode-27-arm64` runner image, never locally, so they stay deterministic.
+  `xcode-27` runner image, never locally, so they stay deterministic.
 
 ### Consequences
 
