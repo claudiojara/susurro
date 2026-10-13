@@ -5,6 +5,7 @@ import Synchronization
 public final class FakeRecognizer: SpeechRecognizer {
     public enum Call: Sendable, Equatable {
         case readiness
+        case prepare
         case transcribe(AudioClip)
     }
 
@@ -50,6 +51,10 @@ public final class FakeRecognizer: SpeechRecognizer {
             state.calls.append(.readiness)
             return state.script.count > 1 ? state.script.removeFirst() : state.script[0]
         }
+    }
+
+    public func prepare() async {
+        state.withLock { $0.calls.append(.prepare) }
     }
 
     public func transcribe(_ clip: AudioClip, options: RecognitionOptions) async throws -> RawTranscript {

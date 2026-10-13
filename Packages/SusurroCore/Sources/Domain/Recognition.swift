@@ -1,7 +1,12 @@
 public enum RecognizerReadiness: Sendable, Equatable {
+    /// The model is missing and nothing is fetching it. The way out is in settings.
     case notInstalled
+    /// The model is loading, or about to: `progress` is 0 until a load reports more. A model on disk that has not been
+    /// loaded yet reads as loading, not as missing.
     case loading(progress: Double)
     case ready
+    /// A load failed. The text says why. Dictating again is the way to try again.
+    case unavailable(String)
 }
 
 public struct RawTranscript: Sendable, Equatable {
@@ -49,5 +54,12 @@ public struct ASRProviderID: Sendable, Hashable {
 
 public protocol SpeechRecognizer: Sendable {
     func readiness() async -> RecognizerReadiness
+    /// Starts loading the model, or tries again after a failure, and returns at once. The coordinator calls it when a
+    /// press finds the recognizer unavailable. A recognizer that needs no loading keeps the default, which does nothing.
+    func prepare() async
     func transcribe(_ clip: AudioClip, options: RecognitionOptions) async throws -> RawTranscript
+}
+
+extension SpeechRecognizer {
+    public func prepare() async {}
 }

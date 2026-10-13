@@ -129,7 +129,16 @@ public actor DictationCoordinator {
 
     private func checkStartPreconditions() async throws {
         guard await permissions.status(.microphone) == .granted else { throw PipelineError.microphoneNotGranted }
-        guard await recognizer.readiness() != .notInstalled else { throw PipelineError.recognizerNotInstalled }
+        switch await recognizer.readiness() {
+        case .notInstalled:
+            throw PipelineError.recognizerNotInstalled
+        case .unavailable(let reason):
+            // Pressing again is the user's way to try again. The recognizer decides whether it is time.
+            await recognizer.prepare()
+            throw PipelineError.recognizerUnavailable(reason)
+        case .loading, .ready:
+            break
+        }
     }
 
     private func consume(_ stream: AsyncThrowingStream<AudioChunk, Error>) async {
@@ -222,8 +231,15 @@ public actor DictationCoordinator {
         }
     }
 
+    /// Waits for a loading model while the finished clip stays in memory. The wait ends when the model is ready, when it
+    /// fails, when its progress has not changed for `readinessStallTimeout`, or at `readinessHardCap`. A clip that waits
+    /// out one of the limits is lost; keeping it for another attempt arrives with 4d.7.
     private func waitUntilRecognizerIsReady() async throws {
-        var pausesLeft = Int(DictationLimits.readinessTimeout / DictationLimits.readinessPollInterval)
+        let stallLimit = Int(DictationLimits.readinessStallTimeout / DictationLimits.readinessPollInterval)
+        let totalLimit = Int(DictationLimits.readinessHardCap / DictationLimits.readinessPollInterval)
+        var stalledPolls = 0
+        var totalPolls = 0
+        var lastProgress: Double?
         while true {
             switch await recognizer.readiness() {
             case .ready:
@@ -231,9 +247,18 @@ public actor DictationCoordinator {
                 return
             case .notInstalled:
                 throw PipelineError.recognizerNotInstalled
+            case .unavailable(let reason):
+                throw PipelineError.recognizerUnavailable(reason)
             case .loading(let progress):
-                guard pausesLeft > 0 else { throw PipelineError.timedOut(.readiness) }
-                pausesLeft -= 1
+                if progress != lastProgress {
+                    lastProgress = progress
+                    stalledPolls = 0
+                }
+                guard stalledPolls < stallLimit, totalPolls < totalLimit else {
+                    throw PipelineError.timedOut(.readiness)
+                }
+                stalledPolls += 1
+                totalPolls += 1
                 publish(.transcribing(progress: progress))
                 try await sleep(DictationLimits.readinessPollInterval)
             }
