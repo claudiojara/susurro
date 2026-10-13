@@ -5,9 +5,12 @@ extension ASRProviderID {
     public static let parakeetV3 = ASRProviderID("parakeet-v3")
 }
 
-/// Transcribes with Parakeet v3, a multilingual model that runs on this Mac. The whole clip goes to the engine in one
-/// call, with no chunking and no trimming. Call `prepare()` at launch to download and load the model; until
-/// `readiness()` is `.ready`, `transcribe` refuses.
+/// Transcribes with Parakeet v3, a multilingual model that runs on this Mac. Call `prepare()` at launch to download and
+/// load the model; until `readiness()` is `.ready`, `transcribe` refuses.
+///
+/// The pipeline hands over the whole clip in one call and does no chunking or trimming of its own. FluidAudio does
+/// split audio longer than about 15 s internally (windows of about 15 s with 2 s of overlap) and was measured on clips
+/// up to 151 s, which is why `maxClipDuration` is nil.
 ///
 /// Inference is serialized: an actor lets a second call start while the first awaits the engine, so calls wait their
 /// turn in a queue of their own.
@@ -17,14 +20,17 @@ public actor ParakeetRecognizer: SpeechRecognizer {
         let continuation: CheckedContinuation<Void, any Error>
     }
 
+    // `id`, `locality`, and `maxClipDuration` are not requirements of `SpeechRecognizer` yet. `id` and `locality` join
+    // the port in 4a.6 and `maxClipDuration` in 4b.7, and this recognizer already answers them.
     public nonisolated let id = ASRProviderID.parakeetV3
     public nonisolated let locality = Locality.local
+    /// Nil: no limit is needed, because FluidAudio chunks long clips itself.
     public nonisolated let maxClipDuration: Duration? = nil
 
     private static let logger = Logger(subsystem: "dev.claudiojara.susurro", category: "parakeet")
 
     private let engine: any ParakeetEngine
-    private var model = ModelState.notLoaded
+    private var modelState = ModelState.notLoaded
     private var progress = LoadProgress()
     private var subscribers: [Int: AsyncStream<RecognizerReadiness>.Continuation] = [:]
     private var subscriberCount = 0
@@ -40,7 +46,7 @@ public actor ParakeetRecognizer: SpeechRecognizer {
     var queuedTranscriptions: Int { waiters.count }
 
     public func readiness() async -> RecognizerReadiness {
-        model.readiness
+        modelState.readiness
     }
 
     /// Readiness now, then every change after it. The stream never finishes by itself.
@@ -52,14 +58,14 @@ public actor ParakeetRecognizer: SpeechRecognizer {
         continuation.onTermination = { [weak self] _ in
             Task { await self?.unsubscribe(id) }
         }
-        continuation.yield(model.readiness)
+        continuation.yield(modelState.readiness)
         return stream
     }
 
     /// Starts downloading and loading the model, and returns at once. It does nothing while a load runs or after one
     /// succeeded, and starts a new load after a failed one.
     public func prepare() {
-        switch model {
+        switch modelState {
         case .loading, .ready: return
         case .notLoaded, .failed: break
         }
@@ -69,7 +75,10 @@ public actor ParakeetRecognizer: SpeechRecognizer {
     }
 
     public func transcribe(_ clip: AudioClip, options: RecognitionOptions) async throws -> RawTranscript {
-        guard model == .ready else { throw RecognitionError.notReady }
+        guard modelState == .ready else { throw RecognitionError.notReady }
+        // A clip below the engine's minimum (FluidAudio: 4,800 samples, 300 ms) is blank, not an error. The coordinator
+        // discards holds shorter than 300 ms by key timestamps, but the first audio chunk arrives after the key goes
+        // down, so a hold of 300 ms can hold fewer samples than that, and the engine would reject it.
         guard clip.samples.count >= engine.minimumSampleCount else { return RawTranscript(text: "") }
         try await waitForTurn()
         defer { endTurn() }
@@ -102,18 +111,20 @@ public actor ParakeetRecognizer: SpeechRecognizer {
         } catch {
             sink.finish()
             await relay.value
-            Self.logger.error("The speech model did not load: \(String(describing: error), privacy: .public)")
+            // Only the error's type is public; its description can name paths and hosts.
+            let kind = String(reflecting: type(of: error))
+            Self.logger.error("The speech model did not load: \(kind, privacy: .public): \(String(describing: error))")
             transition(to: .failed)
         }
     }
 
     private func advance(to fraction: Double) {
-        guard case .loading = model, let next = progress.observe(fraction) else { return }
+        guard case .loading = modelState, let next = progress.observe(fraction) else { return }
         transition(to: .loading(progress: next))
     }
 
     private func transition(to next: ModelState) {
-        model = next
+        modelState = next
         for continuation in subscribers.values { continuation.yield(next.readiness) }
     }
 
