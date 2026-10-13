@@ -129,11 +129,13 @@ struct DictationCoordinatorTests {
 
     @Test("a recognizer that is not installed starts no capture")
     func recognizerNotInstalled() async {
-        var h = await Harness(recognizer: FakeRecognizer(readiness: [.notInstalled]))
+        let recognizer = FakeRecognizer(readiness: [.notInstalled])
+        var h = await Harness(recognizer: recognizer)
         await h.sut.handle(.down(at: .zero))
 
         #expect(await h.read(through: .idle) == [.error(.recognizerNotInstalled), .idle])
         #expect(h.capture.startCount == 0)
+        #expect(recognizer.calls == [.readiness])  // nothing to prepare: the way out is in settings
     }
 
     @Test("a recognizer that is loading records, and transcription waits for ready while showing progress")
@@ -217,11 +219,14 @@ struct DictationCoordinatorTests {
         #expect(h.capture.startCount == 0)
     }
 
-    @Test("a model that fails to load while the clip waits ends in the retry error, and the press that follows works")
-    func modelFailsWhileWaiting() async {
+    @Test(
+        "a model that fails to load while the clip waits ends in the unavailable error, and the press that follows works",
+        arguments: [true, false]
+    )
+    func modelFailsWhileWaiting(retryable: Bool) async {
         let recognizer = FakeRecognizer(readiness: [
             .loading(progress: 0.5), .loading(progress: 0.6), .loading(progress: 0.7),
-            .unavailable("disk full", retryable: true),
+            .unavailable("disk full", retryable: retryable),
         ])
         var h = await Harness(recognizer: recognizer)
         await h.startRecording()
@@ -231,7 +236,7 @@ struct DictationCoordinatorTests {
         let recovered = await h.release()
 
         let progress: [PipelineState] = [.transcribing(progress: 0.7)]
-        let error: [PipelineState] = [.error(.recognizerUnavailable("disk full", retryable: true)), .idle]
+        let error: [PipelineState] = [.error(.recognizerUnavailable("disk full", retryable: retryable)), .idle]
         #expect(failed == [.transcribing(progress: nil)] + progress + error)
         #expect(recovered == Self.transcribed)
     }
