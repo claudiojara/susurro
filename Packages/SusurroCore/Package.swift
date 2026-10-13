@@ -13,6 +13,7 @@ let package = Package(
         .target(name: "Domain"),
         .target(name: "CoreTestSupport", dependencies: ["Domain"]),
         .testTarget(name: "DomainTests", dependencies: ["Domain"]),
+        .testTarget(name: "PipelineTests", dependencies: ["Domain", "CoreTestSupport"]),
     ],
     swiftLanguageModes: [.v6]
 )
