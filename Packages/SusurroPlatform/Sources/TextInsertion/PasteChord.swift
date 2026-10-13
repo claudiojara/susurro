@@ -8,8 +8,12 @@ enum PasteChord {
     /// The V key on an ANSI layout. Other layouts put V elsewhere, which a later change resolves.
     static let ansiVKeyCode: CGKeyCode = 9
 
-    /// The keys that change what a key press means. Caps Lock stays set while it is on, and Fn and the numeric pad
-    /// flag arrow and function keys, so none of them says that a key is held.
+    /// A bit that macOS 26 sets in the flags of a new key event and in the HID state at rest. It was observed, not
+    /// documented, and it is not a held key.
+    static let alwaysSetFlag = CGEventFlags(rawValue: 0x2000_0000)
+
+    /// The keys that change what a key press means. This is an allowlist: `alwaysSetFlag` is not in it, and neither are
+    /// Caps Lock, which stays set while it is on, and Fn and the numeric pad, which flag arrow and function keys.
     private static let heldKeyModifiers: CGEventFlags = [.maskControl, .maskAlternate, .maskShift, .maskCommand]
 
     /// The key-down and key-up events of the chord. Creating both comes first, so a failure posts nothing.

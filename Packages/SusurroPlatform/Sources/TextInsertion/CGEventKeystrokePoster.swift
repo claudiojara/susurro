@@ -15,8 +15,9 @@ public final class CGEventKeystrokePoster: KeystrokePoster {
             isTrusted: { AXIsProcessTrusted() },
             // The HID state is the physical keyboard. The session state also reflects events that apps post.
             heldFlags: { CGEventSource.flagsState(.hidSystemState) },
-            post: { $0.post(tap: .cgSessionEventTap) },
-            makeEvent: PasteChord.privateSourceEvent
+            // The session tap is above the HID stage, so the flags set on the event are not combined with the keyboard's
+            // state there. WS5.8 confirms it against a real app.
+            post: { $0.post(tap: .cgSessionEventTap) }
         )
     }
 
@@ -24,7 +25,7 @@ public final class CGEventKeystrokePoster: KeystrokePoster {
         isTrusted: @escaping () -> Bool,
         heldFlags: @escaping () -> CGEventFlags,
         post: @escaping (CGEvent) -> Void,
-        makeEvent: @escaping PasteChord.MakeEvent
+        makeEvent: @escaping PasteChord.MakeEvent = PasteChord.privateSourceEvent
     ) {
         self.isTrusted = isTrusted
         self.heldFlags = heldFlags
