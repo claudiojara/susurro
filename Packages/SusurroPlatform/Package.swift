@@ -10,7 +10,7 @@ let package = Package(
     ],
     dependencies: [
         .package(path: "../SusurroCore"),
-        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts.git", exact: "1.10.0"),
+        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts.git", exact: "3.1.0"),
     ],
     targets: [
         .target(name: "Permissions"),
