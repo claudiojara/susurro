@@ -21,7 +21,8 @@ struct ReceiptWatch {
     }
 
     /// - Parameters:
-    ///   - reads: The total number of reads so far.
+    ///   - reads: The total number of reads so far. A read is a request for the promised text, which the pasteboard
+    ///     passes on only once (see `PromisedText`), so a second read by the same app is not seen.
     ///   - now: The time of this check, on the same clock as `chordPostedAt`.
     mutating func observe(reads: Int, at now: Duration) -> Verdict {
         if reads > knownReads {

@@ -130,6 +130,8 @@ public final class SimplePasteInserter: TextInserter {
         readsBeforeTheChord: Int,
         chordPostedAt: Duration
     ) async -> InsertionOutcome {
+        // `writtenChangeCount` is the change count after our write. Providing the promised text to an app does not change
+        // it (see `PromisedTextTests`), so a different count means that someone else has written to the pasteboard.
         var watch = ReceiptWatch(baseline: readsBeforeTheChord, chordPostedAt: chordPostedAt)
         while true {
             switch watch.observe(reads: promise.receipts, at: now()) {
@@ -211,10 +213,12 @@ public final class SimplePasteInserter: TextInserter {
         return .copiedToClipboard(reason)
     }
 
-    /// Clears the pasteboard and puts `item` on it. Returns the change count that the write produced, or nil when the
+    /// Replaces the pasteboard contents with `item`. Returns the change count that the write produced, or nil when the
     /// item could not be built or the pasteboard refused it.
     private func replaceContents(with item: NSPasteboardItem?) -> Int? {
-        pasteboard.clearContents()
+        // Current host only: Universal Clipboard would otherwise carry the dictation to the user's other devices, and
+        // the sync's own read of the text could look like an app reading it.
+        pasteboard.prepareForNewContents(with: .currentHostOnly)
         guard let item, writeItem(pasteboard, item) else { return nil }
         return pasteboard.changeCount
     }
