@@ -27,6 +27,27 @@ struct ParakeetPrepareTests {
         #expect(await recognizer.readiness() == .notInstalled)
     }
 
+    @Test("transcribing is refused until the model is loaded")
+    func refusedUntilReady() async throws {
+        let engine = FakeParakeetEngine(loads: [.init(gated: true)])
+        let recognizer = ParakeetRecognizer(engine: engine)
+        let clip = AudioClip.ramp(samples: engine.minimumSampleCount)
+
+        await #expect(throws: RecognitionError.notReady) {
+            try await recognizer.transcribe(clip, options: RecognitionOptions())
+        }
+        await recognizer.prepare()
+        await #expect(throws: RecognitionError.notReady) {
+            try await recognizer.transcribe(clip, options: RecognitionOptions())
+        }
+        #expect(engine.transcriptions.isEmpty)
+
+        engine.releaseLoad()
+        await recognizer.waitUntilReady()
+        let transcript = try await recognizer.transcribe(clip, options: RecognitionOptions())
+        #expect(transcript == RawTranscript(text: "samples:\(clip.samples.count)"))
+    }
+
     @Test("prepare starts one load, however often it is called")
     func prepareIsIdempotent() async {
         let engine = FakeParakeetEngine(loads: [.init(gated: true)])

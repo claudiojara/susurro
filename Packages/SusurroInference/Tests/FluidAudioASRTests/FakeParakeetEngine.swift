@@ -25,6 +25,7 @@ final class FakeParakeetEngine: ParakeetEngine {
         var peakActive = 0
     }
 
+    /// What FluidAudio needs: 300 ms at 16 kHz.
     let minimumSampleCount = 4_800
     /// Opens once for every `transcribe` call that enters the engine.
     let entered = Gate()
