@@ -24,8 +24,12 @@ struct OverlapAndCancellationTests: PasteTestCase {
         }
         let sut = makeInserter(keys)
         var second: Task<InsertionOutcome, Never>?
+        var pauses = 0
         onSleep = { _ in
-            if second == nil { second = Task { await sut.insert("two") } }  // the first is still waiting out its dwell
+            pauses += 1
+            // Halfway through the dwell. Both insertions pause on the one stepped clock, which they move twice as fast
+            // together, so starting the second later leaves its wait room to outlast what is left of the first.
+            if pauses == 10 { second = Task { await sut.insert("two") } }
         }
 
         let first = await sut.insert("one")

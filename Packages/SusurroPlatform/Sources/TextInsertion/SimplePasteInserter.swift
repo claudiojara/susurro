@@ -16,9 +16,14 @@ enum PasteTiming {
     /// The old contents never come back sooner than this after the chord, however early the first read. An app that
     /// reads the pasteboard a second time would otherwise find the old contents.
     static let minimumDwell = Duration.seconds(1)
-    /// The longest a paste can take: the wait for modifiers, the wait for a read, and one last quiet period. The
-    /// minimum dwell runs inside the wait for a read, so it adds nothing.
-    static let worstCase = modifierTimeout + receiptTimeout + restoreDelay
+    /// The longest `insert` takes on its own: the wait for modifiers and the wait for a read. It returns at the first
+    /// read, so the minimum dwell and the last quiet period come after it, and the minimum dwell runs inside the wait
+    /// for a read anyway.
+    static let worstCase = modifierTimeout + receiptTimeout
+    /// The longest an insertion waits for the paste before it. That paste has returned already, or it is stuck, and what
+    /// is left of a paste that returned is its minimum dwell. Together with `worstCase` this must fit the coordinator's
+    /// deadline for an insertion, or an insertion that was queued would be given up on while it still waits.
+    static let overlapWait = minimumDwell
 }
 
 /// Pastes by promising the text on the pasteboard, posting Command+V, and putting the old pasteboard contents back
@@ -87,7 +92,11 @@ public final class SimplePasteInserter: TextInserter {
 
     public func insert(_ text: String) async -> InsertionOutcome {
         guard !text.isEmpty else { return .inserted }
-        await waitForPastesInFlight()
+        guard await waitForPastesInFlight() else {
+            // The pasteboard still holds the text of the paste before this one, so a snapshot of it would bring that
+            // text back as the user's. Nothing is snapshotted, no chord is posted, and the text stays for the user.
+            return Task.isCancelled ? Self.cancelled : leaveOnClipboard(text, because: .pasteFailed)
+        }
         switch await waitForModifiers() {
         case .released: break
         case .timedOut: return leaveOnClipboard(text, because: .pasteFailed)
@@ -197,16 +206,19 @@ public final class SimplePasteInserter: TextInserter {
     private static let cancelled = InsertionOutcome.copiedToClipboard(.pasteFailed)
 
     /// Waits for a paste that is still finishing, such as one whose caller gave up on it, so that this insertion does
-    /// not take that text for the user's pasteboard. The wait is bounded by the longest a paste can take.
-    private func waitForPastesInFlight() async {
-        let deadline = now() + PasteTiming.worstCase
-        while inFlight > 0, now() < deadline {
+    /// not take that text for the user's pasteboard. Returns whether none is left. It is false when the wait ran out or
+    /// a pause failed, and the pasteboard cannot be trusted then.
+    private func waitForPastesInFlight() async -> Bool {
+        let deadline = now() + PasteTiming.overlapWait
+        while inFlight > 0 {
+            guard now() < deadline else { return false }
             do {
                 try await sleep(PasteTiming.receiptPollInterval)
             } catch {
-                return
+                return false
             }
         }
+        return true
     }
 
     private enum ModifierWait {
