@@ -48,18 +48,6 @@ public nonisolated struct Theme: Codable, Sendable, Equatable {
             preconditionFailure("DefaultTheme.json cannot be read: \(error)")
         }
     }()
-
-    /// The names this theme defines, by group.
-    var definedNames: [String: Set<String>] {
-        [
-            ColorToken.group: Set(colors.keys),
-            TypeToken.group: Set(typography.keys),
-            SpacingToken.group: Set(spacing.keys),
-            RadiusToken.group: Set(radii.keys),
-            MotionToken.group: Set(motion.keys),
-            OverlayGeometry.group: Set(OverlayGeometry.CodingKeys.allCases.map(\.rawValue)),
-        ]
-    }
 }
 
 public nonisolated struct PaletteColor: Codable, Sendable, Equatable {
