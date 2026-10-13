@@ -30,18 +30,37 @@ dots uses a small canvas, and `AtomTests` checks the colors of the atoms on thei
 
 ## Recording
 
-Only the CI image records. `make snapshots` never writes a file: a missing reference fails the test. The
-`record-snapshots` workflow runs `make snapshots RECORD=1` (every test fails on purpose, because that is how recording
-reports itself), runs `make snapshots` again to check the new references, commits `__Snapshots__`, and starts CI for the
-new commit, since a push by the workflow token starts no workflow.
+Only the CI image records. `make snapshots` never writes a file: a missing reference fails the test. Recording is the
+`record-snapshots` workflow, which runs on the branch of an open pull request and nowhere else.
 
-Start it with `gh workflow run record-snapshots.yml --ref <branch>` or from the Actions tab. GitHub runs a dispatch of
-a workflow that is on `main` only, so on a branch that adds or changes the workflow, put the label `record-snapshots` on
-the pull request instead. Then look at the PNGs in the diff: a reference is only as good as the person who read it.
+Start it by putting the label `record-snapshots` on the pull request, or with `gh workflow run record-snapshots.yml
+--ref <branch>` once the workflow is on `main` (GitHub dispatches only workflows that are on the default branch, so on
+a branch that adds or changes the workflow the label is the only way). Then look at the PNGs in the diff: a reference is
+only as good as the person who read it.
+
+The workflow has three jobs, so that the code of a pull request never runs next to a token that can write:
+
+1. **target** reads the open pull requests and refuses the default branch and any branch that has no open pull request
+   from this repository (a fork, a closed pull request, a branch nobody reviews). It hands the commit to record on to
+   the next jobs. It runs `.github/scripts/guard-record-target.sh`.
+2. **record** runs the pull request's code (`make snapshots RECORD=1`, then `make snapshots` to check) with a read-only
+   token and no credentials in `.git`. Every test fails on purpose while recording, because that is how recording
+   reports itself. It packs the pictures and `environment.txt` and uploads them as an artifact.
+3. **commit** runs none of that code. It unpacks the artifact after checking that every entry is a regular file named like
+   a snapshot picture inside a `__Snapshots__` folder of a package's `Tests`, commits it as `github-actions[bot]`, pushes,
+   and starts CI for the new head, since a push by the workflow token starts no workflow. The write token is in the last
+   step only (`.github/scripts/publish-references.sh`).
+
+If the job fails after the push (the CI dispatch is the usual place), run the workflow again, or re-run the failed
+job. The push step finds that the branch already has the references, and starts CI for the head whenever the head has no
+CI run that passed, failed, or is still going (a run waiting for approval gives no result). The same is one command:
+`gh workflow run ci.yml --ref <branch>`. If the branch moved while the pictures were recorded, the push is refused and
+nothing is overwritten: run the workflow again.
 
 ## When a snapshot test fails
 
-The failure names the reference and the picture it got; the picture, the reference, and the difference are in the folder
-`$SNAPSHOT_ARTIFACTS` (the temporary folder if it is not set). If the change is meant, record again. If it is not, fix
-the view. `make snapshots` on a Mac with another macOS version than the CI image can fail on the edges of text without
-any change to the code; run it there to see the difference, and trust the CI run.
+The failure names the reference and the picture it got. On CI the picture that failed is in the artifact
+`snapshot-failures` of the run, and locally in the folder `$SNAPSHOT_ARTIFACTS`, or the temporary folder if it is not
+set. Both workflows log `sw_vers`, `xcodebuild -version`, and the image version at the start of the job. If the change is
+meant, record again. If it is not, fix the view. `make snapshots` on a Mac with another macOS version than the CI image can fail
+on the edges of text without any change to the code; run it there to see the difference, and trust the CI run.
