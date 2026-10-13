@@ -91,5 +91,9 @@ Views read `@Environment(\.theme)`, a `ResolvedTheme` with the light or dark val
 `View.themed(_:override:)` provides it, following the system appearance unless the override is `.light` or `.dark`.
 `ThemeLoader` is `nonisolated`, so files can be read off the main actor. `ThemeStore` keeps the theme in use and
 publishes it through `updates()`; an observer that is slow to read is given only the latest theme, not every one it
-missed. In debug builds `ThemeFileWatcher` calls `store.reload()` when a file in the folder
-changes, which is hot reload.
+missed.
+
+In debug builds `ThemeFileWatcher` calls `store.reload()` when a file in the folder changes, which is hot reload. The
+folder does not have to exist: the watcher looks for it every two seconds until it does, and again if it is removed.
+Failures to watch a file are logged (subsystem `dev.claudiojara.susurro`, category `ThemeFileWatcher`) and `state` says
+whether it is watching. It waits through an injected `sleep`, so its tests decide when a debounce or a retry ends.
