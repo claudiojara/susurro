@@ -13,18 +13,14 @@ struct SkeletonCoordinatorTests {
 
     private struct Failure: Error {}
 
-    private actor SleepCounter {
-        private(set) var value = 0
-        func record() { value += 1 }
-    }
-
     /// Wires the coordinator to fakes and reads its published states. Tests call `handle` directly, so an ignored
     /// event is provably applied before the next step. One test goes through the hotkey source and `run()`.
     private struct Harness {
         let hotkeys = FakeHotkeySource()
         let capture: FakeAudioCaptureSource
         let recognizer: FakeRecognizer
-        let inserter = FakeTextInserter()
+        let inserter: FakeTextInserter
+        let sleeper: FakeSleeper
         let sut: DictationCoordinator
         private var states: AsyncStream<PipelineState>.Iterator
 
@@ -32,17 +28,20 @@ struct SkeletonCoordinatorTests {
             microphone: PermissionStatus = .granted,
             capture: FakeAudioCaptureSource = FakeAudioCaptureSource(),
             recognizer: FakeRecognizer = FakeRecognizer(),
-            sleep: @escaping @Sendable (Duration) async throws -> Void = { _ in }
+            inserter: FakeTextInserter = FakeTextInserter(),
+            sleeper: FakeSleeper = FakeSleeper()
         ) async {
             self.capture = capture
             self.recognizer = recognizer
+            self.inserter = inserter
+            self.sleeper = sleeper
             let coordinator = DictationCoordinator(
                 hotkeys: hotkeys,
                 capture: capture,
                 recognizer: recognizer,
                 inserter: inserter,
                 permissions: FakePermissionsChecker([.microphone: microphone]),
-                sleep: sleep
+                sleep: { try await sleeper.sleep($0) }
             )
             sut = coordinator
             states = coordinator.states.makeAsyncIterator()
@@ -138,12 +137,11 @@ struct SkeletonCoordinatorTests {
 
     @Test("a recognizer that is loading records, and transcription waits for ready while showing progress")
     func loadingRecognizer() async {
-        let sleeps = SleepCounter()
         let loading = FakeRecognizer(
             readiness: [.loading(progress: 0.4), .loading(progress: 0.4), .loading(progress: 0.8), .ready],
             transcript: "hola"
         )
-        var h = await Harness(recognizer: loading, sleep: { _ in await sleeps.record() })
+        var h = await Harness(recognizer: loading)
         await h.startRecording()
         let states = await h.release()
 
@@ -151,7 +149,7 @@ struct SkeletonCoordinatorTests {
         #expect(states == [.transcribing(progress: nil)] + progress + Self.transcribed)
         let polls = Array(repeating: FakeRecognizer.Call.readiness, count: 4)
         #expect(h.recognizer.calls == polls + [.transcribe(AudioClip(samples: Self.clip))])
-        #expect(await sleeps.value == 2)
+        #expect(h.sleeper.pauseCount == 2)
         #expect(h.inserter.insertedTexts == ["hola"])
     }
 
@@ -175,10 +173,16 @@ struct SkeletonCoordinatorTests {
 
     @Test("audio delivered after stop returns is still part of the clip")
     func audioDeliveredAfterStop() async {
-        var h = await Harness(capture: FakeAudioCaptureSource(tailAfterStop: [0.9]))
+        var h = await Harness(capture: FakeAudioCaptureSource(onStop: .holdStreamOpen))
         await h.startRecording(samples: [0.1])
+        let sut = h.sut
+        let release = Task { await sut.handle(.up(at: Self.pressTime + .milliseconds(1200))) }
+        await h.capture.stopped.wait()
+        h.capture.emit(AudioChunk(samples: [0.9]))
+        h.capture.finish()
+        await release.value
 
-        #expect(await h.release() == Self.transcribed)
+        #expect(await h.read(through: .idle) == Self.transcribed)
         #expect(h.recognizer.transcribedClips == [AudioClip(samples: [0.1, 0.9])])
     }
 
@@ -235,6 +239,151 @@ struct SkeletonCoordinatorTests {
 
         // A restarted hold would measure 100 ms and be discarded.
         #expect(await h.release() == Self.transcribed)
+        #expect(h.capture.startCount == 1)
+    }
+
+    @Test("a recognizer stuck loading ends in an error, and a later press works")
+    func recognizerStuckLoading() async {
+        let recognizer = FakeRecognizer(readiness: [.loading(progress: 0.5)])
+        var h = await Harness(recognizer: recognizer)
+        await h.startRecording()
+        let stuck = await h.release()
+        recognizer.setReadiness(.ready)
+        await h.startRecording()
+        let recovered = await h.release()
+
+        let timedOut: [PipelineState] = [.transcribing(progress: 0.5), .error(.timedOut(.readiness)), .idle]
+        #expect(stuck == [.transcribing(progress: nil)] + timedOut)
+        #expect(recovered == Self.transcribed)
+    }
+
+    @Test("a transcription that never finishes times out")
+    func transcriptionTimeout() async {
+        let sleeper = FakeSleeper(expiring: [SkeletonLimits.transcriptionTimeout])
+        var h = await Harness(recognizer: FakeRecognizer(gated: true), sleeper: sleeper)
+        await h.startRecording()
+
+        #expect(await h.release() == [.transcribing(progress: nil), .error(.timedOut(.transcription)), .idle])
+        #expect(h.inserter.insertedTexts.isEmpty)
+    }
+
+    @Test("an insertion that never finishes times out")
+    func insertionTimeout() async {
+        let sleeper = FakeSleeper(expiring: [SkeletonLimits.insertionTimeout])
+        var h = await Harness(inserter: FakeTextInserter(gated: true), sleeper: sleeper)
+        await h.startRecording()
+
+        #expect(await h.release() == [.transcribing(progress: nil), .error(.timedOut(.insertion)), .idle])
+    }
+
+    @Test("a capture that never stops times out")
+    func captureStopTimeout() async {
+        let sleeper = FakeSleeper(expiring: [SkeletonLimits.captureStopTimeout])
+        var h = await Harness(capture: FakeAudioCaptureSource(onStop: .hang), sleeper: sleeper)
+        await h.startRecording()
+
+        #expect(await h.release() == [.error(.timedOut(.capture)), .idle])
+        #expect(h.recognizer.transcribedClips.isEmpty)
+    }
+
+    @Test(
+        "ending run() mid-recording stops the capture, inserts nothing, and ends the state stream",
+        arguments: [true, false])
+    func teardownMidRecording(cancelled: Bool) async {
+        var h = await Harness()
+        let sut = h.sut
+        let loop = Task { await sut.run() }
+        h.hotkeys.send(.down(at: Self.pressTime))
+        h.capture.emit(AudioChunk(samples: Self.clip))
+        _ = await h.read(through: .recording(.hold))
+        if cancelled { loop.cancel() } else { h.hotkeys.finish() }
+        await loop.value
+
+        #expect(await h.read(through: .idle) == [.idle])
+        #expect(await h.read(through: .starting).isEmpty)
+        #expect(h.capture.stopCount == 1)
+        #expect(h.recognizer.transcribedClips.isEmpty)
+        #expect(h.inserter.insertedTexts.isEmpty)
+    }
+
+    @Test("shutting down during transcription cancels it and inserts nothing")
+    func shutdownWhileProcessing() async {
+        var h = await Harness(recognizer: FakeRecognizer(gated: true))
+        await h.startRecording()
+        await h.sut.handle(.up(at: Self.pressTime + .milliseconds(1200)))
+        _ = await h.read(through: .transcribing(progress: nil))
+        await h.sut.shutdown()
+
+        #expect(await h.read(through: .idle) == [.idle])
+        #expect(h.inserter.insertedTexts.isEmpty)
+    }
+
+    @Test("shutting down while the capture is starting stops it once it has started")
+    func shutdownWhileStarting() async {
+        var h = await Harness(capture: FakeAudioCaptureSource(gatesStart: true))
+        let sut = h.sut
+        let press = Task { await sut.handle(.down(at: Self.pressTime)) }
+        _ = await h.read(through: .starting)
+        await sut.shutdown()
+        h.capture.releaseStart()
+        await press.value
+
+        #expect(h.capture.stopCount == 1)
+        #expect(await h.read(through: .idle) == [.idle])
+    }
+
+    @Test("a press while the capture is starting is ignored, and a release then finishes the dictation")
+    func pressAndReleaseWhileStarting() async {
+        var h = await Harness(capture: FakeAudioCaptureSource(gatesStart: true))
+        let sut = h.sut
+        let first = Task { await sut.handle(.down(at: Self.pressTime)) }
+        _ = await h.read(through: .starting)
+        await sut.handle(.down(at: Self.pressTime + .milliseconds(10)))
+        await sut.handle(.up(at: Self.pressTime + .milliseconds(1200)))
+        h.capture.emit(AudioChunk(samples: Self.clip))
+        h.capture.releaseStart()
+        await first.value
+
+        #expect(await h.read(through: .idle) == Self.transcribed)
+        #expect(h.capture.startCount == 1)
+        #expect(h.recognizer.transcribedClips == [AudioClip(samples: Self.clip)])
+    }
+
+    @Test("text left on the clipboard is a notice, not an insertion")
+    func copiedToClipboard() async {
+        let inserter = FakeTextInserter(outcome: .copiedToClipboard(.accessibilityMissing))
+        var h = await Harness(inserter: inserter)
+        await h.startRecording()
+        let states = await h.release()
+
+        #expect(states == [.transcribing(progress: nil), .notice(.copiedToClipboard(.accessibilityMissing)), .idle])
+        #expect(h.inserter.insertedTexts == ["hello"])
+    }
+
+    @Test("two dictations in a row each get their own capture and clip")
+    func sequentialDictations() async {
+        var h = await Harness()
+        await h.startRecording(samples: [0.1])
+        _ = await h.release()
+        await h.startRecording(samples: [0.7])
+        let second = await h.release()
+
+        #expect(second == Self.transcribed)
+        #expect(h.capture.startCount == 2)
+        #expect(h.recognizer.transcribedClips == [AudioClip(samples: [0.1]), AudioClip(samples: [0.7])])
+    }
+
+    @Test("a press while the text is being inserted is ignored")
+    func pressWhileInserting() async {
+        let inserter = FakeTextInserter(gated: true)
+        var h = await Harness(inserter: inserter)
+        await h.startRecording()
+        await h.sut.handle(.up(at: Self.pressTime + .milliseconds(1200)))
+        await inserter.entered.wait()
+        await h.sut.handle(.down(at: Self.pressTime + .milliseconds(1300)))
+        inserter.releaseInsertion()
+
+        #expect(await h.read(through: .idle) == Self.transcribed)
         #expect(h.capture.startCount == 1)
     }
 

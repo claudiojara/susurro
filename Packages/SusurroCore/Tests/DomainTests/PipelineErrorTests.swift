@@ -9,5 +9,6 @@ struct PipelineErrorTests {
         #expect(PipelineError.recognizerNotInstalled.remedy == .settings)
         #expect(PipelineError.captureFailed.remedy == .retry)
         #expect(PipelineError.recognitionFailed.remedy == .retry)
+        #expect(PipelineError.timedOut(.transcription).remedy == .retry)
     }
 }
