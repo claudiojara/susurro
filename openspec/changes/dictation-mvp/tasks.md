@@ -257,7 +257,7 @@ Found by the WS5.8 manual check: a hold that ran into the 60 s cap fell back to 
 
 ### Queued: keep Spanish dictation in Spanish
 
-Found in the WS5.8 manual check: Parakeet v3 sometimes returns an English transcript for Spanish speech. Raycast's dictation shows the same behaviour. Parakeet v3 and Ultra detect the language themselves. They take no language token or prompt. FluidAudio's `language:` hint only filters by script (`TokenLanguageFilter`), and Spanish and English are both Latin, so the pinned "es" of `speech-recognition` (4a.3, 9c) has no effect on Parakeet. The likely cause is a detection misfire on short or mixed clips, not a translation.
+Found in the WS5.8 manual check: Parakeet v3 sometimes returns an English transcript for Spanish speech. Parakeet v3 and Ultra detect the language themselves. They take no language token or prompt. FluidAudio's `language:` hint only filters by script (`TokenLanguageFilter`), and Spanish and English are both Latin, so the pinned "es" of `speech-recognition` (4a.3, 9c) has no effect on Parakeet. The likely cause is a detection misfire on short or mixed clips, not a translation.
 
 - [ ] LANG.1 DESIGN (separate PR, schedule with 4a and 9c): Let the user choose, in Settings, between speed and a guaranteed language, with a radio group or a toggle. Options to compare before the spec and design change:
   - (a) Parakeet only: fastest, but the language can drift.
