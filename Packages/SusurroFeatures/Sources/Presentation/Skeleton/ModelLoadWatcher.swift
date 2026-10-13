@@ -10,6 +10,7 @@ public final class ModelLoadWatcher {
     private let showAfter: Duration
     private let sleep: @Sendable (Duration) async throws -> Void
     private let report: @MainActor (Double?) -> Void
+    private let reportUnavailable: @MainActor () -> Void
     private var delay: Task<Void, Never>?
     private var isShown = false
     private var latest = 0.0
@@ -17,21 +18,25 @@ public final class ModelLoadWatcher {
     /// - Parameters:
     ///   - sleep: Times the delay before progress shows. Tests pass a fake.
     ///   - report: Gets the progress to show, or nil when there is none.
+    ///   - reportUnavailable: Called when the load fails after its progress was shown, in place of `report(nil)`.
     public convenience init(
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
-        report: @escaping @MainActor (Double?) -> Void
+        report: @escaping @MainActor (Double?) -> Void,
+        reportUnavailable: @escaping @MainActor () -> Void
     ) {
-        self.init(showAfter: Self.standardDelay, sleep: sleep, report: report)
+        self.init(showAfter: Self.standardDelay, sleep: sleep, report: report, reportUnavailable: reportUnavailable)
     }
 
     init(
         showAfter: Duration = ModelLoadWatcher.standardDelay,
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
-        report: @escaping @MainActor (Double?) -> Void
+        report: @escaping @MainActor (Double?) -> Void,
+        reportUnavailable: @escaping @MainActor () -> Void
     ) {
         self.showAfter = showAfter
         self.sleep = sleep
         self.report = report
+        self.reportUnavailable = reportUnavailable
     }
 
     /// Applies each readiness the recognizer reports, until the stream ends.
@@ -48,14 +53,21 @@ public final class ModelLoadWatcher {
             } else if delay == nil {
                 startDelay()
             }
-        case .ready, .notInstalled, .unavailable:
-            delay?.cancel()
-            delay = nil
-            if isShown {
-                isShown = false
-                report(nil)
-            }
+        case .ready, .notInstalled:
+            endDisplay { report(nil) }
+        case .unavailable:
+            // The progress was on screen and the load did not finish, which must not look like a load that did.
+            endDisplay { reportUnavailable() }
         }
+    }
+
+    /// Stops waiting to show progress. If progress is on screen, `whenShown` says what replaces it.
+    private func endDisplay(whenShown: () -> Void) {
+        delay?.cancel()
+        delay = nil
+        guard isShown else { return }
+        isShown = false
+        whenShown()
     }
 
     private func startDelay() {

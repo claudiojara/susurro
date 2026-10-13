@@ -51,13 +51,13 @@ public struct MenuContent: Equatable, Sendable {
         case .ready:
             return "Speech model: ready"
         case .loading(let progress):
-            let percent = Int((min(max(progress, 0), 1) * 100).rounded())
+            let percent = Int((progress.loadFraction * 100).rounded())
             return percent == 0 ? "Speech model: preparing…" : "Speech model: preparing… \(percent)%"
         case .notInstalled:
-            return "Speech model: not installed. Open the Susurro settings to install it."
+            return "Speech model: not installed. Restart Susurro to download it."
         case .unavailable(let reason, let retryable):
             let shown = reason.count > longestReason ? "\(reason.prefix(longestReason))…" : reason
-            let wayOut = retryable ? "Hold the key to try again." : "Restart Susurro."
+            let wayOut = retryable ? "Susurro will retry loading the model shortly." : "Restart Susurro."
             return "Speech model: could not load (\(shown)). \(wayOut)"
         }
     }
