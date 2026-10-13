@@ -20,19 +20,20 @@ enum ModelState: Sendable, Equatable {
     }
 }
 
-/// Turns the fractions a FluidAudio load reports into progress that only moves forward. FluidAudio reports each model
-/// file on its own, so the raw fractions fall back to the start of the next stage. Nothing short of the load returning
-/// counts as complete.
+/// Turns the fractions a FluidAudio load reports into progress that only moves forward, in steps worth showing.
+/// FluidAudio reports each model file on its own, so the raw fractions fall back to the start of the next stage, and
+/// a download alone makes thousands of calls. Nothing short of the load returning counts as complete.
 struct LoadProgress: Sendable, Equatable {
     static let ceiling = 0.99
+    static let step = 0.01
 
     private(set) var value = 0.0
 
-    /// Returns the new progress when `fraction` moves it forward, and nil otherwise.
+    /// Returns the new progress when `fraction` moves it forward by a step, and nil otherwise.
     mutating func observe(_ fraction: Double) -> Double? {
         guard fraction.isFinite else { return nil }
         let next = min(fraction, Self.ceiling)
-        guard next > value else { return nil }
+        guard next >= value + Self.step else { return nil }
         value = next
         return next
     }
