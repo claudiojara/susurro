@@ -38,6 +38,7 @@ struct ThemeResolutionTests {
             let resolved = try theme.resolved(for: appearance)
             for token in SpacingToken.allCases { #expect(resolved.spacing(token) == theme.spacing[token.rawValue]) }
             for token in RadiusToken.allCases { #expect(resolved.radius(token) == theme.radii[token.rawValue]) }
+            for token in SizeToken.allCases { #expect(resolved.size(token) == theme.sizes[token.rawValue]) }
             for token in MotionToken.allCases { #expect(resolved.motion(token) == theme.motion[token.rawValue]) }
             for token in TypeToken.allCases { #expect(resolved.type(token) == theme.typography[token.rawValue]) }
             #expect(resolved.overlay == theme.overlay)
@@ -74,6 +75,7 @@ struct ThemeResolutionTests {
         var theme = Theme.default
         theme.spacing["md"] = -1
         theme.radii["sm"] = .infinity
+        theme.sizes["statusDot"] = -8
         theme.motion["fast"] = .nan
         theme.typography["body"]?.size = -13
         theme.overlay.width = -380
@@ -86,9 +88,10 @@ struct ThemeResolutionTests {
         }
         #expect(
             paths == [
-                "motion.fast", "overlay.offset", "overlay.width", "radii.sm", "spacing.md", "typography.body.size",
+                "motion.fast", "overlay.offset", "overlay.width", "radii.sm", "sizes.statusDot", "spacing.md",
+                "typography.body.size",
             ])
-        #expect(problems.count == 7)
+        #expect(problems.count == 8)
     }
 
     @Test("a theme with a negative number does not resolve, and zero does")

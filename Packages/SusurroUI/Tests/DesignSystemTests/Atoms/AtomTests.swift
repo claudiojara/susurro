@@ -23,6 +23,13 @@ struct AtomTests {
         (.success, .statusSuccess), (.warning, .statusWarning), (.error, .statusError),
     ]
 
+    @Test("each tint is the color role it stands for, and every tint is in the table", arguments: tints)
+    func tintMapsToItsRole(tint: Tint, color: ColorToken) {
+        #expect(tint.color == color)
+        #expect(Set(Self.tints.map(\.color)).count == Tint.allCases.count, "two tints stand for one role")
+        #expect(Tint.allCases.count == Self.tints.count)
+    }
+
     @Test("a status dot is painted in the color of its tint, in light and dark", arguments: tints)
     func dotColor(tint: Tint, color: ColorToken) throws {
         #expect(Tint.allCases.count == Self.tints.count)
