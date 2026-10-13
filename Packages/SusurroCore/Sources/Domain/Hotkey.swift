@@ -6,6 +6,4 @@ public enum HotkeyEvent: Sendable, Equatable {
 
 public protocol HotkeySource: Sendable {
     func events() -> AsyncStream<HotkeyEvent>
-    /// Esc is consumed only while armed. Adapters may ignore this until Esc handling lands.
-    func setEscapeArmed(_ armed: Bool)
 }

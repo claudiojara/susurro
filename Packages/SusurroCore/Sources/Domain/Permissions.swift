@@ -1,8 +1,5 @@
-public enum Permission: Sendable, Hashable, CaseIterable {
+public enum Permission: Sendable, Hashable {
     case microphone
-    case accessibility
-    case inputMonitoring
-    case screenRecording
 }
 
 public enum PermissionStatus: Sendable, Equatable {
@@ -13,5 +10,4 @@ public enum PermissionStatus: Sendable, Equatable {
 
 public protocol PermissionsChecker: Sendable {
     func status(_ permission: Permission) async -> PermissionStatus
-    func request(_ permission: Permission) async
 }

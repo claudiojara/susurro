@@ -13,10 +13,6 @@ public final class FakeRecognizer: SpeechRecognizer {
         var calls: [Call] = []
     }
 
-    public let id = ASRProviderID("fake")
-    public let locality = Locality.local
-    public let maxClipDuration: Duration? = nil
-
     private let state: Mutex<State>
     private let result: Result<String, any Error>
     private let gate: Gate?
