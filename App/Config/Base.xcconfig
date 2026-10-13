@@ -1,0 +1,8 @@
+// Shared build settings. Ad-hoc signing keeps CI and fresh clones building.
+// A stable identity keeps privacy grants across rebuilds: copy Local.xcconfig.example to
+// Local.xcconfig (gitignored) and set your team and identity there.
+CODE_SIGN_STYLE = Manual
+CODE_SIGN_IDENTITY = -
+DEVELOPMENT_TEAM =
+
+#include? "Local.xcconfig"

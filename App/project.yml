@@ -1,0 +1,47 @@
+name: Susurro
+
+options:
+  bundleIdPrefix: dev.claudiojara
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+
+configFiles:
+  Debug: Config/Base.xcconfig
+  Release: Config/Base.xcconfig
+
+packages:
+  SusurroFeatures:
+    path: ../Packages/SusurroFeatures
+
+targets:
+  Susurro:
+    type: application
+    platform: macOS
+    sources:
+      - Sources
+    dependencies:
+      - package: SusurroFeatures
+        product: SusurroFeatures
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.claudiojara.susurro
+        PRODUCT_NAME: Susurro
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        INFOPLIST_FILE: Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_ENTITLEMENTS: Susurro.entitlements
+        ENABLE_HARDENED_RUNTIME: YES
+        SWIFT_VERSION: "6.0"
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+
+schemes:
+  Susurro:
+    build:
+      targets:
+        Susurro: all
+    run:
+      config: Debug
+    archive:
+      config: Release

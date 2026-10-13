@@ -31,7 +31,7 @@ All packages declare `platforms: [.macOS(.v26)]` and Swift 6 language mode. `Sus
 | Identity | Bundle ID `dev.claudiojara.susurro`. Keychain service `app.tuminuta` is an external, pre-existing key source that the app reads but never creates | Reusing `app.tuminuta` as the bundle ID | Keeps the app identity separate from the user's existing key store |
 | Packages | 5 packages split by dependency weight | One package; package per module | `swift test` on Core runs without FluidAudio or GRDB builds. Five packages keep the boundaries without manifest sprawl |
 | Storage | GRDB (SQLite) with explicit migrations | SwiftData | `DatabaseQueue` is Sendable and testable in-memory under `swift test`. SwiftData `ModelContext` is not Sendable, and its migrations are implicit |
-| Settings | `SettingsStore` port backed by per-key `UserDefaults` | One JSON blob | Avoids Handy-style whole-store corruption |
+| Settings | `SettingsStore` port backed by per-key `UserDefaults` | One JSON blob | Avoids whole-blob corruption |
 | VAD placement | Post-pass on the persisted file: trim to the speech span with 450 ms pre-roll and 450 ms hangover, detect no speech, detect RMS≈0. The file stays untrimmed | Dropping frames during capture | The durable audio stays complete and retryable |
 | Long audio | `AudioChunker` splits at silence boundaries using each provider's `maxClipDuration` and joins the results in order | Assuming each provider handles 10 min | Provider-agnostic, and it satisfies the long-audio spec |
 | Busy presses | Recording may start while an earlier dictation is processing. At most one recording is active, and a FIFO `ProcessingQueue` preserves insertion order | Ignoring presses while busy | Speech is never lost |
