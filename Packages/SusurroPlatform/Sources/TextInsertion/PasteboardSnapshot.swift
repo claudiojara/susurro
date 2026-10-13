@@ -17,10 +17,21 @@ struct PasteboardSnapshot {
         }
     }
 
-    /// Replaces the contents of the pasteboard with the snapshot. This is best effort: if the pasteboard refuses the
-    /// write there is nothing else to try.
-    func restore(to pasteboard: NSPasteboard) {
-        pasteboard.clearContents()
+    /// Replaces the contents of the pasteboard with the snapshot and says whether the pasteboard took it. This is best
+    /// effort: if the pasteboard refuses the write there is nothing else to try.
+    ///
+    /// The restore is for this Mac only, as the write of the dictation was, so a restored clipboard is never more widely
+    /// visible than the original: it cannot reach another device through Universal Clipboard. The cost is that
+    /// contents the user copied here, and that this Mac was offering to their other devices, are no longer offered
+    /// after the restore.
+    ///
+    /// - Parameter writeItems: Puts the items on the pasteboard. Tests pass one that refuses.
+    @discardableResult
+    func restore(
+        to pasteboard: NSPasteboard,
+        writing writeItems: (NSPasteboard, [NSPasteboardItem]) -> Bool = { $0.writeObjects($1) }
+    ) -> Bool {
+        pasteboard.prepareForNewContents(with: .currentHostOnly)
         let restored = items.map { entries in
             // A pasteboard item belongs to the pasteboard it was read from or written to and cannot be written again,
             // so the snapshot keeps the data and every restore builds new items.
@@ -28,6 +39,7 @@ struct PasteboardSnapshot {
             for entry in entries { item.setData(entry.data, forType: entry.type) }
             return item
         }
-        _ = pasteboard.writeObjects(restored)
+        // An empty pasteboard is restored by clearing it, which is done.
+        return restored.isEmpty || writeItems(pasteboard, restored)
     }
 }

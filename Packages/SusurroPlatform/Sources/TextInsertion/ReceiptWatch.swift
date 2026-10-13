@@ -11,6 +11,7 @@ struct ReceiptWatch {
     }
 
     private let chordPostedAt: Duration
+    private let receiptTimeout: Duration
     private var knownReads: Int
     private var lastReadAt: Duration?
 
@@ -18,9 +19,13 @@ struct ReceiptWatch {
     /// stays out for a while longer.
     var hasRead: Bool { lastReadAt != nil }
 
-    /// - Parameter baseline: The number of reads before the chord, which do not count.
-    init(baseline: Int, chordPostedAt: Duration) {
+    /// - Parameters:
+    ///   - baseline: The number of reads before the chord, which do not count.
+    ///   - receiptTimeout: How long after the chord an app may take to read the text. It is the full wait, or less when
+    ///     the budget of the insertion has less left.
+    init(baseline: Int, chordPostedAt: Duration, receiptTimeout: Duration = PasteTiming.receiptTimeout) {
         self.chordPostedAt = chordPostedAt
+        self.receiptTimeout = receiptTimeout
         knownReads = baseline
     }
 
@@ -34,9 +39,9 @@ struct ReceiptWatch {
             lastReadAt = now
         }
         let sinceChord = now - chordPostedAt
-        guard let lastReadAt else { return sinceChord >= PasteTiming.receiptTimeout ? .failed : .wait }
+        guard let lastReadAt else { return sinceChord >= receiptTimeout ? .failed : .wait }
         // Reads that keep coming cannot hold the old contents back for ever.
-        if sinceChord >= PasteTiming.receiptTimeout + PasteTiming.restoreDelay { return .restore }
+        if sinceChord >= receiptTimeout + PasteTiming.restoreDelay { return .restore }
         let isQuiet = now - lastReadAt >= PasteTiming.restoreDelay
         return isQuiet && sinceChord >= PasteTiming.minimumDwell ? .restore : .wait
     }

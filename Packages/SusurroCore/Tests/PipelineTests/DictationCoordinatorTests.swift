@@ -5,73 +5,16 @@ import Testing
 
 @Suite("Dictation coordinator", .timeLimit(.minutes(1)))
 struct DictationCoordinatorTests {
-    private static let clip: [Float] = [0.1, 0.2, 0.3]
-    private static let capSamples = 60 * 16_000
+    static let clip: [Float] = [0.1, 0.2, 0.3]
+    static let capSamples = 60 * 16_000
     /// Presses happen away from the timestamp origin, so a hold is measured from its own press.
-    private static let pressTime = Duration.seconds(10)
-    private static let transcribed: [PipelineState] = [.transcribing(progress: nil), .inserted, .idle]
+    static let pressTime = Duration.seconds(10)
+    static let transcribed: [PipelineState] = [.transcribing(progress: nil), .inserted, .idle]
 
     private struct Failure: Error {}
     private static let noInputDevice = String(describing: CaptureError.noInputDevice)
 
-    /// Wires the coordinator to fakes and reads its published states. Tests call `handle` directly, so an ignored
-    /// event is provably applied before the next step. One test goes through the hotkey source and `run()`.
-    private struct Harness {
-        let hotkeys = FakeHotkeySource()
-        let capture: FakeAudioCaptureSource
-        let recognizer: FakeRecognizer
-        let inserter: FakeTextInserter
-        let sleeper: FakeSleeper
-        let sut: DictationCoordinator
-        private var states: AsyncStream<PipelineState>.Iterator
-
-        init(
-            permissions: FakePermissionsChecker = FakePermissionsChecker(),
-            capture: FakeAudioCaptureSource = FakeAudioCaptureSource(),
-            recognizer: FakeRecognizer = FakeRecognizer(),
-            inserter: FakeTextInserter = FakeTextInserter(),
-            sleeper: FakeSleeper = FakeSleeper()
-        ) async {
-            self.capture = capture
-            self.recognizer = recognizer
-            self.inserter = inserter
-            self.sleeper = sleeper
-            let coordinator = DictationCoordinator(
-                hotkeys: hotkeys,
-                capture: capture,
-                recognizer: recognizer,
-                inserter: inserter,
-                permissions: permissions,
-                sleep: { try await sleeper.sleep($0) }
-            )
-            sut = coordinator
-            states = coordinator.states.makeAsyncIterator()
-            _ = await states.next()  // the current state is replayed on subscription
-        }
-
-        /// Reads published states up to and including `target`.
-        mutating func read(through target: PipelineState) async -> [PipelineState] {
-            var seen: [PipelineState] = []
-            while let state = await states.next() {
-                seen.append(state)
-                if state == target { break }
-            }
-            return seen
-        }
-
-        /// Presses, delivers one chunk, and waits for the recording state.
-        mutating func startRecording(samples: [Float] = DictationCoordinatorTests.clip) async {
-            await sut.handle(.down(at: DictationCoordinatorTests.pressTime))
-            capture.emit(AudioChunk(samples: samples))
-            _ = await read(through: .recording(.hold))
-        }
-
-        /// Releases after the given hold and reads the rest of the cycle.
-        mutating func release(after milliseconds: Int = 1200) async -> [PipelineState] {
-            await sut.handle(.up(at: DictationCoordinatorTests.pressTime + .milliseconds(milliseconds)))
-            return await read(through: .idle)
-        }
-    }
+    typealias Harness = CoordinatorHarness
 
     @Test("a held press records, transcribes the whole clip, and inserts the text")
     func heldPressIsInserted() async {
@@ -321,7 +264,7 @@ struct DictationCoordinatorTests {
         #expect(h.inserter.insertedTexts.isEmpty)
     }
 
-    @Test("a press while the dictation is being transcribed is ignored")
+    @Test("a press while the dictation is being transcribed is ignored, and the busy notice says so")
     func pressWhileProcessing() async {
         var h = await Harness(recognizer: FakeRecognizer(transcript: "uno", gated: true))
         await h.startRecording()
@@ -330,7 +273,7 @@ struct DictationCoordinatorTests {
         await h.sut.handle(.down(at: Self.pressTime + .milliseconds(1300)))
         h.recognizer.releaseTranscription()
 
-        #expect(await h.read(through: .idle) == [.inserted, .idle])
+        #expect(await h.read(through: .idle) == [.notice(.busy), .transcribing(progress: nil), .inserted, .idle])
         #expect(h.capture.startCount == 1)
         #expect(h.inserter.insertedTexts == ["uno"])
     }
@@ -559,7 +502,7 @@ struct DictationCoordinatorTests {
         #expect(h.recognizer.transcribedClips == [AudioClip(samples: [0.1]), AudioClip(samples: [0.7])])
     }
 
-    @Test("a press while the text is being inserted is ignored")
+    @Test("a press while the text is being inserted is ignored, and the busy notice says so")
     func pressWhileInserting() async {
         let inserter = FakeTextInserter(gated: true)
         var h = await Harness(inserter: inserter)
@@ -569,7 +512,8 @@ struct DictationCoordinatorTests {
         await h.sut.handle(.down(at: Self.pressTime + .milliseconds(1300)))
         inserter.releaseInsertion()
 
-        #expect(await h.read(through: .idle) == Self.transcribed)
+        let busy: [PipelineState] = [.notice(.busy), .transcribing(progress: nil)]
+        #expect(await h.read(through: .idle) == [.transcribing(progress: nil)] + busy + [.inserted, .idle])
         #expect(h.capture.startCount == 1)
     }
 

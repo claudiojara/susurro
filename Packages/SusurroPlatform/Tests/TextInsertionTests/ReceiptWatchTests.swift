@@ -92,4 +92,23 @@ struct ReceiptWatchTests {
         #expect(verdicts.dropLast().allSatisfy { $0 == .wait })
         #expect(verdicts.last == .restore)
     }
+
+    @Test("a shorter receipt timeout fails the watch sooner, and caps a late restore sooner too")
+    func shorterTimeout() {
+        var failing = ReceiptWatch(baseline: 0, chordPostedAt: Self.chord, receiptTimeout: .seconds(3))
+        var reading = ReceiptWatch(baseline: 0, chordPostedAt: Self.chord, receiptTimeout: .seconds(3))
+
+        #expect(verdict(&failing, reads: 0, after: .milliseconds(2_950)) == .wait)
+        #expect(verdict(&failing, reads: 0, after: .seconds(3)) == .failed)
+        #expect(verdict(&reading, reads: 1, after: .seconds(3)) == .wait)
+        #expect(verdict(&reading, reads: 2, after: .milliseconds(3_199)) == .wait)
+        #expect(verdict(&reading, reads: 3, after: .milliseconds(3_200)) == .restore)
+    }
+
+    @Test("a receipt timeout of zero fails at once")
+    func noTimeLeft() {
+        var watch = ReceiptWatch(baseline: 0, chordPostedAt: Self.chord, receiptTimeout: .zero)
+
+        #expect(verdict(&watch, reads: 0, after: .zero) == .failed)
+    }
 }

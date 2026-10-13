@@ -1,3 +1,4 @@
+import Presentation
 import SwiftUI
 
 @main
@@ -6,10 +7,7 @@ struct SusurroApp: App {
 
     var body: some Scene {
         MenuBarExtra("Susurro", systemImage: "waveform") {
-            Text("Susurro")
-            Divider()
-            Button("Quit Susurro") { NSApplication.shared.terminate(nil) }
-                .keyboardShortcut("q")
+            SkeletonMenuView(model: appDelegate.environment.menu)
         }
     }
 }

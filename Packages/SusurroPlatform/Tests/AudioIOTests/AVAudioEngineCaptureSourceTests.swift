@@ -261,4 +261,57 @@ struct AVAudioEngineCaptureSourceTests {
         await engine.stopped.wait()
         #expect(engine.calls == [.installTap, .start, .removeTap, .stop])
     }
+
+    @Test(
+        "a capture logs the size of the first tap buffer it received, once",
+        arguments: [(512, 44_100.0), (4_800, 48_000), (1_024, 48_000)]
+    )
+    func logsTheFirstTapBuffer(frames: Int, sampleRate: Double) async throws {
+        let log = RecordingDiagnostics()
+        let engine = FakeEngine(format: AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2))
+        let sut = AVAudioEngineCaptureSource(engine: engine, diagnostics: log)
+        let stream = try await sut.start()
+        engine.deliver(makeBuffer(sampleRate: sampleRate, channels: 2, frames: 0) { _, _ in 0 })  // not counted
+        engine.deliver(
+            makeBuffer(sampleRate: sampleRate, channels: 2, frames: frames, sample: tone(sampleRate: sampleRate)))
+        engine.deliver(
+            makeBuffer(sampleRate: sampleRate, channels: 2, frames: 256, sample: tone(sampleRate: sampleRate)))
+
+        await sut.stop()
+        _ = try await Self.drain(stream)
+
+        #expect(log.events == [.captureFirstBuffer(frames: frames, sampleRate: sampleRate)])
+    }
+
+    @Test("a capture that received no buffer logs nothing")
+    func noBufferLogsNothing() async throws {
+        let log = RecordingDiagnostics()
+        let sut = AVAudioEngineCaptureSource(engine: FakeEngine(), diagnostics: log)
+        let stream = try await sut.start()
+
+        await sut.stop()
+        _ = try await Self.drain(stream)
+
+        #expect(log.events.isEmpty)
+    }
+
+    @Test("each capture logs its own first buffer")
+    func eachCaptureLogsItsOwn() async throws {
+        let log = RecordingDiagnostics()
+        let engine = FakeEngine()
+        let sut = AVAudioEngineCaptureSource(engine: engine, diagnostics: log)
+        for frames in [512, 1_024] {
+            let stream = try await sut.start()
+            engine.deliver(
+                makeBuffer(sampleRate: 48_000, channels: 2, frames: frames, sample: tone(sampleRate: 48_000)))
+            await sut.stop()
+            _ = try await Self.drain(stream)
+        }
+
+        #expect(
+            log.events == [
+                .captureFirstBuffer(frames: 512, sampleRate: 48_000),
+                .captureFirstBuffer(frames: 1_024, sampleRate: 48_000),
+            ])
+    }
 }

@@ -6,7 +6,10 @@ let package = Package(
     name: "SusurroPlatform",
     platforms: [.macOS(.v26)],
     products: [
-        .library(name: "SusurroPlatform", targets: ["Permissions", "Hotkeys", "AudioIO", "TextInsertion"])
+        .library(
+            name: "SusurroPlatform",
+            targets: ["Permissions", "Hotkeys", "AudioIO", "TextInsertion", "Diagnostics"]
+        )
     ],
     dependencies: [
         .package(path: "../SusurroCore"),
@@ -23,6 +26,7 @@ let package = Package(
         ),
         .target(name: "AudioIO", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .target(name: "TextInsertion", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
+        .target(name: "Diagnostics", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .testTarget(
             name: "PermissionsTests",
             dependencies: ["Permissions", .product(name: "SusurroCore", package: "SusurroCore")]
@@ -42,6 +46,10 @@ let package = Package(
                 .product(name: "SusurroCore", package: "SusurroCore"),
                 .product(name: "CoreTestSupport", package: "SusurroCore"),
             ]
+        ),
+        .testTarget(
+            name: "DiagnosticsTests",
+            dependencies: ["Diagnostics", .product(name: "SusurroCore", package: "SusurroCore")]
         ),
         .testTarget(
             name: "HotkeysTests",

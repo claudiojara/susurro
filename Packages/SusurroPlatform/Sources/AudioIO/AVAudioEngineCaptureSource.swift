@@ -13,15 +13,18 @@ public actor AVAudioEngineCaptureSource: AudioCaptureSource {
     }
 
     private let engine: any EngineProviding
+    private let diagnostics: any DiagnosticsLog
     private var running: Capture?
     private var captureCount = 0
 
-    public init() {
-        self.init(engine: LiveAudioEngine())
+    /// - Parameter diagnostics: Where the size of the first tap buffer of each capture is reported.
+    public init(diagnostics: any DiagnosticsLog = NoDiagnostics()) {
+        self.init(engine: LiveAudioEngine(), diagnostics: diagnostics)
     }
 
-    init(engine: any EngineProviding) {
+    init(engine: any EngineProviding, diagnostics: any DiagnosticsLog = NoDiagnostics()) {
         self.engine = engine
+        self.diagnostics = diagnostics
     }
 
     public func start() async throws -> AsyncThrowingStream<AudioChunk, Error> {
@@ -67,6 +70,11 @@ public actor AVAudioEngineCaptureSource: AudioCaptureSource {
         engine.removeTap()
         engine.stop()
         if deliveringTail { capture.bridge.flush() }
+        // The tap is gone, so the bridge is read from here without a race. The size is logged now and not on the audio
+        // thread, where logging is best avoided.
+        if let first = capture.bridge.firstBuffer {
+            diagnostics.record(.captureFirstBuffer(frames: first.frames, sampleRate: first.sampleRate))
+        }
         capture.continuation.finish()
     }
 }
@@ -80,6 +88,9 @@ private final class TapBridge: @unchecked Sendable {
     private let converter: FormatConverter
     private let continuation: AsyncThrowingStream<AudioChunk, Error>.Continuation
     private var hasFailed = false
+    /// The size and rate of the first buffer with samples in it. Written on the audio thread, and read only after the
+    /// tap has been removed.
+    private(set) var firstBuffer: (frames: Int, sampleRate: Double)?
 
     init(converter: FormatConverter, continuation: AsyncThrowingStream<AudioChunk, Error>.Continuation) {
         self.converter = converter
@@ -88,6 +99,9 @@ private final class TapBridge: @unchecked Sendable {
 
     func receive(_ buffer: AVAudioPCMBuffer) {
         guard !hasFailed else { return }
+        if firstBuffer == nil, buffer.frameLength > 0 {
+            firstBuffer = (Int(buffer.frameLength), buffer.format.sampleRate)
+        }
         do {
             let samples = try converter.convert(buffer)
             // An empty buffer, or one the resampler is still priming on, converts to nothing and signals nothing.
