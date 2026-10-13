@@ -20,15 +20,15 @@ struct DiagnosticDescriptionTests {
             (.pasteboardWriteRefused, .error, "the pasteboard refused a write"),
             (.clipboardRestoreFailed, .error, "the pasteboard refused the old contents"),
             (
-                .captureFirstBuffer(frames: 1_024, sampleRate: 48_000), .info,
+                .captureFirstBuffer(frames: 1_024, sampleRate: 48_000), .default,
                 "first tap buffer: 1024 frames at 48000 Hz"
             ),
-            (.appLaunched, .info, "app launched"),
-            (.modelPrepareRequested, .info, "speech model: prepare requested"),
-            (.modelReadiness("loading"), .info, "speech model: loading"),
-            (.modelReadiness("ready"), .info, "speech model: ready"),
+            (.appLaunched, .default, "app launched"),
+            (.modelPrepareRequested, .default, "speech model: prepare requested"),
+            (.modelReadiness("loading"), .default, "speech model: loading"),
+            (.modelReadiness("ready"), .default, "speech model: ready"),
             (
-                .launchPermissions(microphone: "granted", accessibility: "denied"), .info,
+                .launchPermissions(microphone: "granted", accessibility: "denied"), .default,
                 "permissions at launch: microphone granted, accessibility denied"
             ),
         ])

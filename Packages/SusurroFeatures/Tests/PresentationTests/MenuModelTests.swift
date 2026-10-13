@@ -8,32 +8,8 @@ import Testing
 @MainActor
 @Suite("Menu model", .timeLimit(.minutes(1)))
 struct MenuModelTests {
-    /// A permissions checker whose statuses the test changes, as the user does in System Settings.
-    private final class StatusBoard: PermissionsChecker {
-        private let state = Mutex((statuses: [Permission: PermissionStatus](), reads: 0))
-
-        init(_ statuses: [Permission: PermissionStatus]) {
-            state.withLock { $0.statuses = statuses }
-        }
-
-        var reads: Int { state.withLock { $0.reads } }
-
-        func set(_ permission: Permission, to status: PermissionStatus) {
-            state.withLock { $0.statuses[permission] = status }
-        }
-
-        func status(_ permission: Permission) async -> PermissionStatus {
-            state.withLock { state in
-                state.reads += 1
-                return state.statuses[permission] ?? .notDetermined
-            }
-        }
-
-        func request(_ permission: Permission) async {}
-    }
-
     private func makeModel(
-        _ board: StatusBoard,
+        _ board: MutablePermissionsChecker,
         openSettings: @escaping @MainActor (Permission) -> Void = { _ in },
         sleep: @escaping @Sendable (Duration) async throws -> Void = { _ in }
     ) -> MenuModel {
@@ -42,7 +18,7 @@ struct MenuModelTests {
 
     @Test("before anything is read the menu shows nothing as allowed and the model as preparing")
     func initialContent() {
-        let model = makeModel(StatusBoard([:]))
+        let model = makeModel(MutablePermissionsChecker([:]))
 
         #expect(
             model.content
@@ -52,7 +28,7 @@ struct MenuModelTests {
 
     @Test("refresh reads both statuses")
     func refreshReadsStatuses() async {
-        let model = makeModel(StatusBoard([.microphone: .granted, .accessibility: .denied]))
+        let model = makeModel(MutablePermissionsChecker([.microphone: .granted, .accessibility: .denied]))
 
         await model.refresh()
 
@@ -62,7 +38,7 @@ struct MenuModelTests {
 
     @Test("a permission granted in System Settings shows after the next refresh, without a relaunch")
     func grantShowsAfterRefresh() async {
-        let board = StatusBoard([.microphone: .granted, .accessibility: .denied])
+        let board = MutablePermissionsChecker([.microphone: .granted, .accessibility: .denied])
         let model = makeModel(board)
         await model.refresh()
         let before = model.content.accessibility
@@ -77,7 +53,7 @@ struct MenuModelTests {
 
     @Test("a permission revoked while the app runs shows after the next refresh")
     func revocationShowsAfterRefresh() async {
-        let board = StatusBoard([.microphone: .granted, .accessibility: .granted])
+        let board = MutablePermissionsChecker([.microphone: .granted, .accessibility: .granted])
         let model = makeModel(board)
         await model.refresh()
 
@@ -90,7 +66,7 @@ struct MenuModelTests {
 
     @Test("the model line follows the readiness the recognizer reports, until the stream ends")
     func observesReadiness() async {
-        let model = makeModel(StatusBoard([:]))
+        let model = makeModel(MutablePermissionsChecker([:]))
         let (readiness, continuation) = AsyncStream.makeStream(of: RecognizerReadiness.self)
         let observing = Task { await model.observe(readiness) }
 
@@ -106,7 +82,7 @@ struct MenuModelTests {
 
     @Test("a refresh keeps the model line the recognizer reported")
     func refreshKeepsTheModelLine() async {
-        let model = makeModel(StatusBoard([.microphone: .granted]))
+        let model = makeModel(MutablePermissionsChecker([.microphone: .granted]))
         let (readiness, continuation) = AsyncStream.makeStream(of: RecognizerReadiness.self)
         continuation.yield(.ready)
         continuation.finish()
@@ -120,7 +96,7 @@ struct MenuModelTests {
 
     @Test("keepRefreshing reads the statuses, waits the interval, and goes on until the wait is cancelled")
     func keepsRefreshing() async {
-        let board = StatusBoard([.microphone: .granted])
+        let board = MutablePermissionsChecker([.microphone: .granted])
         let waits = Mutex<[Duration]>([])
         let model = makeModel(
             board,
@@ -134,14 +110,14 @@ struct MenuModelTests {
 
         await model.keepRefreshing()
 
-        #expect(board.reads == 6)  // two statuses, three times
+        #expect(board.statusReads == 6)  // two statuses, three times
         #expect(waits.withLock { $0 } == [.seconds(2), .seconds(2), .seconds(2)])
     }
 
     @Test("opening System Settings passes the permission on")
     func opensSettings() {
         var opened: [Permission] = []
-        let model = makeModel(StatusBoard([:]), openSettings: { opened.append($0) })
+        let model = makeModel(MutablePermissionsChecker([:]), openSettings: { opened.append($0) })
 
         model.openSettings(for: .accessibility)
         model.openSettings(for: .microphone)
