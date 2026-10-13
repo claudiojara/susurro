@@ -19,7 +19,7 @@ struct RGBAColorTests {
 
     @Test(
         "rejects text that is not a color",
-        arguments: ["", "FFFFFF", "#FFF", "#12345", "#GGGGGG", "#FFFFFFFFF", "# FFFFF"])
+        arguments: ["", "FFFFFF", "#FFF", "#12345", "#GGGGGG", "#FFFFFFFFF", "# FFFFF", "#+FFFFF"])
     func rejectsBadText(text: String) {
         #expect(RGBAColor(hex: text) == nil)
     }

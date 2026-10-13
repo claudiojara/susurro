@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "name": "Susurro",
+  "palette": {
+    "paper": { "light": "#FFFFFF", "dark": "#1E1E20" },
+    "paperRaised": { "light": "#F5F5F7", "dark": "#2A2A2D" },
+    "paperOverlay": { "light": "#FFFFFFF2", "dark": "#242426F2" },
+    "ink": { "light": "#1D1D1F", "dark": "#F5F5F7" },
+    "inkMuted": { "light": "#6E6E73", "dark": "#A1A1A6" },
+    "inkInverse": { "light": "#FFFFFF", "dark": "#FFFFFF" },
+    "line": { "light": "#0000001A", "dark": "#FFFFFF1F" },
+    "blue": { "light": "#0A64D8", "dark": "#4C9AFF" },
+    "red": { "light": "#D92D20", "dark": "#FF6B60" },
+    "green": { "light": "#1A7F37", "dark": "#4CD07D" },
+    "amber": { "light": "#B54708", "dark": "#FFB84D" }
+  },
+  "colors": {
+    "surface.window": "paper",
+    "surface.raised": "paperRaised",
+    "surface.overlay": "paperOverlay",
+    "text.primary": "ink",
+    "text.secondary": "inkMuted",
+    "text.onAccent": "inkInverse",
+    "accent.primary": "blue",
+    "accent.recording": "red",
+    "status.success": "green",
+    "status.warning": "amber",
+    "status.error": "red",
+    "border.subtle": "line"
+  },
+  "typography": {
+    "caption": { "size": 11, "weight": "regular", "design": "standard" },
+    "body": { "size": 13, "weight": "regular", "design": "standard" },
+    "bodyEmphasized": { "size": 13, "weight": "semibold", "design": "standard" },
+    "headline": { "size": 15, "weight": "semibold", "design": "standard" },
+    "title": { "size": 20, "weight": "semibold", "design": "standard" },
+    "mono": { "size": 12, "weight": "regular", "design": "monospaced" }
+  },
+  "spacing": { "xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 24 },
+  "radii": { "sm": 6, "md": 10, "lg": 14 },
+  "motion": { "fast": 0.15, "standard": 0.25, "slow": 0.4, "springResponse": 0.35, "springDamping": 0.8 },
+  "overlay": { "width": 380, "cornerRadius": 14, "offset": 80, "edge": "bottom" }
+}
