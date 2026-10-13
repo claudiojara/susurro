@@ -46,6 +46,20 @@ struct FormatConverterTests {
         #expect(abs(samples.count - Self.targetRate) <= 1)
     }
 
+    @Test(
+        "fifty tap buffers keep the sample count within one of the nominal count",
+        arguments: [44_100.0, 48_000, 96_000])
+    func streamedCountMatchesNominal(sampleRate: Double) throws {
+        let frames = 4_096
+        let buffers = tapBuffers(
+            sampleRate: sampleRate, count: 50, frames: frames, sample: tone(sampleRate: sampleRate))
+
+        let samples = try convertAll(buffers)
+
+        let nominal = Double(50 * frames) * Double(Self.targetRate) / sampleRate
+        #expect(abs(Double(samples.count) - nominal) <= 1)
+    }
+
     @Test("a burst keeps both edges in place, including the very end of the stream")
     func edgesStayInPlace() throws {
         // 100 ms at 48 kHz in four pieces: silence, then a burst from 10 ms to the end.
@@ -108,6 +122,18 @@ struct FormatConverterTests {
 
         #expect(!settled.isEmpty)
         #expect(settled.allSatisfy { abs($0 - levels.mixed) < 0.01 })
+    }
+
+    @Test("three channels are averaged as well")
+    func threeChannelsAreAveraged() throws {
+        let levels: [Float] = [0.3, 0.6, 0.0]
+        let buffer = makeBuffer(sampleRate: 48_000, channels: 3, frames: 48_000) { channel, _ in levels[channel] }
+
+        let samples = try convertAll([buffer])
+        let settled = samples.dropFirst(Self.settle).dropLast(Self.settle)
+
+        #expect(!settled.isEmpty)
+        #expect(settled.allSatisfy { abs($0 - 0.3) < 0.01 })
     }
 
     @Test("interleaved input gives the same samples as non-interleaved")

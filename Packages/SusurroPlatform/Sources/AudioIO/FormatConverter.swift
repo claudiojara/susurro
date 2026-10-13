@@ -13,7 +13,7 @@ enum FormatConversionError: Error, Equatable {
 /// The resampler keeps its filter state between calls, so consecutive buffers of one capture join without gaps or
 /// clicks. Make one converter per capture and call it from one thread at a time.
 final class FormatConverter {
-    static let sampleRate = 16_000.0
+    static let targetSampleRate = 16_000.0
     /// Room for what the resampler holds back, which is a few dozen samples at most.
     private static let tailCapacity: AVAudioFrameCount = 1_024
 
@@ -34,7 +34,7 @@ final class FormatConverter {
             ),
             let target = AVAudioFormat(
                 commonFormat: .pcmFormatFloat32,
-                sampleRate: Self.sampleRate,
+                sampleRate: Self.targetSampleRate,
                 channels: 1,
                 interleaved: false
             )
@@ -42,7 +42,7 @@ final class FormatConverter {
 
         self.inputFormat = inputFormat
         monoFormat = inputFormat.channelCount == 1 ? inputFormat : mono
-        if inputFormat.sampleRate == Self.sampleRate {
+        if inputFormat.sampleRate == Self.targetSampleRate {
             resampler = nil
         } else {
             guard let converter = AVAudioConverter(from: monoFormat, to: target) else {
@@ -90,6 +90,8 @@ final class FormatConverter {
             && format.isInterleaved == inputFormat.isInterleaved
     }
 
+    /// Averages the channels into one. This is written by hand because `AVAudioConverter`'s own stereo-to-mono keeps
+    /// only the left channel, so a signal on any other channel would vanish.
     private func mixedToMono(_ buffer: AVAudioPCMBuffer) throws -> AVAudioPCMBuffer {
         let channels = Int(buffer.format.channelCount)
         guard channels > 1 else { return buffer }
@@ -97,6 +99,8 @@ final class FormatConverter {
             let source = buffer.floatChannelData, let destination = mono.floatChannelData?[0]
         else { throw FormatConversionError.conversionFailed("could not allocate the mono buffer") }
         mono.frameLength = buffer.frameLength
+        // Interleaved audio keeps every channel in one array, so frame `n` of any channel sits at `n * stride`, where the
+        // stride is the channel count. Planar audio has one array per channel and a stride of 1.
         let stride = buffer.stride
         let weight = 1 / Float(channels)
         for frame in 0..<Int(buffer.frameLength) {
@@ -109,7 +113,7 @@ final class FormatConverter {
 
     private func resample(_ input: AVAudioPCMBuffer, with resampler: AVAudioConverter) throws -> [Float] {
         // Sized to the expected output. A larger buffer makes the converter hold audio back until the next call.
-        let expected = (Double(input.frameLength) * Self.sampleRate / input.format.sampleRate).rounded(.up)
+        let expected = (Double(input.frameLength) * Self.targetSampleRate / input.format.sampleRate).rounded(.up)
         let capacity = AVAudioFrameCount(expected)
         guard let output = AVAudioPCMBuffer(pcmFormat: resampler.outputFormat, frameCapacity: capacity) else {
             throw FormatConversionError.conversionFailed("could not allocate the output buffer")
@@ -118,6 +122,8 @@ final class FormatConverter {
         var supplied = false
         var failure: NSError?
         let status = resampler.convert(to: output, error: &failure) { _, inputStatus in
+            // The converter asks again when it wants more than this buffer holds. `.noDataNow` ends the call and keeps
+            // the filter state for the next buffer, where `.endOfStream` would flush it and end the stream.
             guard !supplied else {
                 inputStatus.pointee = .noDataNow
                 return nil

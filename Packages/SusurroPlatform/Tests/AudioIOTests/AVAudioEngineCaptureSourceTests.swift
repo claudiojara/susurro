@@ -14,11 +14,14 @@ struct AVAudioEngineCaptureSourceTests {
         case installTap, removeTap, start, stop
     }
 
-    /// An input device scripted by the test. It records what the source asks of it, in order.
+    /// An input device scripted by the test. It records what the source asks of it, in order, and behaves like the real
+    /// engine: one tap at a time, buffers only while it runs and a tap is installed, and the buffer's memory is reused
+    /// as soon as the tap returns.
     private final class FakeEngine: EngineProviding {
         private struct State {
             var tap: (@Sendable (AVAudioPCMBuffer) -> Void)?
             var tapFormat: AVAudioFormat?
+            var isRunning = false
             var calls: [Call] = []
         }
 
@@ -40,13 +43,25 @@ struct AVAudioEngineCaptureSourceTests {
         var tapFormat: AVAudioFormat? { state.withLock { $0.tapFormat } }
 
         func deliver(_ buffer: AVAudioPCMBuffer) {
-            state.withLock { $0.tap }?(buffer)
+            let (tap, isRunning) = state.withLock { ($0.tap, $0.isRunning) }
+            guard isRunning else {
+                Issue.record("A buffer was delivered while the engine is not running.")
+                return
+            }
+            tap?(buffer)
+            // The real engine reuses this memory once the tap returns, so a bridge that kept the buffer would read this.
+            if let data = buffer.floatChannelData {
+                for channel in 0..<Int(buffer.format.channelCount) {
+                    for frame in 0..<Int(buffer.frameLength) { data[channel][frame * buffer.stride] = .nan }
+                }
+            }
         }
 
         func inputFormat() -> AVAudioFormat? { format }
 
         func installTap(format: AVAudioFormat, handler: @escaping @Sendable (AVAudioPCMBuffer) -> Void) {
             state.withLock {
+                precondition($0.tap == nil, "A second tap was installed on the same bus.")
                 $0.calls.append(.installTap)
                 $0.tap = handler
                 $0.tapFormat = format
@@ -63,10 +78,14 @@ struct AVAudioEngineCaptureSourceTests {
         func start() throws {
             state.withLock { $0.calls.append(.start) }
             if let startFailure { throw startFailure }
+            state.withLock { $0.isRunning = true }
         }
 
         func stop() {
-            state.withLock { $0.calls.append(.stop) }
+            state.withLock {
+                $0.calls.append(.stop)
+                $0.isRunning = false
+            }
             stopped.open()
         }
     }
@@ -107,6 +126,7 @@ struct AVAudioEngineCaptureSourceTests {
 
         let chunk = try #require(try await chunks.next())
         #expect(Self.isConvertedBuffer(chunk.samples.count))
+        #expect(!chunk.samples.contains { $0.isNaN })
         #expect(engine.tapFormat == engine.format)
     }
 

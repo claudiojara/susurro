@@ -2,11 +2,13 @@ import AVFoundation
 import Synchronization
 
 /// `AVAudioEngine` behind the `EngineProviding` seam. It needs a microphone and its permission, so it is covered by the
-/// manual check in WS5 rather than by unit tests.
+/// manual check in WS5.8 rather than by unit tests.
 final class LiveAudioEngine: EngineProviding {
     /// About 21 ms at 48 kHz: the last buffer is dropped when the tap is removed, so a smaller one clips less speech.
     private static let tapBufferSize: AVAudioFrameCount = 1_024
 
+    /// `AVAudioEngine` is not `Sendable`. The lock serializes the calls and keeps this wrapper `Sendable` without an
+    /// unchecked escape hatch.
     private let engine = Mutex(AVAudioEngine())
 
     func inputFormat() -> AVAudioFormat? {
