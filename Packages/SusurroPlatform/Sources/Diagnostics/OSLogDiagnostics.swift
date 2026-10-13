@@ -24,6 +24,8 @@ public struct OSLogDiagnostics: DiagnosticsLog {
         case .dictationFailed(let kind): (.error, "dictation failed: \(kind)")
         case .captureStreamFailed(let errorType): (.error, "capture stream failed: \(errorType)")
         case .processingCapReached: (.error, "processing did not finish within its total time limit")
+        case .recordingCapReached: (.default, "recording reached its time limit")
+        case .releaseWaitExpired: (.default, "the key was not released in time, pasting anyway")
         case .captureStopAbandoned: (.error, "capture did not stop in time and was abandoned")
         case .shutdownDrainAbandoned: (.error, "shutdown stopped waiting for the paste to finish")
         case .pasteNotCompleted(let cause): (.error, "paste not completed: \(cause)")
