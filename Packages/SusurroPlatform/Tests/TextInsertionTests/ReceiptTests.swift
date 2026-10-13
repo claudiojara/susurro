@@ -187,4 +187,17 @@ struct ReceiptTests: PasteTestCase {
         #expect(sleeps == [Self.receiptPollInterval])
         expectMarkedTextLeft("hello world")
     }
+
+    @Test("a pause that fails while waiting for a read ends the wait and leaves the text")
+    func failingPauseEndsTheWaitForARead() async {
+        putRichContent()
+        let keys = FakeKeystrokePoster()
+        onSleep = { _ in throw CancellationError() }
+
+        let outcome = await makeInserter(keys).insert("hello world")
+
+        #expect(outcome == .copiedToClipboard(.pasteFailed))
+        #expect(sleeps == [Self.receiptPollInterval])
+        expectMarkedTextLeft("hello world")
+    }
 }
