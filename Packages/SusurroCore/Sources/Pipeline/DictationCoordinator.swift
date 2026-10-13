@@ -65,12 +65,11 @@ public actor DictationCoordinator {
         for await event in hotkeys.events() {
             await handle(event)
         }
-        // An unstructured task, so the cleanup runs to completion even when this task was cancelled.
-        await Task { await self.shutdown() }.value
+        await shutdown()
     }
 
     /// Stops any recording, abandons any dictation in progress without inserting it, and ends `states`. Ignores
-    /// later events. Call it from a task that is not cancelled.
+    /// later events. It stops the capture even when the calling task is cancelled.
     public func shutdown() async {
         guard phase != .stopped else { return }
         let wasRecording = phase == .capturing || phase == .finishing
@@ -102,6 +101,7 @@ public actor DictationCoordinator {
         pendingRelease = nil
         do {
             try await checkStartPreconditions()
+            guard phase == .starting else { return }  // shut down meanwhile
             publish(.starting)
             let stream = try await capture.start()
             guard phase == .starting else { return await abandonCapture() }  // shut down meanwhile
@@ -166,8 +166,6 @@ public actor DictationCoordinator {
                 await capture.stop()
                 await captureTask?.value
             }
-        } catch is CancellationError {
-            return  // shutdown() cleans up
         } catch {
             captureTask?.cancel()
             return settle(.error(Self.pipelineError(from: error, otherwise: PipelineError.captureFailed)))
@@ -191,11 +189,14 @@ public actor DictationCoordinator {
         processTask = Task { await self.process(clip) }
     }
 
-    /// Best effort: a capture that does not stop in time is abandoned.
+    /// Best effort: a capture that does not stop in time is abandoned. It runs in an unstructured task, so a caller
+    /// that is already cancelled still stops the capture.
     private func abandonCapture() async {
-        try? await withDeadline(DictationLimits.captureStopTimeout, stage: .capture, sleep: sleep) { [capture] in
-            await capture.stop()
-        }
+        await Task {
+            try? await withDeadline(DictationLimits.captureStopTimeout, stage: .capture, sleep: sleep) { [capture] in
+                await capture.stop()
+            }
+        }.value
     }
 
     private func process(_ clip: AudioClip) async {
@@ -215,8 +216,6 @@ public actor DictationCoordinator {
             case .inserted: settle(.inserted)
             case .copiedToClipboard(let reason): settle(.notice(.copiedToClipboard(reason)))
             }
-        } catch is CancellationError {
-            return  // shutdown() cleans up
         } catch {
             settle(.error(Self.pipelineError(from: error, otherwise: PipelineError.recognitionFailed)))
         }
