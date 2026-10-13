@@ -49,20 +49,33 @@ struct RealModelTests {
         fold(text).components(separatedBy: word).count - 1
     }
 
-    /// Loads the model and reports how long that took. The first run includes the download.
-    private static func loadedRecognizer() async -> (ParakeetRecognizer, Duration) {
+    /// Loads the model. Reports how long that took, and every readiness value published on the way. The first run
+    /// includes the download.
+    private static func loadedRecognizer() async -> (ParakeetRecognizer, Duration, [RecognizerReadiness]) {
         let recognizer = ParakeetRecognizer()
+        var changes = await recognizer.readinessChanges().makeAsyncIterator()
         let started = ContinuousClock.now
         await recognizer.prepare()
-        await recognizer.waitUntilReady()
-        return (recognizer, ContinuousClock.now - started)
+        var published: [RecognizerReadiness] = []
+        while let readiness = await changes.next() {
+            published.append(readiness)
+            if readiness == .ready { break }
+        }
+        return (recognizer, ContinuousClock.now - started, published)
     }
 
     @Test("a spoken Spanish sentence is transcribed, with the language detected or pinned")
     func spanishSentence() async throws {
         let samples = try Self.speak(Self.sentence)
-        let (recognizer, loadTime) = await Self.loadedRecognizer()
-        print("REAL-MODEL load: \(loadTime)")
+        let (recognizer, loadTime, published) = await Self.loadedRecognizer()
+        print("REAL-MODEL load: \(loadTime), \(published.count) readiness values: \(published)")
+
+        let progress = published.compactMap { readiness -> Double? in
+            if case .loading(let progress) = readiness { progress } else { nil }
+        }
+        #expect(published.last == .ready)
+        #expect(progress == progress.sorted())
+        #expect(progress.allSatisfy { $0 < 1 })
 
         for language in [String?.none, "es"] {
             let started = ContinuousClock.now
@@ -80,10 +93,28 @@ struct RealModelTests {
         }
     }
 
+    @Test("clips of silence and of the shortest accepted length are transcribed without an error")
+    func degenerateClips() async throws {
+        let speech = try Self.speak(Self.sentence)
+        let (recognizer, _, _) = await Self.loadedRecognizer()
+        let minimum = LiveParakeetEngine().minimumSampleCount
+        let clips: [(name: String, samples: [Float])] = [
+            ("two seconds of silence", [Float](repeating: 0, count: 32_000)),
+            ("the shortest accepted clip", Array(speech.prefix(minimum))),
+            ("one sample short of it", Array(speech.prefix(minimum - 1))),
+        ]
+
+        for (name, samples) in clips {
+            let started = ContinuousClock.now
+            let transcript = try await recognizer.transcribe(AudioClip(samples: samples), options: RecognitionOptions())
+            print("REAL-MODEL \(name): \"\(transcript.text)\" in \(ContinuousClock.now - started)")
+        }
+    }
+
     @Test("long clips go to the engine whole", arguments: [10, 20])
     func longClip(repetitions: Int) async throws {
         let samples = try Self.speak(String(repeating: Self.sentence, count: repetitions))
-        let (recognizer, _) = await Self.loadedRecognizer()
+        let (recognizer, _, _) = await Self.loadedRecognizer()
 
         let started = ContinuousClock.now
         let transcript = try await recognizer.transcribe(AudioClip(samples: samples), options: RecognitionOptions())

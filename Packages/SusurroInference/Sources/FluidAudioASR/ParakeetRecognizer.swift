@@ -32,6 +32,10 @@ public actor ParakeetRecognizer: SpeechRecognizer {
     private var waiters: [Waiter] = []
     private var waiterCount = 0
 
+    public init() {
+        self.init(engine: LiveParakeetEngine())
+    }
+
     init(engine: any ParakeetEngine) {
         self.engine = engine
     }
