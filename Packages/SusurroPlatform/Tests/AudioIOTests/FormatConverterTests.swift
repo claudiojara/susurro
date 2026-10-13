@@ -132,6 +132,16 @@ struct FormatConverterTests {
         #expect(throws: FormatConversionError.formatChanged) { try sut.convert(changed) }
     }
 
+    @Test("a buffer that differs from the converter's format only in channel layout is accepted")
+    func layoutMetadataIsIgnored() throws {
+        let standard = try #require(AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 2))
+        let sut = try FormatConverter(from: standard)
+        // The fixture labels its channels as discrete, where the standard format labels them left and right.
+        let buffer = makeBuffer(sampleRate: 48_000, channels: 2, frames: 4_800) { _, _ in 0.5 }
+
+        #expect(try sut.convert(buffer).count == 1_600)
+    }
+
     @Test("input that is not Float32 PCM is unsupported")
     func unsupportedInput() throws {
         let format = try #require(

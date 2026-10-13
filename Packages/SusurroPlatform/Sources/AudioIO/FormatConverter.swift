@@ -54,11 +54,19 @@ final class FormatConverter {
 
     /// Returns the buffer as 16 kHz mono samples. Channels are averaged, so a signal on any one of them is kept.
     func convert(_ buffer: AVAudioPCMBuffer) throws -> [Float] {
-        guard buffer.format == inputFormat else { throw FormatConversionError.formatChanged }
+        guard matchesInput(buffer.format) else { throw FormatConversionError.formatChanged }
         guard buffer.frameLength > 0 else { return [] }
         let mono = mixedToMono(buffer)
         guard let resampler else { return samples(of: mono) }
         return try resample(mono, with: resampler)
+    }
+
+    /// Compares what conversion depends on. Two formats can differ only in channel layout metadata and still match.
+    private func matchesInput(_ format: AVAudioFormat) -> Bool {
+        format.sampleRate == inputFormat.sampleRate
+            && format.channelCount == inputFormat.channelCount
+            && format.commonFormat == inputFormat.commonFormat
+            && format.isInterleaved == inputFormat.isInterleaved
     }
 
     private func mixedToMono(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer {
