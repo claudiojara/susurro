@@ -1,6 +1,5 @@
-import Testing
-
 import Permissions
+import Testing
 
 @Suite("SusurroPlatform module smoke")
 struct ModuleSmokeTests {

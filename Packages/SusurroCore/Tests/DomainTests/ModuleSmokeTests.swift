@@ -1,6 +1,5 @@
-import Testing
-
 import Domain
+import Testing
 
 @Suite("SusurroCore module smoke")
 struct ModuleSmokeTests {

@@ -1,6 +1,5 @@
-import Testing
-
 import Presentation
+import Testing
 
 @Suite("SusurroFeatures module smoke")
 struct ModuleSmokeTests {

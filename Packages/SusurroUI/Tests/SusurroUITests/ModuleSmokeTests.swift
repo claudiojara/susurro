@@ -1,6 +1,5 @@
-import Testing
-
 import SusurroUI
+import Testing
 
 @MainActor
 @Suite("SusurroUI module smoke")

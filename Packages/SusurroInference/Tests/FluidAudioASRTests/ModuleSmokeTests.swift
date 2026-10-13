@@ -1,6 +1,5 @@
-import Testing
-
 import FluidAudioASR
+import Testing
 
 @Suite("SusurroInference module smoke")
 struct ModuleSmokeTests {
