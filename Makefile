@@ -3,6 +3,10 @@ PROJECT := App/Susurro.xcodeproj
 DERIVED_DATA := build
 APP := $(DERIVED_DATA)/Build/Products/Debug/Susurro.app
 
+# SwiftPM looks up github.com credentials in the keychain before it downloads a binary artifact, as FluidAudio's
+# dependency does. With several github.com entries that lookup stalled the build, and no dependency needs credentials.
+SWIFTPM_FLAGS := --disable-keychain
+
 # RECORD=1 re-records snapshot references. Do it only on the CI image (record-snapshots workflow).
 SNAPSHOT_ENV := $(if $(RECORD),SNAPSHOT_TESTING_RECORD=all)
 
@@ -21,7 +25,7 @@ lint:
 test:
 	@for pkg in $(PACKAGES); do \
 		echo "==> swift test: $$pkg"; \
-		swift test --package-path Packages/$$pkg --skip Snapshot || exit 1; \
+		swift test $(SWIFTPM_FLAGS) --package-path Packages/$$pkg --skip Snapshot || exit 1; \
 	done
 
 # Stub until the snapshot infrastructure lands. It will run: $(SNAPSHOT_ENV) swift test --filter Snapshot

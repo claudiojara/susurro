@@ -21,6 +21,8 @@ public enum Remedy: Sendable, Equatable {
 public enum PipelineError: Error, Sendable, Equatable {
     case microphoneNotGranted
     case recognizerNotInstalled
+    /// The speech model failed to load. The text is the reason. `retryable` is false when trying again cannot help.
+    case recognizerUnavailable(String, retryable: Bool)
     /// The capture failed. The text is the underlying error.
     case captureFailed(String)
     /// The recognizer failed. The text is the underlying error.
@@ -41,6 +43,7 @@ public enum PipelineError: Error, Sendable, Equatable {
         switch self {
         case .microphoneNotGranted: .permissions
         case .recognizerNotInstalled: .settings
+        case .recognizerUnavailable(_, let retryable): retryable ? .retry : .settings
         case .captureFailed, .recognitionFailed, .timedOut, .notInserted: .retry
         }
     }
