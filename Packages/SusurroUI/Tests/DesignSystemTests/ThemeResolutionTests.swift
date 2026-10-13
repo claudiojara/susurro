@@ -69,6 +69,43 @@ struct ThemeResolutionTests {
         #expect(throws: ThemeError.missingToken("colors.text.primary")) { try theme.resolved(for: .light) }
     }
 
+    @Test("a number that is negative or not finite is an error that names it, after the dangling colors")
+    func numbersOutOfRange() {
+        var theme = Theme.default
+        theme.spacing["md"] = -1
+        theme.radii["sm"] = .infinity
+        theme.motion["fast"] = .nan
+        theme.typography["body"]?.size = -13
+        theme.overlay.width = -380
+        theme.overlay.offset = -.infinity
+        theme.colors["status.error"] = "nowhere"
+        let problems = theme.problems()
+        #expect(problems.first == .missingPaletteKey(token: "status.error", paletteKey: "nowhere"))
+        let paths = problems.dropFirst().compactMap { error -> String? in
+            if case .invalidValue(let path, _) = error { path } else { nil }
+        }
+        #expect(
+            paths == [
+                "motion.fast", "overlay.offset", "overlay.width", "radii.sm", "spacing.md", "typography.body.size",
+            ])
+        #expect(problems.count == 7)
+    }
+
+    @Test("a theme with a negative number does not resolve, and zero does")
+    func negativeNumberDoesNotResolve() throws {
+        var theme = Theme.default
+        theme.spacing["xs"] = 0
+        _ = try theme.resolved(for: .light)
+        theme.spacing["md"] = -2
+        #expect(throws: ThemeError.self) { try theme.resolved(for: .light) }
+        if case .invalidValue(let path, let reason) = theme.problems().first {
+            #expect(path == "spacing.md")
+            #expect(reason == "-2.0 is not allowed. Use a finite number of 0 or more.")
+        } else {
+            Issue.record("expected an invalidValue, got \(theme.problems())")
+        }
+    }
+
     @Test("the bundled theme has no problems")
     func bundledThemeIsClean() {
         #expect(Theme.default.problems() == [])
