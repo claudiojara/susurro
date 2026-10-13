@@ -23,4 +23,10 @@ struct TokenLintTests {
             #expect(report.violations.map(\.description) == [], "Sources/\(target) writes a visual literal.")
         }
     }
+
+    @Test("without the allowance Tokens is not clean, so the allowance is what keeps the sources scan green")
+    func tokensHoldTheLiterals() throws {
+        let rules = try Set(LiteralScanner.scan(tokens).violations.map(\.rule))
+        #expect(rules.isSuperset(of: [.colorInitializer, .fontSize]))
+    }
 }
