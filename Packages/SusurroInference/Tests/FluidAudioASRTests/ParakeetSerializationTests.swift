@@ -6,15 +6,11 @@ import Testing
 
 @Suite("Parakeet serializes inference", .timeLimit(.minutes(1)))
 struct ParakeetSerializationTests {
-    private static func clip(samples count: Int) -> AudioClip {
-        AudioClip(samples: [Float](repeating: 0.1, count: count))
-    }
-
     private static func transcribe(
         _ recognizer: ParakeetRecognizer,
         samples count: Int
     ) -> Task<RawTranscript, any Error> {
-        Task { try await recognizer.transcribe(clip(samples: count), options: RecognitionOptions()) }
+        Task { try await recognizer.transcribe(.ramp(samples: count), options: RecognitionOptions()) }
     }
 
     /// Waits until exactly `count` transcriptions are queued behind the one running. Returns false if that does not
@@ -28,17 +24,10 @@ struct ParakeetSerializationTests {
         return true
     }
 
-    private static func readyRecognizer(_ engine: FakeParakeetEngine) async -> ParakeetRecognizer {
-        let recognizer = ParakeetRecognizer(engine: engine)
-        await recognizer.prepare()
-        await recognizer.waitUntilReady()
-        return recognizer
-    }
-
     @Test("overlapping transcriptions run one at a time, in the order they arrived")
     func oneAtATimeInOrder() async throws {
         let engine = FakeParakeetEngine(gatedTranscription: true)
-        let recognizer = await Self.readyRecognizer(engine)
+        let recognizer = await ParakeetRecognizer.ready(engine: engine)
 
         let first = Self.transcribe(recognizer, samples: 5_000)
         await engine.entered.wait()
@@ -57,7 +46,7 @@ struct ParakeetSerializationTests {
     @Test("a cancelled transcription leaves the queue at once and the next one still runs")
     func cancelledWaiterLeavesTheQueue() async throws {
         let engine = FakeParakeetEngine(gatedTranscription: true)
-        let recognizer = await Self.readyRecognizer(engine)
+        let recognizer = await ParakeetRecognizer.ready(engine: engine)
 
         let first = Self.transcribe(recognizer, samples: 5_000)
         await engine.entered.wait()

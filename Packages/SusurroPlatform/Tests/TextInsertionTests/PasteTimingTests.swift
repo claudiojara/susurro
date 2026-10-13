@@ -5,14 +5,19 @@ import Testing
 
 @Suite("Paste timing")
 struct PasteTimingTests {
-    @Test("the worst case is the modifier wait, the wait for a read, and one last quiet period")
+    @Test("the worst case of an insertion is the modifier wait and the wait for a read")
     func worstCase() {
-        #expect(PasteTiming.worstCase == .milliseconds(8_700))
+        #expect(PasteTiming.worstCase == .milliseconds(8_500))
     }
 
-    @Test("the worst case ends at least a second before the coordinator gives up on the insertion")
+    @Test("a queued insertion waits for the minimum dwell of the paste before it, which is all that is left of it")
+    func overlapWaitCoversTheDwell() {
+        #expect(PasteTiming.overlapWait >= PasteTiming.minimumDwell)
+    }
+
+    @Test("a queued insertion and its own worst case end before the coordinator gives up on the insertion")
     func fitsTheInsertionDeadline() {
-        #expect(PasteTiming.worstCase + .seconds(1) <= DictationLimits.insertionTimeout)
+        #expect(PasteTiming.overlapWait + PasteTiming.worstCase <= DictationLimits.insertionTimeout)
     }
 
     @Test("the minimum dwell overlaps the wait for a read, so it adds nothing to the worst case")

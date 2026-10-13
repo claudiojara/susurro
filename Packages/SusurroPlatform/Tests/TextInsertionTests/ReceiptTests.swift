@@ -27,7 +27,7 @@ struct ReceiptTests: PasteTestCase {
             textWhenRead = fixture.readAsApp()
         }
 
-        let outcome = await makeInserter(keys).insert("hello world")
+        let outcome = await makeInserter(keys).insertAndSettle("hello world")
 
         #expect(typesBeforeRead == Self.markerTypes.union(["public.utf8-plain-text"]))
         #expect(itemCount == 1)
@@ -53,11 +53,72 @@ struct ReceiptTests: PasteTestCase {
             }
         }
 
-        let outcome = await makeInserter(keys).insert("hello world")
+        let outcome = await makeInserter(keys).insertAndSettle("hello world")
 
         #expect(outcome == .inserted)
         #expect(promisedWhilePolling == [true, true, true, true])
         #expect(clock.elapsed == Self.minimumDwell)
+        #expect(contents() == before)
+    }
+
+    @Test("the outcome comes at the first read, while the old pasteboard is still out, and the restore follows")
+    func outcomeAtTheFirstRead() async {
+        putRichContent()
+        let before = contents()
+        let keys = FakeKeystrokePoster()
+        appReadsOnPaste(keys)
+        let sut = makeInserter(keys)
+        let dwell = clock.suspendNextSleep()  // the first pause after the chord is the minimum dwell
+
+        let outcome = await sut.insert("hello world")
+
+        #expect(outcome == .inserted)
+        #expect(clock.elapsed == .zero)
+        #expect(isTextPromised())
+        dwell.release.open()
+        await sut.drain()
+        #expect(clock.elapsed == Self.minimumDwell)
+        #expect(contents() == before)
+    }
+
+    @Test("a late first read is the moment of the outcome, and the restore still waits for the minimum dwell")
+    func outcomeAtALateFirstRead() async {
+        putRichContent()
+        let before = contents()
+        let keys = FakeKeystrokePoster()
+        var polls = 0
+        var dwell: SteppedClock.Suspension?
+        onSleep = { [fixture, clock] _ in
+            polls += 1
+            guard polls == 5 else { return }
+            _ = fixture.readAsApp()  // the app reads on the fifth poll
+            dwell = clock.suspendNextSleep()  // the next pause is held, so the clock stops where the outcome is
+        }
+        let sut = makeInserter(keys)
+
+        let outcome = await sut.insert("hello world")
+
+        #expect(outcome == .inserted)
+        #expect(clock.elapsed == Self.receiptPollInterval * 5)
+        #expect(isTextPromised())
+        dwell?.release.open()
+        await sut.drain()
+        #expect(clock.elapsed == Self.minimumDwell)
+        #expect(contents() == before)
+    }
+
+    @Test("a pause that fails after the first read cuts the wait short, and the old pasteboard still comes back")
+    func failingPauseAfterTheReadStillRestores() async {
+        putRichContent()
+        let before = contents()
+        let keys = FakeKeystrokePoster()
+        appReadsOnPaste(keys)
+        onSleep = { _ in throw CancellationError() }
+
+        let outcome = await makeInserter(keys).insertAndSettle("hello world")
+
+        #expect(outcome == .inserted)
+        #expect(sleeps == [Self.receiptPollInterval])
         #expect(contents() == before)
     }
 
@@ -88,6 +149,7 @@ struct ReceiptTests: PasteTestCase {
 
         caller = Task { await sut.insert("hello world") }
         let outcome = await caller?.value
+        await sut.drain()
 
         #expect(outcome == .inserted)
         #expect(completedSleeps.reduce(.zero, +) == Self.minimumDwell)
@@ -105,7 +167,7 @@ struct ReceiptTests: PasteTestCase {
             promisedAtEveryPause.append(fixture.declaredTypes().contains("org.nspasteboard.TransientType"))
         }
 
-        let outcome = await makeInserter(keys).insert("hello world")
+        let outcome = await makeInserter(keys).insertAndSettle("hello world")
 
         #expect(outcome == .inserted)
         #expect(promisedAtEveryPause == Array(repeating: true, count: 20))  // one pause per 50 ms, up to 1 s
@@ -124,7 +186,7 @@ struct ReceiptTests: PasteTestCase {
             if pauses == 19 { _ = fixture.readAsApp() }  // the app reads at 950 ms
         }
 
-        let outcome = await makeInserter(keys).insert("hello world")
+        let outcome = await makeInserter(keys).insertAndSettle("hello world")
 
         #expect(outcome == .inserted)
         #expect(clock.elapsed == Duration.milliseconds(950) + Self.restoreDelay)
@@ -169,7 +231,7 @@ struct ReceiptTests: PasteTestCase {
 
         let outcome = await makeInserter(keys).insert("hello world")
 
-        #expect(outcome == .copiedToClipboard(.pasteFailed))
+        #expect(outcome == .notInserted(.clipboardChanged))  // the text is nowhere: not pasted, and not kept
         #expect(clock.elapsed == Self.receiptTimeout)
         #expect(pasteboardText == "user copy")
         #expect(contents().count == 1)

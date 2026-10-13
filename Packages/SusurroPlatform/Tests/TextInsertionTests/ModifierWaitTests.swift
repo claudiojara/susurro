@@ -21,7 +21,7 @@ struct ModifierWaitTests: PasteTestCase {
         let keys = FakeKeystrokePoster(modifiersHeldFor: 3)
         appReadsOnPaste(keys)
 
-        let outcome = await makeInserter(keys).insert("hello world")
+        let outcome = await makeInserter(keys).insertAndSettle("hello world")
 
         #expect(outcome == .inserted)
         #expect(keys.calls == [.modifiersHeld, .modifiersHeld, .modifiersHeld, .modifiersHeld, .postPaste])
@@ -44,7 +44,7 @@ struct ModifierWaitTests: PasteTestCase {
             changeCountsDuringWait.append(fixture.pasteboard.changeCount)
         }
 
-        let outcome = await makeInserter(keys).insert("hello world")
+        let outcome = await makeInserter(keys).insertAndSettle("hello world")
 
         #expect(outcome == .inserted)
         #expect(seenDuringWait == Array(repeating: before, count: 3))
@@ -95,7 +95,7 @@ struct ModifierWaitTests: PasteTestCase {
         let keys = FakeKeystrokePoster(modifiersHeldFor: allowedPolls)
         appReadsOnPaste(keys)
 
-        let outcome = await makeInserter(keys).insert("hello world")
+        let outcome = await makeInserter(keys).insertAndSettle("hello world")
 
         #expect(outcome == .inserted)
         #expect(keys.postCount == 1)

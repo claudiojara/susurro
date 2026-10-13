@@ -380,6 +380,20 @@ struct DictationCoordinatorTests {
         #expect(h.inserter.insertedTexts == ["hello"])
     }
 
+    @Test(
+        "text that is neither inserted nor on the clipboard is an error, not a notice",
+        arguments: [NotInsertedReason.clipboardChanged, .clipboardWriteFailed]
+    )
+    func notInserted(reason: NotInsertedReason) async {
+        let inserter = FakeTextInserter(outcome: .notInserted(reason))
+        var h = await Harness(inserter: inserter)
+        await h.startRecording()
+        let states = await h.release()
+
+        #expect(states == [.transcribing(progress: nil), .error(.notInserted(reason)), .idle])
+        #expect(h.inserter.insertedTexts == ["hello"])
+    }
+
     @Test("two dictations in a row each get their own capture and clip")
     func sequentialDictations() async {
         var h = await Harness()

@@ -27,6 +27,8 @@ public enum PipelineError: Error, Sendable, Equatable {
     case recognitionFailed(String)
     /// A step did not finish in time and was abandoned.
     case timedOut(Stage)
+    /// The transcript is neither in the target app nor on the clipboard.
+    case notInserted(NotInsertedReason)
 
     public enum Stage: Sendable, Equatable {
         case readiness
@@ -39,7 +41,7 @@ public enum PipelineError: Error, Sendable, Equatable {
         switch self {
         case .microphoneNotGranted: .permissions
         case .recognizerNotInstalled: .settings
-        case .captureFailed, .recognitionFailed, .timedOut: .retry
+        case .captureFailed, .recognitionFailed, .timedOut, .notInserted: .retry
         }
     }
 }
