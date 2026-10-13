@@ -26,18 +26,18 @@ final class PasteFixture {
     func makeInserter(
         _ keys: FakeKeystrokePoster,
         sourceBundleID: String,
-        writeItem: ((NSPasteboard, NSPasteboardItem) -> Bool)?
+        diagnostics: any DiagnosticsLog,
+        writeItem: ((NSPasteboard, NSPasteboardItem) -> Bool)?,
+        restoreItems: ((NSPasteboard, [NSPasteboardItem]) -> Bool)?
     ) -> SimplePasteInserter {
-        guard let writeItem else {
-            return SimplePasteInserter(
-                pasteboard: pasteboard, keystrokes: keys, clock: clock, sourceBundleID: sourceBundleID)
-        }
-        return SimplePasteInserter(
+        SimplePasteInserter(
             pasteboard: pasteboard,
             keystrokes: keys,
             clock: clock,
             sourceBundleID: sourceBundleID,
-            writeItem: writeItem
+            diagnostics: diagnostics,
+            writeItem: writeItem ?? { $0.writeObjects([$1]) },
+            restoreItems: restoreItems ?? { $0.writeObjects($1) }
         )
     }
 
@@ -82,12 +82,14 @@ protocol PasteTestCase {
 
 extension PasteTestCase {
     // The timings, spelled out once. The quiet period (200 ms) and the receipt timeout (8 s) are the spec's; the
-    // modifier timeout (500 ms), the minimum dwell (1 s), the wait for an earlier paste (1 s), and the two poll
-    // intervals come from the tasks and the review. They are not read from `PasteTiming`, so changing a constant there
+    // modifier timeout (500 ms), the minimum dwell (1 s), the wait for an earlier paste (the dwell and one poll), and
+    // the two poll intervals come from the tasks and the review. They are not read from `PasteTiming`, so changing a constant there
     // fails these tests.
     static var restoreDelay: Duration { .milliseconds(200) }
     static var minimumDwell: Duration { .seconds(1) }
-    static var overlapWait: Duration { .seconds(1) }
+    static var overlapWait: Duration { .milliseconds(1_050) }
+    /// The whole of an insertion: the wait for an earlier paste, the modifier wait, and the wait for a read.
+    static var insertBudget: Duration { .milliseconds(9_550) }
     static var modifierTimeout: Duration { .milliseconds(500) }
     static var receiptTimeout: Duration { .seconds(8) }
     static var modifierPollInterval: Duration { .milliseconds(20) }
@@ -122,9 +124,13 @@ extension PasteTestCase {
 
     func makeInserter(
         _ keys: FakeKeystrokePoster = FakeKeystrokePoster(),
-        writeItem: ((NSPasteboard, NSPasteboardItem) -> Bool)? = nil
+        diagnostics: any DiagnosticsLog = NoDiagnostics(),
+        writeItem: ((NSPasteboard, NSPasteboardItem) -> Bool)? = nil,
+        restoreItems: ((NSPasteboard, [NSPasteboardItem]) -> Bool)? = nil
     ) -> SimplePasteInserter {
-        fixture.makeInserter(keys, sourceBundleID: Self.sourceBundleID, writeItem: writeItem)
+        fixture.makeInserter(
+            keys, sourceBundleID: Self.sourceBundleID, diagnostics: diagnostics, writeItem: writeItem,
+            restoreItems: restoreItems)
     }
 
     /// A target app that reads the text as soon as it receives the chord.

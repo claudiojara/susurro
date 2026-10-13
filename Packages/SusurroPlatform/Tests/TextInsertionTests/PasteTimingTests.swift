@@ -5,22 +5,22 @@ import Testing
 
 @Suite("Paste timing")
 struct PasteTimingTests {
-    @Test("the worst case of an insertion is the modifier wait and the wait for a read")
-    func worstCase() {
-        #expect(PasteTiming.worstCase == .milliseconds(8_500))
+    @Test("the budget of an insertion covers the wait for an earlier paste, the modifier wait, and the wait for a read")
+    func insertBudget() {
+        #expect(PasteTiming.insertBudget == .milliseconds(9_550))
     }
 
-    @Test("a queued insertion waits for the minimum dwell of the paste before it, which is all that is left of it")
+    @Test("a queued insertion waits for the minimum dwell of the paste before it, and one poll more for its task to end")
     func overlapWaitCoversTheDwell() {
-        #expect(PasteTiming.overlapWait >= PasteTiming.minimumDwell)
+        #expect(PasteTiming.overlapWait == PasteTiming.minimumDwell + PasteTiming.receiptPollInterval)
     }
 
-    @Test("a queued insertion and its own worst case end before the coordinator gives up on the insertion")
+    @Test("the whole budget ends before the coordinator gives up on the insertion")
     func fitsTheInsertionDeadline() {
-        #expect(PasteTiming.overlapWait + PasteTiming.worstCase <= DictationLimits.insertionTimeout)
+        #expect(PasteTiming.insertBudget < DictationLimits.insertionTimeout)
     }
 
-    @Test("the minimum dwell overlaps the wait for a read, so it adds nothing to the worst case")
+    @Test("the minimum dwell overlaps the wait for a read, so it adds nothing to the budget")
     func dwellOverlapsTheReceiptWait() {
         #expect(PasteTiming.minimumDwell < PasteTiming.receiptTimeout)
     }
