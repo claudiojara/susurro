@@ -12,6 +12,7 @@ let package = Package(
     targets: [
         .target(
             name: "DesignSystem",
+            resources: [.process("Resources")],
             swiftSettings: [.defaultIsolation(MainActor.self)]
         ),
         .target(
@@ -19,6 +20,7 @@ let package = Package(
             dependencies: ["DesignSystem"],
             swiftSettings: [.defaultIsolation(MainActor.self)]
         ),
+        .testTarget(name: "DesignSystemTests", dependencies: ["DesignSystem"]),
         .testTarget(name: "SusurroUITests", dependencies: ["SusurroUI"]),
     ],
     swiftLanguageModes: [.v6]
