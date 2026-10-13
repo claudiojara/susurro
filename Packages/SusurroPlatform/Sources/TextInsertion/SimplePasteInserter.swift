@@ -37,33 +37,29 @@ public final class SimplePasteInserter: TextInserter {
             write(text)
             return .copiedToClipboard(.pasteFailed)
         }
-        let saved = (pasteboard.pasteboardItems ?? []).map { item in
-            item.types.compactMap { type in item.data(forType: type).map { (type, $0) } }
-        }
+        let saved = PasteboardSnapshot(of: pasteboard)
         let written = write(text)
-        do {
-            try keystrokes.postPaste()
-        } catch KeystrokeError.accessibilityNotGranted {
-            return .copiedToClipboard(.accessibilityMissing)
-        } catch {
-            return .copiedToClipboard(.pasteFailed)
-        }
+        if let reason = postChord() { return .copiedToClipboard(reason) }
         do {
             try await sleep(PasteTiming.restoreDelay)
         } catch {
             return .copiedToClipboard(.pasteFailed)
         }
-        if pasteboard.changeCount == written {
-            pasteboard.clearContents()
-            pasteboard.writeObjects(
-                saved.map { entries in
-                    let item = NSPasteboardItem()
-                    for (type, data) in entries { item.setData(data, forType: type) }
-                    return item
-                }
-            )
-        }
+        // A newer write by anyone else wins over the old contents.
+        if pasteboard.changeCount == written { saved.restore(to: pasteboard) }
         return .inserted
+    }
+
+    /// Posts the paste chord. Returns why it could not be posted, or nil when it was.
+    private func postChord() -> ClipboardReason? {
+        do {
+            try keystrokes.postPaste()
+            return nil
+        } catch KeystrokeError.accessibilityNotGranted {
+            return .accessibilityMissing
+        } catch {
+            return .pasteFailed
+        }
     }
 
     /// Waits for the modifier keys to come up. False when they stay down past the timeout or the wait is cancelled.
