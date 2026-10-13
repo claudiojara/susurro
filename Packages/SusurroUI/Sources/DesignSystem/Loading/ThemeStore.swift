@@ -2,10 +2,11 @@ import Foundation
 
 /// Holds the theme in use and tells observers when it changes.
 ///
-/// The themes are the bundled one, named `default`, and every `*.json` file in a folder, named by its file name without
-/// the extension (`default.json` is ignored). The store loads the files when it is created and again on `reload()`;
-/// nothing watches the folder here (see `ThemeFileWatcher`). A file that cannot be used is published as the bundled
-/// theme together with its errors, so a mistake in a file being edited shows up instead of leaving the old look.
+/// The themes are the bundled one, named `default`, and every theme file in a folder (see `ThemeFiles`), named by its
+/// file name without the extension (`default.json` is ignored). The store loads the files when it is created and again
+/// on `reload()`; nothing watches the folder here (see `ThemeFileWatcher`). A file that cannot be used is published as
+/// the bundled theme together with its errors, so a mistake in a file being edited shows up instead of leaving the old
+/// look.
 public actor ThemeStore {
     public static let defaultID = "default"
 
@@ -31,9 +32,11 @@ public actor ThemeStore {
         [Self.defaultID] + files.keys.sorted()
     }
 
-    /// The theme in use now, then every change after it. The stream never finishes by itself.
+    /// The theme in use now, then every change after it. The stream never finishes by itself. An observer that is slow
+    /// to read gets the latest theme and skips the ones in between, since only the latest is worth showing.
     public func updates() -> AsyncStream<ThemeLoadResult> {
-        let (stream, continuation) = AsyncStream.makeStream(of: ThemeLoadResult.self, bufferingPolicy: .unbounded)
+        let (stream, continuation) = AsyncStream.makeStream(
+            of: ThemeLoadResult.self, bufferingPolicy: .bufferingNewest(1))
         observerCount += 1
         let id = observerCount
         observers[id] = continuation
@@ -74,10 +77,8 @@ public actor ThemeStore {
 
     /// A folder that is missing or cannot be listed has no themes.
     private static func load(_ directory: URL) -> [String: ThemeLoadResult] {
-        let urls = try? FileManager.default.contentsOfDirectory(
-            at: directory, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
         var files: [String: ThemeLoadResult] = [:]
-        for url in urls ?? [] where url.pathExtension.lowercased() == "json" {
+        for url in ThemeFiles.urls(in: directory) {
             let id = url.deletingPathExtension().lastPathComponent
             if id != defaultID { files[id] = ThemeLoader.load(contentsOf: url) }
         }

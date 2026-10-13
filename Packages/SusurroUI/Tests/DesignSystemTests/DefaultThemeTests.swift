@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 
 @testable import DesignSystem
@@ -37,6 +38,24 @@ struct DefaultThemeTests {
         #expect(ThemeTokenCatalog.definedKeys(in: theme) == ThemeTokenCatalog.allKeys)
     }
 
+    @Test("each token group is a property of Theme, a key of the file, and a table that holds its tokens")
+    func groupsMatchTheThemeAndTheFile() throws {
+        let encoded = try #require(
+            try JSONSerialization.jsonObject(with: JSONEncoder().encode(theme)) as? [String: Any])
+        let bundled = Theme.bundledObject
+        #expect(ThemeTokenCatalog.groups.count == 6)
+        for group in ThemeTokenCatalog.groups {
+            let property = try #require(
+                encoded[group.name] as? [String: Any], "\(group.name) is not a property of Theme")
+            #expect(
+                Set(property.keys) == group.defined(theme), "\(group.name): Theme and the group read different names")
+            let file = try #require(bundled[group.name] as? [String: Any], "\(group.name) is not in DefaultTheme.json")
+            #expect(Set(file.keys) == group.expected, "\(group.name): the file and the token cases differ")
+        }
+        #expect(
+            ThemeTokenCatalog.groups.map(\.name) == ["colors", "typography", "spacing", "radii", "motion", "overlay"])
+    }
+
     @Test("every color token points at a palette entry with a light and a dark value")
     func colorsHaveBothAppearances() throws {
         for token in ColorToken.allCases {
@@ -47,13 +66,13 @@ struct DefaultThemeTests {
         #expect(differing.count > 1, "dark values are copies of the light ones")
     }
 
-    @Test("the scales grow from one step to the next")
+    @Test("the scales grow from one step to the next, in the order the token cases are declared")
     func scalesGrow() throws {
         func values<T: ThemeToken>(_ table: [String: Double], _ tokens: [T]) throws -> [Double] {
             try tokens.map { try #require(table[$0.rawValue]) }
         }
-        let spacing = try values(theme.spacing, [SpacingToken.xs, .sm, .md, .lg, .xl])
-        let radii = try values(theme.radii, [RadiusToken.sm, .md, .lg])
+        let spacing = try values(theme.spacing, SpacingToken.allCases)
+        let radii = try values(theme.radii, RadiusToken.allCases)
         let durations = try values(theme.motion, [MotionToken.fast, .standard, .slow])
         for scale in [spacing, radii, durations] {
             #expect(scale.first.map { $0 > 0 } == true)
