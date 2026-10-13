@@ -8,7 +8,7 @@ import UITestSupport
 @Suite("Theme render")
 struct ThemeRenderTests {
     /// A view and whether it draws anything in the accent color.
-    private enum Subject: CaseIterable, CustomTestStringConvertible {
+    fileprivate enum Subject: CaseIterable, CustomTestStringConvertible {
         case accentPill, accentDot, accentBar, primaryButton
         case label, neutralPill, errorDot, recordingBar, secondaryButton
 
@@ -73,11 +73,11 @@ struct ThemeRenderTests {
         #expect(light != dark)
     }
 
-    @Test("the picture has the size asked for at the fixed scale")
+    @Test("the picture has the size asked for, at two pixels to the point")
     func rendersAtAFixedScale() {
         let image = SnapshotSupport.cgImage(of: TextLabel("Ready"), size: size, theme: .default, scheme: .light)
-        #expect(CGFloat(image.width) == size.width * SnapshotSupport.scale)
-        #expect(CGFloat(image.height) == size.height * SnapshotSupport.scale)
+        #expect(image.width == 320)
+        #expect(image.height == 160)
     }
 
     @Test("a view is drawn with motion off")

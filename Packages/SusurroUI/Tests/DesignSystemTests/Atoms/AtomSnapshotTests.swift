@@ -13,7 +13,8 @@ struct AtomSnapshotTests {
 
     @Test("text labels in every type role and color", arguments: schemes)
     func labels(scheme: ColorScheme) {
-        assertViewSnapshot(of: TextLabel.Gallery(), scheme: scheme, named: scheme.name)
+        assertViewSnapshot(
+            of: TextLabel.Gallery(), size: CGSize(width: 360, height: 340), scheme: scheme, named: scheme.name)
     }
 
     @Test("icons in every type role and color", arguments: schemes)

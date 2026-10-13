@@ -42,10 +42,10 @@ struct AtomTests {
     func levelBarFillsFromTheLeft() throws {
         let theme = try Theme.default.resolved(for: .light)
         let image = SnapshotSupport.cgImage(
-            of: LevelBar("Level", level: 0.5, tint: .success), size: CGSize(width: 200, height: 40), theme: .default,
+            of: LevelBar("Level", level: 0.25, tint: .success), size: CGSize(width: 200, height: 40), theme: .default,
             scheme: .light)
-        let filled = SnapshotSupport.pixel(of: image, atX: 0.3, y: 0.5)
-        let empty = SnapshotSupport.pixel(of: image, atX: 0.9, y: 0.5)
+        let filled = SnapshotSupport.pixel(of: image, atX: 0.2, y: 0.5)
+        let empty = SnapshotSupport.pixel(of: image, atX: 0.6, y: 0.5)
         #expect(abs(filled.green - theme.color(.statusSuccess).green) < 0.01)
         #expect(abs(filled.red - theme.color(.statusSuccess).red) < 0.01)
         #expect(abs(empty.green - theme.color(.statusSuccess).green) > 0.05)
