@@ -12,7 +12,7 @@ public struct Pill: View {
     }
 
     public var body: some View {
-        TextLabel(text, style: .caption, color: tint.color)
+        TextLabel(text, style: .caption, tint: tint)
             .padding(.horizontal, theme.spacing(.sm))
             .padding(.vertical, theme.spacing(.xs))
             .background(theme.swiftUIColor(.surfaceRaised), in: Capsule())

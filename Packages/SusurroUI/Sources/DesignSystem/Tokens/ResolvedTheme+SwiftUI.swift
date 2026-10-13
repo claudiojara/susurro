@@ -47,7 +47,12 @@ nonisolated extension ResolvedTheme {
 
     /// An ease-in-out animation as long as a duration token (`fast`, `standard`, or `slow`), or none when motion is
     /// off, which is how a test gets one fixed picture.
-    public func easing(_ token: MotionToken, motionEnabled: Bool) -> Animation? {
-        motionEnabled ? .easeInOut(duration: motion(token)) : nil
+    public func easing(_ duration: DurationToken, motionEnabled: Bool) -> Animation? {
+        motionEnabled ? .easeInOut(duration: motion(duration.token)) : nil
+    }
+
+    /// The standard spring, shaped by the `springResponse` and `springDamping` tokens, or none when motion is off.
+    public func spring(motionEnabled: Bool) -> Animation? {
+        motionEnabled ? .spring(response: motion(.springResponse), dampingFraction: motion(.springDamping)) : nil
     }
 }

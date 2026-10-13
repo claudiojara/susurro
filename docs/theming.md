@@ -1,6 +1,6 @@
 # Theming
 
-Every color, type size, space, radius, duration, and the overlay geometry comes from a theme: data, not code. The model
+Every color, type size, space, radius, component size, duration, and the overlay geometry comes from a theme: data, not code. The model
 and the loader are in `Packages/SusurroUI/Sources/DesignSystem`. The bundled default is
 `Resources/DefaultTheme.json`, and it defines every token. The app does not read a themes folder yet: task 1f.3 wires
 the store into the composition root.
@@ -27,6 +27,7 @@ down to a single field of a token. This file changes the accent in light and dar
 | `colors` | For each color token, the name of a palette entry. |
 | `typography` | `size` in points, `weight` (`regular`, `medium`, `semibold`, `bold`), `design` (`standard`, `rounded`, `monospaced`, `serif`). |
 | `spacing`, `radii` | Points. |
+| `sizes` | Points: the fixed dimension of a component (`statusDot` is the diameter of a status dot, `levelBar` the thickness of a level bar). |
 | `motion` | Durations in seconds, and `springResponse` and `springDamping`. |
 | `overlay` | `width`, `cornerRadius`, `offset` (points from the screen edge), `edge` (`top` or `bottom`). |
 
@@ -98,6 +99,31 @@ folder does not have to exist: the watcher looks for it every two seconds until 
 Failures to watch a file are logged (subsystem `dev.claudiojara.susurro`, category `ThemeFileWatcher`) and `state` says
 whether it is watching. It waits through an injected `sleep`, so its tests decide when a debounce or a retry ends.
 
+## Atoms
+
+The atoms are in `Sources/DesignSystem/Atoms`. They take their color from a `Tint`, which is a role and not a color:
+
+| Tint | Color token |
+|---|---|
+| `neutral` | `text.secondary` |
+| `accent` | `accent.primary` |
+| `recording` | `accent.recording` |
+| `success` | `status.success` |
+| `warning` | `status.warning` |
+| `error` | `status.error` |
+
+`TextLabel` and `Icon` take an optional tint, where none is the plain text color (`text.primary`). `Pill`, `StatusDot`, and
+`LevelBar` take a tint. `ActionButton` takes a `Kind` instead (`primary`, `secondary`, `destructive`), because its fill,
+its text, and its border are a fixed set for each kind. The text that VoiceOver says is always the argument `label:`: it is
+optional for an icon and a dot, which can be decoration, and required for a level bar, which says something.
+
+An atom asks for its own tokens and borrows none: the dot's diameter is `sizes.statusDot`, not a space; the thickness of a
+bar is `sizes.levelBar`; the track behind its fill is `surface.track`; and the veil on a pressed button is `state.pressed`,
+not the border color. A theme can then change the space between things, or the border, without resizing a dot or tinting
+a track. `AtomTokenTests` changes the token an atom uses and the one it used to borrow, in separate themes, and looks at
+the pixels. An animation takes a `DurationToken` (`fast`, `standard`, `slow`), so the numbers of the spring cannot be
+passed as a duration, and the spring is `theme.spring(motionEnabled:)`.
+
 ## Token lint
 
 `TokenLintTests.sourcesAreClean` reads every Swift file in `Sources/DesignSystem` and `Sources/SusurroUI` and fails on a
@@ -109,12 +135,12 @@ visual value written in place of a token. The message names the file, the line, 
 | `namedColor` | `Color.red`, `CGColor.white`, and a system color or style in a color position: `.foregroundStyle(.red)`, `.background(.white)`, `.tint(.blue)`, `color: .black`, `colors: [.red, .blue]`, `.foregroundStyle(.secondary)` (`Color.clear` and `.clear` are allowed) | `theme.swiftUIColor(.statusError)`. A system color ignores the theme. |
 | `hexLiteral` | `0xFF8800`, `"#FF8800"` | A palette entry in `DefaultTheme.json` and the token that points at it |
 | `fontSize` | `.system(size:`, `.custom(_, size:`, `NSFont.systemFont(ofSize:`, `NSFont(name:size:)` | `theme.font(.body)` |
-| `spacing` | a number in `padding`, `frame`, `offset`, `lineSpacing`, `tracking`, `Spacer`, `CGSize`, `CGRect`, `EdgeInsets`, or in the expression after `spacing:` or `minLength:` | `theme.spacing(.md)` |
+| `spacing` | a number in `padding`, `frame`, `offset`, `lineSpacing`, `tracking`, `Spacer`, `CGSize`, `CGRect`, `EdgeInsets`, or in the expression after `spacing:` | `theme.spacing(.md)`, or `theme.size(.statusDot)` for the fixed size of a component |
 | `cornerRadius` | a number in `cornerRadius`, or in the expression after a corner radius label (`cornerRadius:`, `topLeadingRadius:`) | `theme.radius(.md)` |
 | `effectRadius` | a number as the radius of a shadow, a blur, or a gradient (`radius:`, `startRadius:`, `endRadius:`) | Nothing yet: these have no token. Add a group (see "Adding a group") before using one. |
 | `strokeWidth` | a number as `lineWidth:`, or in `border` | Nothing yet: use the default hairline, or add a token for the width. |
 | `animationDuration` | a number as `duration:`, `blendDuration:`, `delay` | `theme.easing(.fast, motionEnabled:)` |
-| `animationSpring` | a number as `response:`, `dampingFraction:`, `bounce:`, `extraBounce:`, `stiffness:`, `damping:`, `mass:` | The spring tokens `springResponse` and `springDamping` |
+| `animationSpring` | a number as `response:`, `dampingFraction:`, `bounce:`, `extraBounce:`, `stiffness:`, `damping:`, `mass:` | `theme.spring(motionEnabled:)`, which is built from the tokens `springResponse` and `springDamping` |
 | `visualConstant` | a number assigned to a `CGFloat`, or to a constant named for a length (`static let cornerRadius: CGFloat = 16`, `let padding = 8`) | Ask the theme where the value is used, not in a constant |
 
 An expression counts: `spacing: base * 2` and `cornerRadius: size / 2` are flagged for their `2`. Zero is allowed, because

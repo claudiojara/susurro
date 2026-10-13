@@ -38,7 +38,7 @@ enum LiteralRule: String, Sendable, CaseIterable {
         case .fontSize:
             "Ask the theme for a type role, such as theme.font(.body). Only the bridge builds a font from a size."
         case .spacing:
-            "Use a spacing token, such as theme.spacing(.md). A length that is not a gap needs a token of its own."
+            "Use a spacing token, such as theme.spacing(.md), or a size token for a component, such as theme.size(.statusDot)."
         case .cornerRadius:
             "Use a radius token, such as theme.radius(.md)."
         case .effectRadius:
@@ -48,7 +48,7 @@ enum LiteralRule: String, Sendable, CaseIterable {
         case .animationDuration:
             "Use a duration token, such as theme.easing(.fast, motionEnabled:)."
         case .animationSpring:
-            "Use the spring tokens (springResponse and springDamping) through the theme, not numbers in the view."
+            "Use the spring of the theme, theme.spring(motionEnabled:), which is built from springResponse and springDamping."
         case .visualConstant:
             "Do not keep a visual value in a constant. Ask the theme for it where it is used."
         }

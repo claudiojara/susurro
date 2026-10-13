@@ -1,19 +1,20 @@
 import SwiftUI
 
 /// A thin bar filled from the left to a level between 0 and 1, such as the input level of the microphone. It takes the
-/// width it is offered.
+/// width it is offered. Its `label` is required, unlike the one of a dot or an icon: the bar says something, so
+/// VoiceOver must too.
 public struct LevelBar: View {
     @Environment(\.theme) private var theme
     @Environment(\.motionEnabled) private var motionEnabled
-    private let label: String
     private let level: Double
     private let tint: Tint
+    private let label: String
 
     /// `label` is what VoiceOver says; the bar has no text of its own.
-    public init(_ label: String, level: Double, tint: Tint = .accent) {
-        self.label = label
+    public init(level: Double, tint: Tint = .accent, label: String) {
         self.level = level
         self.tint = tint
+        self.label = label
     }
 
     /// The part of the bar that is filled: `level` from 0 to 1, and an empty bar for a number that is not one.
@@ -24,7 +25,7 @@ public struct LevelBar: View {
     public var body: some View {
         let shown = Self.shown(level: level)
         Capsule()
-            .fill(theme.swiftUIColor(.borderSubtle))
+            .fill(theme.swiftUIColor(.surfaceTrack))
             .overlay {
                 GeometryReader { bar in
                     Capsule()
@@ -32,7 +33,7 @@ public struct LevelBar: View {
                         .frame(width: bar.size.width * shown)
                 }
             }
-            .frame(height: theme.spacing(.xs))
+            .frame(height: theme.size(.levelBar))
             .animation(theme.easing(.fast, motionEnabled: motionEnabled), value: shown)
             .accessibilityElement()
             .accessibilityLabel(label)

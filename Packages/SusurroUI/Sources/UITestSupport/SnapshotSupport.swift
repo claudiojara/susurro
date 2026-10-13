@@ -67,6 +67,37 @@ public enum SnapshotSupport {
 
     /// The color at a place in the picture, given as fractions of its width and height from the top left.
     public static func pixel(of image: CGImage, atX x: Double, y: Double) -> RGBAColor {
+        let bytes = rgba(of: image)
+        let column = min(Int(x * Double(image.width)), image.width - 1)
+        let row = min(Int(y * Double(image.height)), image.height - 1)
+        return color(in: bytes, width: image.width, column: column, row: row)
+    }
+
+    /// The smallest rectangle, in points from the top left, that holds every pixel within `tolerance` of `color` (the
+    /// largest difference in any channel, from 0 to 1). Nil when no pixel is that close. It measures what is drawn in a
+    /// color: the diameter of a dot, the thickness of a bar.
+    public static func extent(of image: CGImage, matching color: RGBAColor, tolerance: Double) -> CGRect? {
+        let bytes = rgba(of: image)
+        var columns: ClosedRange<Int>?
+        var rows: ClosedRange<Int>?
+        for row in 0..<image.height {
+            for column in 0..<image.width {
+                let found = Self.color(in: bytes, width: image.width, column: column, row: row)
+                let distance = max(
+                    abs(found.red - color.red), abs(found.green - color.green), abs(found.blue - color.blue))
+                guard distance <= tolerance else { continue }
+                columns = columns.map { min($0.lowerBound, column)...max($0.upperBound, column) } ?? column...column
+                rows = rows.map { min($0.lowerBound, row)...max($0.upperBound, row) } ?? row...row
+            }
+        }
+        guard let columns, let rows else { return nil }
+        return CGRect(
+            x: Double(columns.lowerBound) / scale, y: Double(rows.lowerBound) / scale,
+            width: Double(columns.count) / scale, height: Double(rows.count) / scale)
+    }
+
+    /// The bytes of a picture as red, green, blue, and alpha, four to a pixel, row after row from the top.
+    private static func rgba(of image: CGImage) -> [UInt8] {
         var bytes = [UInt8](repeating: 0, count: image.width * image.height * 4)
         let drawn = bytes.withUnsafeMutableBytes { buffer -> Bool in
             guard let space = CGColorSpace(name: CGColorSpace.sRGB),
@@ -79,9 +110,11 @@ public enum SnapshotSupport {
             return true
         }
         precondition(drawn, "The picture cannot be read.")
-        let column = min(Int(x * Double(image.width)), image.width - 1)
-        let row = min(Int(y * Double(image.height)), image.height - 1)
-        let start = (row * image.width + column) * 4
+        return bytes
+    }
+
+    private static func color(in bytes: [UInt8], width: Int, column: Int, row: Int) -> RGBAColor {
+        let start = (row * width + column) * 4
         func channel(_ offset: Int) -> Double { Double(bytes[start + offset]) / 255 }
         return RGBAColor(red: channel(0), green: channel(1), blue: channel(2), alpha: channel(3))
     }

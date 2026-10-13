@@ -84,7 +84,8 @@ struct AtomTokenTests {
         let size = CGSize(width: 120, height: 40)
         let painted = center(of: empty, in: repainted(.surfaceTrack), size: size)
         #expect(abs(painted.red - 1) < 0.01 && painted.green < 0.01 && abs(painted.blue - 1) < 0.01, "\(painted)")
-        #expect(center(of: empty, in: repainted(.borderSubtle), size: size) == center(of: empty, in: .default, size: size))
+        #expect(
+            center(of: empty, in: repainted(.borderSubtle), size: size) == center(of: empty, in: .default, size: size))
     }
 
     @Test("a pressed button is veiled in the state.pressed color, and the subtle border does not change the veil")

@@ -64,7 +64,7 @@ struct ActionButtonFace<Label: View>: View {
             .padding(.vertical, theme.spacing(.sm))
             .background(theme.swiftUIColor(colors.fill), in: shape)
             .overlay { if colors.quiet { shape.strokeBorder(theme.swiftUIColor(.borderSubtle)) } }
-            .overlay { if isPressed { shape.fill(theme.swiftUIColor(.borderSubtle)) } }
+            .overlay { if isPressed { shape.fill(theme.swiftUIColor(.statePressed)) } }
             .animation(theme.easing(.fast, motionEnabled: motionEnabled), value: isPressed)
     }
 }

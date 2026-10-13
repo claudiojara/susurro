@@ -25,10 +25,14 @@ struct AtomConventionsTests {
     @Test("the atoms are found, each with a public initializer")
     func atomsAreFound() throws {
         let files = try atomFiles()
-        #expect(files.map(\.lastPathComponent) == [
-            "ActionButton.swift", "Icon.swift", "LevelBar.swift", "Pill.swift", "StatusDot.swift", "TextLabel.swift",
-        ])
-        for file in files { #expect(try !initializers(of: file).isEmpty, "\(file.lastPathComponent) has no public init") }
+        #expect(
+            files.map(\.lastPathComponent) == [
+                "ActionButton.swift", "Icon.swift", "LevelBar.swift", "Pill.swift", "StatusDot.swift",
+                "TextLabel.swift",
+            ])
+        for file in files {
+            #expect(try !initializers(of: file).isEmpty, "\(file.lastPathComponent) has no public init")
+        }
     }
 
     @Test("no atom is colored with a color token: a color is a Tint")
@@ -44,7 +48,8 @@ struct AtomConventionsTests {
     func voiceOverTextIsLabeled() throws {
         for file in try atomFiles() {
             for signature in try initializers(of: file) {
-                #expect(!signature.contains("_ label"), "\(file.lastPathComponent) takes an unlabeled label: \(signature)")
+                #expect(
+                    !signature.contains("_ label"), "\(file.lastPathComponent) takes an unlabeled label: \(signature)")
             }
         }
         let withLabel = try atomFiles().filter { file in
