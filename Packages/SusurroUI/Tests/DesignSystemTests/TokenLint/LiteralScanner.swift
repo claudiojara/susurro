@@ -1,21 +1,58 @@
 import Foundation
 
-/// The kinds of visual literal the token lint looks for. A view asks the theme for each of these instead.
-enum LiteralRule: String, Sendable {
-    /// `Color(...)`, `NSColor(...)`, `Color.init(...)`.
+/// The kinds of visual literal the token lint looks for. A view asks the theme for each of these instead, and `remedy`
+/// says how. `docs/theming.md` has a row for each rule, which a test checks.
+enum LiteralRule: String, Sendable, CaseIterable {
+    /// `Color(...)`, `NSColor(...)`, `CGColor(...)`, `Color.init(...)`, `#colorLiteral(...)`.
     case colorInitializer
-    /// `Color.red` and the like. `Color.clear` is structural and allowed.
+    /// `Color.red`, and a system color or style written as `.red` or `.secondary` in a color position
+    /// (`.foregroundStyle(.red)`, `.background(.white)`, `color: .black`). `Color.clear` is structural and allowed.
     case namedColor
     /// `0xFF8800` or `"#FF8800"`.
     case hexLiteral
-    /// `.system(size:` and `.custom(_, size:`.
+    /// `.system(size:`, `.custom(_, size:`, `NSFont.systemFont(ofSize:`, `NSFont(name:size:)`.
     case fontSize
-    /// A number other than zero in `padding`, `frame`, `offset`, or a `spacing:` argument.
+    /// A number other than zero in `padding`, `frame`, `offset`, `lineSpacing`, `Spacer`, `CGSize`, and the like, or in
+    /// the expression after a `spacing:` or `minLength:` label.
     case spacing
-    /// A number other than zero in `cornerRadius`, or in any `...radius:` argument.
+    /// A number other than zero in `cornerRadius`, or in the expression after a corner radius label.
     case cornerRadius
-    /// A number other than zero as a `duration:`, `response:`, `delay`, and so on.
+    /// A number other than zero as the radius of a shadow, a blur, or a gradient (`radius:`, `endRadius:`).
+    case effectRadius
+    /// A number other than zero as a `lineWidth:`, or in `border`.
+    case strokeWidth
+    /// A number other than zero as a `duration:`, a `delay`, or a `blendDuration:`.
     case animationDuration
+    /// A number other than zero as `response:`, `dampingFraction:`, `bounce:`, and the other numbers of a spring.
+    case animationSpring
+    /// A number other than zero assigned to a `CGFloat`, or to a constant named for a length (`let cornerRadius = 16`).
+    case visualConstant
+
+    /// What to write instead.
+    var remedy: String {
+        switch self {
+        case .colorInitializer, .namedColor:
+            "Ask the theme for a color role, such as theme.swiftUIColor(.textPrimary). System colors and styles ignore the theme."
+        case .hexLiteral:
+            "Write the color as a palette entry in DefaultTheme.json and use the token that points at it."
+        case .fontSize:
+            "Ask the theme for a type role, such as theme.font(.body). Only the bridge builds a font from a size."
+        case .spacing:
+            "Use a spacing token, such as theme.spacing(.md). A length that is not a gap needs a token of its own."
+        case .cornerRadius:
+            "Use a radius token, such as theme.radius(.md)."
+        case .effectRadius:
+            "A shadow, a blur, or a gradient radius has no token yet. Add a group for them before using one."
+        case .strokeWidth:
+            "Line widths have no tokens yet. Use the default hairline, or add a token for the width."
+        case .animationDuration:
+            "Use a duration token, such as theme.easing(.fast, motionEnabled:)."
+        case .animationSpring:
+            "Use the spring tokens (springResponse and springDamping) through the theme, not numbers in the view."
+        case .visualConstant:
+            "Do not keep a visual value in a constant. Ask the theme for it where it is used."
+        }
+    }
 }
 
 /// One place where a view source writes a visual value instead of asking the theme for it.
@@ -53,6 +90,8 @@ enum LiteralScanner {
             hits.insert(Hit(.hexLiteral, at: range.location, in: text.visible))
         }
         hits.formUnion(numberHits(in: text.code))
+        hits.formUnion(implicitColorHits(in: text.code))
+        hits.formUnion(constantHits(in: text.code))
         let lines = source.components(separatedBy: "\n")
         return hits.sorted { ($0.line, $0.rule.rawValue) < ($1.line, $1.rule.rawValue) }
             .map {
@@ -62,17 +101,17 @@ enum LiteralScanner {
             }
     }
 
-    /// Reads every `.swift` file below `folder`, except those below a folder in `allowing`.
+    /// Reads every `.swift` file below `folder`, except the files in `allowing` and those below a folder in it.
     static func scan(_ folder: URL, allowing: [URL] = []) throws -> ScanReport {
         let base = folder.resolvingSymlinksInPath()
-        let skipped = allowing.map { $0.resolvingSymlinksInPath().path + "/" }
+        let skipped = allowing.map { $0.resolvingSymlinksInPath().path }
         guard let walker = FileManager.default.enumerator(at: base, includingPropertiesForKeys: nil) else {
             throw CocoaError(.fileReadNoSuchFile)
         }
         var files: [String] = []
         for case let url as URL in walker where url.pathExtension == "swift" {
             let path = url.resolvingSymlinksInPath().path
-            guard !skipped.contains(where: path.hasPrefix) else { continue }
+            guard !skipped.contains(where: { path == $0 || path.hasPrefix($0 + "/") }) else { continue }
             files.append(String(path.dropFirst(base.path.count + 1)))
         }
         files.sort()
@@ -96,41 +135,135 @@ enum LiteralScanner {
     }
 
     private static let patterns: [(LiteralRule, String)] = [
-        (.colorInitializer, #"\b(?:NS|UI)?Color\s*(?:\.\s*init\s*)?\("#),
-        (.namedColor, #"\b(?:NS|UI)?Color\s*\.\s*(?!clear\b|init\b)[a-z]\w*"#),
+        (.colorInitializer, #"\b(?:NS|UI|CG)?Color\s*(?:\.\s*init\s*)?\("#),
+        (.colorInitializer, #"#colorLiteral\s*\("#),
+        (.namedColor, #"\b(?:NS|UI|CG)?Color\s*\.\s*(?!clear\b|init\b)[a-z]\w*"#),
         (.hexLiteral, #"\b0[xX][0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?\b"#),
         (.fontSize, #"\.\s*system\s*\(\s*size\s*:"#),
-        (.fontSize, #"\.\s*custom\s*\([^)]*\bsize\s*:"#),
+        (.fontSize, #"\.\s*custom\s*\([^)]*\b(?:fixedSize|size)\s*:"#),
+        (.fontSize, #"\bofSize\s*:"#),
+        (.fontSize, #"\b(?:NS|UI)Font\s*\(\s*name\s*:"#),
     ]
 
     private static let hexColorString = ##""#[0-9A-Fa-f]{6}(?:[0-9A-Fa-f]{2})?""##
 
     private static let number = #"(?<![\w.])\d[\d_]*(?:\.\d[\d_]*)?(?:[eE][+-]?\d+)?(?![\w.])"#
 
-    /// The rules about a number: the calls whose arguments may hold none, and the argument labels that may not be
-    /// followed by one.
-    private static let numeric: [(rule: LiteralRule, calls: String, labels: String)] = [
-        (.spacing, "padding|frame|offset", "spacing|lineSpacing|horizontalSpacing|verticalSpacing"),
-        (.cornerRadius, "cornerRadius", #"\w*[rR]adius"#),
-        (.animationDuration, "delay", "duration|response|dampingFraction|blendDuration|delay|bounce|extraBounce"),
+    /// A rule about numbers, and where it looks for them: in the arguments of calls written `.name(`, in the arguments of
+    /// types written `Name(`, and in the expression after an argument label.
+    private struct NumericRule {
+        let rule: LiteralRule
+        let calls: String
+        let constructors: String
+        let labels: String
+    }
+
+    private static let numeric: [NumericRule] = [
+        NumericRule(
+            rule: .spacing,
+            calls:
+                "padding|frame|offset|lineSpacing|tracking|kerning|baselineOffset|position|safeAreaPadding|contentMargins",
+            constructors: "Spacer|CGSize|CGPoint|CGRect|EdgeInsets|NSEdgeInsets|NSSize|NSPoint|NSRect",
+            labels: "spacing|lineSpacing|horizontalSpacing|verticalSpacing"),
+        NumericRule(
+            rule: .cornerRadius, calls: "cornerRadius", constructors: "",
+            labels: #"\w*[cC]ornerRadius|cornerSize|(?:top|bottom)(?:Leading|Trailing)Radius"#),
+        NumericRule(
+            rule: .effectRadius, calls: "", constructors: "",
+            labels: #"(?!\w*[cC]ornerRadius\b|(?:top|bottom)(?:Leading|Trailing)Radius\b)\w*[rR]adius"#),
+        NumericRule(rule: .strokeWidth, calls: "border", constructors: "", labels: "lineWidth"),
+        NumericRule(
+            rule: .animationDuration, calls: "delay", constructors: "", labels: "duration|blendDuration|delay"),
+        NumericRule(
+            rule: .animationSpring, calls: "", constructors: "",
+            labels: "response|dampingFraction|bounce|extraBounce|stiffness|damping|mass"),
     ]
+
+    /// A label is not the name of a declaration: in `let radius: CGFloat = 4` the colon belongs to the type.
+    private static let declaration = #"(?<!let\s)(?<!var\s)"#
 
     private static func numberHits(in code: String) -> Set<Hit> {
         let text = code as NSString
         var hits = Set<Hit>()
-        for (rule, calls, labels) in numeric {
-            // A call such as `.padding(8)`: any number other than zero between its parentheses.
-            for call in matches(#"\.\s*(?:\#(calls))\s*\("#, in: code) {
-                let start = NSMaxRange(call)
-                let arguments = NSRange(location: start, length: closingParenthesis(from: start, in: text) - start)
-                for range in matches(number, in: code, within: arguments) where isNotZero(text.substring(with: range)) {
-                    hits.insert(Hit(rule, at: range.location, in: code))
+        for rule in numeric {
+            var regions: [NSRange] = []
+            // A call such as `.padding(8)` or a type such as `CGSize(width: 1, height: 2)`: between its parentheses.
+            for (names, prefix) in [(rule.calls, #"\."#), (rule.constructors, #"\b"#)] where !names.isEmpty {
+                for call in matches(#"\#(prefix)\s*(?:\#(names))\s*\("#, in: code) {
+                    let start = NSMaxRange(call)
+                    regions.append(
+                        NSRange(
+                            location: start, length: closingBracket(from: start, in: text, commaEnds: false) - start))
                 }
             }
-            // An argument such as `spacing: 8`.
-            for range in matches(#"\b(?:\#(labels))\s*:\s*-?\s*(\#(number))"#, in: code, group: 1)
-            where isNotZero(text.substring(with: range)) {
-                hits.insert(Hit(rule, at: range.location, in: code))
+            // An argument such as `spacing: base * 2`: the expression after the label, up to the comma that ends it.
+            for label in matches(#"\#(declaration)\b(?:\#(rule.labels))\s*:"#, in: code) {
+                let start = NSMaxRange(label)
+                regions.append(NSRange(location: start, length: closingBracket(from: start, in: text) - start))
+            }
+            for region in regions {
+                for range in matches(number, in: code, within: region) where isNotZero(text.substring(with: range)) {
+                    hits.insert(Hit(rule.rule, at: range.location, in: code))
+                }
+            }
+        }
+        return hits
+    }
+
+    /// The calls and labels that take a color, and the system colors and styles that `.name` can stand for in them.
+    private static let colorCalls =
+        "foregroundStyle|foregroundColor|background|tint|fill|stroke|strokeBorder|border|accentColor|overlay|shadow"
+    private static let colorLabels =
+        "color|colors|foregroundColor|backgroundColor|tintColor|fillColor|strokeColor|shadowColor"
+    private static let systemColors =
+        "red|orange|yellow|green|mint|teal|cyan|blue|indigo|purple|pink|brown|white|gray|black|primary|secondary|tertiary"
+        + "|quaternary|quinary|tint|separator|accentColor"
+
+    /// `.red` in a place that takes a color. A leading dot that follows a name or a bracket is a member access, and one
+    /// that follows `==` or `!=` is a comparison, not a color.
+    private static let implicitColor = #"(?<![\w)\]}])(?<!==\s)(?<!!=\s)\.(?:\#(systemColors))\b"#
+
+    private static func implicitColorHits(in code: String) -> Set<Hit> {
+        let text = code as NSString
+        var regions: [NSRange] = []
+        for call in matches(#"\.\s*(?:\#(colorCalls))\s*\("#, in: code) {
+            let start = NSMaxRange(call)
+            regions.append(
+                NSRange(location: start, length: closingBracket(from: start, in: text, commaEnds: false) - start))
+        }
+        for label in matches(#"\#(declaration)\b(?:\#(colorLabels))\s*:"#, in: code) {
+            let start = NSMaxRange(label)
+            regions.append(NSRange(location: start, length: closingBracket(from: start, in: text) - start))
+        }
+        var hits = Set<Hit>()
+        for region in regions {
+            for range in matches(implicitColor, in: code, within: region) {
+                hits.insert(Hit(.namedColor, at: range.location, in: code))
+            }
+        }
+        return hits
+    }
+
+    /// Names that say a constant is a length or a time on screen.
+    private static let visualName =
+        #"(?i)radius|spacing|padding|inset|margin|thickness|linewidth|size|width|height|duration|offset|gap|delay|corner"#
+
+    /// `let name: Type = 16`: a number other than zero that is the whole value of a `CGFloat`, or of a constant whose name
+    /// is a length.
+    private static func constantHits(in code: String) -> Set<Hit> {
+        let text = code as NSString
+        let pattern = #"\b(?:let|var)\s+(\w+)\s*(?::\s*([A-Za-z_][\w.]*))?\s*=\s*-?\s*(\#(number))\s*(?:$|;)"#
+        guard let expression = try? NSRegularExpression(pattern: pattern, options: .anchorsMatchLines) else {
+            preconditionFailure("The lint pattern is not a regular expression: \(pattern)")
+        }
+        var hits = Set<Hit>()
+        for match in expression.matches(in: code, range: NSRange(location: 0, length: text.length)) {
+            let name = text.substring(with: match.range(at: 1))
+            let type = match.range(at: 2).location == NSNotFound ? "" : text.substring(with: match.range(at: 2))
+            let literal = text.substring(with: match.range(at: 3))
+            guard isNotZero(literal) else { continue }
+            if type == "CGFloat" || name.range(of: visualName, options: .regularExpression) != nil {
+                hits.insert(Hit(.visualConstant, at: match.range(at: 3).location, in: code))
             }
         }
         return hits
@@ -140,15 +273,17 @@ enum LiteralScanner {
         Double(literal.replacingOccurrences(of: "_", with: "")).map { $0 != 0 } ?? true
     }
 
-    /// The offset of the parenthesis that closes the one opened just before `start`.
-    private static func closingParenthesis(from start: Int, in text: NSString) -> Int {
-        var depth = 1
+    /// Where the text that starts at `start` ends: at the bracket that closes what was open before `start`, or, for an
+    /// argument, at the comma that ends it. Brackets opened after `start` are skipped over. Calls pass `commaEnds: false`.
+    private static func closingBracket(from start: Int, in text: NSString, commaEnds: Bool = true) -> Int {
+        var depth = 0
         for offset in start..<text.length {
             switch text.character(at: offset) {
-            case UInt16(UInt8(ascii: "(")): depth += 1
-            case UInt16(UInt8(ascii: ")")):
-                depth -= 1
+            case UInt16(UInt8(ascii: "(")), UInt16(UInt8(ascii: "[")), UInt16(UInt8(ascii: "{")): depth += 1
+            case UInt16(UInt8(ascii: ")")), UInt16(UInt8(ascii: "]")), UInt16(UInt8(ascii: "}")):
                 if depth == 0 { return offset }
+                depth -= 1
+            case UInt16(UInt8(ascii: ",")) where commaEnds && depth == 0: return offset
             default: break
             }
         }

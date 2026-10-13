@@ -42,6 +42,7 @@ struct LiteralScannerTests {
         (".delay(0.2)", .animationDuration),
         (".spring(response: 0.4, dampingFraction: 0.7)", .animationSpring),
         (".bouncy(extraBounce: 0.1)", .animationSpring),
+        (".interactiveSpring(blendDuration: 0.25)", .animationDuration),
         (".stroke(lineWidth: 2)", .strokeWidth),
         (".strokeBorder(c, lineWidth: 1.5)", .strokeWidth),
         (".border(c, width: 2)", .strokeWidth),
@@ -77,12 +78,15 @@ struct LiteralScannerTests {
         ("NSFont.systemFont(ofSize: 13)", .fontSize),
         ("NSFont.monospacedSystemFont(ofSize: size, weight: .regular)", .fontSize),
         (#"NSFont(name: "Menlo", size: 12)"#, .fontSize),
+        (#"Font.custom("Menlo", fixedSize: 12)"#, .fontSize),
         // A constant that is a visual value.
         ("static let cornerRadius: CGFloat = 16", .visualConstant),
         ("private let dot: CGFloat = 8", .visualConstant),
         ("let padding = 8", .visualConstant),
         ("static let barHeight = 4.0", .visualConstant),
         ("var lineWidth: Double = 1.5", .visualConstant),
+        ("let corner = 8", .visualConstant),
+        ("let a = 1; let gap = 4;", .visualConstant),
     ]
 
     private static let allowed: [String] = [
@@ -113,6 +117,10 @@ struct LiteralScannerTests {
         ".spring(response: response, dampingFraction: damping)",
         ".delay(delay)",
         "let x2 = 8 + count3",
+        // `.red` after a name, a call, or a subscript is a member of something else, not a system color.
+        ".foregroundStyle(palette.red)",
+        ".foregroundStyle(makePalette().white)",
+        ".foregroundStyle(palettes[2].blue)",
         ".foregroundStyle(.clear)",
         ".background(.clear)",
         ".foregroundStyle(theme.swiftUIColor(.textPrimary))",
@@ -138,6 +146,11 @@ struct LiteralScannerTests {
         "let count = 3",
         "let ratio: Double = 0.5",
         "let columns: Int = 3",
+        "static let maxSize = 256 * 1024",
+        "let size = count + 1",
+        "let width = other.width",
+        // The expression after a label ends at its comma: the offsets of a shadow are not its radius.
+        ".shadow(color: shadow, radius: radius, x: 0, y: 2)",
         "static let ids = [1, 2, 3]",
         "let levels: [Double] = [0, 0.5, 1]",
         // The arguments of a call end at its closing parenthesis.
@@ -163,6 +176,19 @@ struct LiteralScannerTests {
     @Test("each rule reports the source that breaks it, once", arguments: violating)
     func reportsEachRule(source: String, rule: LiteralRule) {
         #expect(rules(in: source) == [rule])
+    }
+
+    private static let systemColors = [
+        "red", "orange", "yellow", "green", "mint", "teal", "cyan", "blue", "indigo", "purple", "pink", "brown",
+        "white",
+        "gray", "black", "primary", "secondary", "tertiary", "quaternary", "quinary", "tint", "separator",
+        "accentColor",
+    ]
+
+    @Test("every system color and style is a named color where a color goes", arguments: systemColors)
+    func reportsEachSystemColor(name: String) {
+        #expect(rules(in: ".foregroundStyle(.\(name))") == [.namedColor])
+        #expect(rules(in: "Rectangle().fill(isOn ? .\(name) : theme.swiftUIColor(.surfaceRaised))") == [.namedColor])
     }
 
     @Test("a token, a variable, or zero is not a violation", arguments: allowed)
