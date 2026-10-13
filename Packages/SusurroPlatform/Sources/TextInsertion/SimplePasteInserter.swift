@@ -36,6 +36,8 @@ public final class SimplePasteInserter: TextInserter {
     private let sleep: @Sendable (Duration) async throws -> Void
     private let sourceBundleID: String
     private let writeItem: (NSPasteboard, NSPasteboardItem) -> Bool
+    /// How many pastes have posted their chord and are still waiting to finish. A new insertion waits for them.
+    private var inFlight = 0
 
     /// - Parameters:
     ///   - clock: Measures and paces every wait. Tests pass a clock they control.
@@ -82,25 +84,32 @@ public final class SimplePasteInserter: TextInserter {
 
     public func insert(_ text: String) async -> InsertionOutcome {
         guard !text.isEmpty else { return .inserted }
+        await waitForPastesInFlight()
         switch await waitForModifiers() {
         case .released: break
         case .timedOut: return leaveOnClipboard(text, because: .pasteFailed)
-        // Whoever cancelled has stopped listening, so this outcome is never read. Nothing was written.
-        case .cancelled: return .copiedToClipboard(.pasteFailed)
+        case .cancelled: return Self.cancelled
         }
+        guard !Task.isCancelled else { return Self.cancelled }
         let saved = PasteboardSnapshot(of: pasteboard)
         let promise = PromisedText(text)
         guard let writtenChangeCount = write(promise) else {
             saved.restore(to: pasteboard)
             return .copiedToClipboard(.pasteFailed)
         }
+        guard !Task.isCancelled else {
+            if pasteboard.changeCount == writtenChangeCount { saved.restore(to: pasteboard) }
+            return Self.cancelled
+        }
         let readsBeforeTheChord = promise.receipts
         if let reason = postChord() { return leaveOnClipboard(text, because: reason) }
         let chordPostedAt = now()
         // The chord is out, so the rest runs in a task of its own. A caller that is cancelled from here on cannot cut
         // the wait for the read short, which would restore the old contents before the app has read the text.
+        inFlight += 1
         return await Task { @MainActor in
-            await finishPaste(
+            defer { inFlight -= 1 }
+            return await finishPaste(
                 text,
                 promise: promise,
                 saved: saved,
@@ -127,6 +136,8 @@ public final class SimplePasteInserter: TextInserter {
             case .wait:
                 break
             case .failed:
+                // A copy that the user made while the paste waited wins over the text.
+                guard pasteboard.changeCount == writtenChangeCount else { return .copiedToClipboard(.pasteFailed) }
                 return leaveOnClipboard(text, because: .pasteFailed)
             case .restore:
                 // A newer write by anyone else wins over the old contents.
@@ -147,6 +158,23 @@ public final class SimplePasteInserter: TextInserter {
             return .accessibilityMissing
         } catch {
             return .pasteFailed
+        }
+    }
+
+    /// What `insert` returns when its caller was cancelled before the chord. The caller has stopped listening, so the
+    /// outcome is never read, and nothing was left on the pasteboard.
+    private static let cancelled = InsertionOutcome.copiedToClipboard(.pasteFailed)
+
+    /// Waits for a paste that is still finishing, such as one whose caller gave up on it, so that this insertion does
+    /// not take that text for the user's pasteboard. The wait is bounded by the longest a paste can take.
+    private func waitForPastesInFlight() async {
+        let deadline = now() + PasteTiming.worstCase
+        while inFlight > 0, now() < deadline {
+            do {
+                try await sleep(PasteTiming.receiptPollInterval)
+            } catch {
+                return
+            }
         }
     }
 
