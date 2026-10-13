@@ -147,3 +147,13 @@ extension PasteTestCase {
         #expect(declaredTypes().isSuperset(of: Self.markerTypes), sourceLocation: sourceLocation)
     }
 }
+
+extension SimplePasteInserter {
+    /// Inserts, then waits for the paste to finish. `insert` returns at the first read of the text, before the old
+    /// pasteboard is back, so a test that checks the final pasteboard goes through this.
+    func insertAndSettle(_ text: String) async -> InsertionOutcome {
+        let outcome = await insert(text)
+        await drain()
+        return outcome
+    }
+}

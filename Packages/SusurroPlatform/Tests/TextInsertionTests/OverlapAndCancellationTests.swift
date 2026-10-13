@@ -29,7 +29,9 @@ struct OverlapAndCancellationTests: PasteTestCase {
         }
 
         let first = await sut.insert("one")
+        await sut.drain()  // by now the first has waited out its dwell, so the hook has started the second
         let secondOutcome = await second?.value
+        await sut.drain()
 
         #expect([first, secondOutcome] == [.inserted, .inserted])
         #expect(textsWhenPosted == ["one", "two"])
