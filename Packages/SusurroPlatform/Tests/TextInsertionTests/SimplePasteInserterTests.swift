@@ -596,6 +596,20 @@ final class SimplePasteInserterTests {
         #expect(contents().count == 1)
     }
 
+    @Test("a pause that fails while waiting for a read ends the wait and leaves the text")
+    func failingPauseEndsTheWaitForARead() async {
+        putRichContent()
+        let keys = FakeKeystrokePoster()
+        onSleep = { _ in throw CancellationError() }
+
+        let outcome = await makeInserter(keys).insert("hello world")
+
+        #expect(outcome == .copiedToClipboard(.pasteFailed))
+        #expect(sleeps == [Self.receiptPollInterval])
+        #expect(pasteboardText == "hello world")
+        #expect(contents().count == 1)
+    }
+
     // MARK: Wall-clock deadlines
 
     @Test("the wait for modifiers ends by the clock, not by the number of pauses")
