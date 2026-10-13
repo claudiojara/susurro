@@ -16,7 +16,7 @@ strict_tdd: true
 
 testing:
   strict_tdd: true
-  status: planned   # no Package.swift or test targets exist yet; the first change MUST bootstrap them
+  status: active   # five packages and the xcodegen app exist (PR 1a); the app has no test target yet
   runner:
     framework: Swift Testing
     unit_command: swift test --package-path Packages/<PackageName>   # per local SPM package
@@ -28,7 +28,7 @@ testing:
     e2e: {available: false, tool: "XCUITest via xcodebuild test (needs app target; Accessibility/Microphone permissions limit automation)"}
   coverage: {available: true, command: "swift test --enable-code-coverage; xcrun llvm-cov report"}
   quality:
-    linter: {available: false, command: "none installed (swiftlint absent)"}
+    linter: {available: true, command: "make lint (xcrun swift-format lint --strict); SwiftLint is not used"}
     type_checker: {available: true, command: "swift build (Swift 6 language mode, strict concurrency)"}
     formatter: {available: true, command: "xcrun swift-format lint --recursive Packages App"}
   tooling_notes:
@@ -62,7 +62,7 @@ rules:
     test_command: "swift test --package-path Packages/<PackageName>"
   verify:
     test_command: "swift test --package-path Packages/<PackageName>"
-    build_command: "xcodebuild build -scheme Susurro -destination 'platform=macOS'"
+    build_command: "make build"   # bootstrap + xcodebuild build -project App/Susurro.xcodeproj -scheme Susurro
     coverage_threshold: 0   # no baseline yet; revisit after the first core package lands
   archive:
     - Warn before merging destructive deltas
