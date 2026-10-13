@@ -22,7 +22,7 @@ struct HotkeyServiceTests {
 
         var subscriptions: Int { subscriptionCount.withLock { $0 } }
 
-        func transitions() -> any AsyncSequence<KeyTransition, Never> {
+        func transitions() -> AsyncStream<KeyTransition> {
             subscriptionCount.withLock { $0 += 1 }
             return stream
         }
@@ -82,16 +82,15 @@ struct HotkeyServiceTests {
         await source.stoppedListening.wait()
     }
 
-    @Test("the source is subscribed to only once events are consumed")
-    func subscribesOnDemand() async {
+    @Test("the source is subscribed to as soon as events() is called, whether or not the stream is read")
+    func subscribesWhenEventsIsCalled() {
         let source = FakeTransitions()
         let sut = HotkeyService(source: source, now: { .zero })
         #expect(source.subscriptions == 0)
 
-        var events = sut.events().makeAsyncIterator()
-        source.send(.down)
-        _ = await events.next()
+        let events = sut.events()
 
         #expect(source.subscriptions == 1)
+        withExtendedLifetime(events) {}
     }
 }
