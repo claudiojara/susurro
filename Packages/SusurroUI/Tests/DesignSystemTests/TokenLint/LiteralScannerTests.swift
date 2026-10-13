@@ -29,6 +29,7 @@ struct LiteralScannerTests {
         (".frame(width: size * 2)", .spacing),
         (".offset(x: -4)", .spacing),
         ("VStack(spacing: 6) { Text(a) }", .spacing),
+        ("VStack(spacing: -4) { Text(a) }", .spacing),
         ("Grid(horizontalSpacing: 8, verticalSpacing: 8) { }", .spacing),
         (".cornerRadius(8)", .cornerRadius),
         ("RoundedRectangle(cornerRadius: 10)", .cornerRadius),
@@ -67,6 +68,9 @@ struct LiteralScannerTests {
         ".spring(response: response, dampingFraction: damping)",
         ".delay(delay)",
         "let x2 = 8 + count3",
+        // The arguments of a call end at its closing parenthesis.
+        "Text(a).padding(0).opacity(0.5)",
+        ".frame(width: size).font(theme.font(.body)).lineLimit(2)",
     ]
 
     /// Text a scanner must not read as code: comments, and what is inside a string.
@@ -78,6 +82,8 @@ struct LiteralScannerTests {
         #"let note = "padding(8) and .cornerRadius(8)""#,
         ".padding(.horizontal, 0) // 12 would be too wide",
         ###"let raw = #"Color("quoted")"#"###,
+        // The quotes inside a raw string do not end it.
+        ###"let raw = #"a "b .padding(8) c" d"#"###,
         // A comment that holds a color is not a color.
         ##"// the accent is "#FF8800""##,
     ]
@@ -151,8 +157,9 @@ struct LiteralScannerTests {
         try folder.write("Tokens/Bridge.swift", "let c = Color(white: 1)\n")
         try folder.write("Clean.swift", "let a = 1\n")
 
-        let everything = try LiteralScanner.scan([folder.url], allowing: [])
-        #expect(everything.files == ["Atoms/Deeper/Dot.swift", "Atoms/Pill.swift", "Clean.swift", "Tokens/Bridge.swift"])
+        let everything = try LiteralScanner.scan(folder.url, allowing: [])
+        #expect(
+            everything.files == ["Atoms/Deeper/Dot.swift", "Atoms/Pill.swift", "Clean.swift", "Tokens/Bridge.swift"])
         #expect(
             everything.violations.map(\.description) == [
                 "Atoms/Deeper/Dot.swift:1: namedColor: let c = Color.red",
@@ -160,7 +167,7 @@ struct LiteralScannerTests {
                 "Tokens/Bridge.swift:1: colorInitializer: let c = Color(white: 1)",
             ])
 
-        let allowing = try LiteralScanner.scan([folder.url], allowing: [folder.file("Tokens")])
+        let allowing = try LiteralScanner.scan(folder.url, allowing: [folder.file("Tokens")])
         #expect(allowing.files == ["Atoms/Deeper/Dot.swift", "Atoms/Pill.swift", "Clean.swift"])
         #expect(allowing.violations.map(\.rule) == [.namedColor, .spacing])
     }

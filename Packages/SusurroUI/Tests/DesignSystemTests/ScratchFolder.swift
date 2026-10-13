@@ -12,9 +12,11 @@ struct ScratchFolder {
 
     func file(_ name: String) -> URL { url.appendingPathComponent(name) }
 
-    /// Creates the folder first if it is not there, as the app does when it saves its first theme.
+    /// Creates the folder first if it is not there, as the app does when it saves its first theme, and the folders
+    /// above the file.
     func write(_ name: String, _ text: String) throws {
-        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            at: file(name).deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(text.utf8).write(to: file(name))
     }
 
