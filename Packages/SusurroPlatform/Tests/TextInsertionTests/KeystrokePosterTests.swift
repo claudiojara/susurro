@@ -33,7 +33,10 @@ struct KeystrokePosterTests {
         try poster(into: posted).postPaste()
 
         #expect(posted.events.map(\.type) == [.keyDown, .keyUp])
-        #expect(posted.events.map { $0.getIntegerValueField(.keyboardEventKeycode) } == [9, 9])
+        #expect(
+            posted.events.map { $0.getIntegerValueField(.keyboardEventKeycode) }
+                == Array(repeating: Int64(PasteChord.ansiVKeyCode), count: 2)
+        )
         for event in posted.events {
             #expect(event.flags.intersection(PasteChordTests.allModifiers) == [.maskCommand])
         }
