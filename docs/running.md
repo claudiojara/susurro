@@ -73,7 +73,8 @@ These are known and each has a later change:
 - One dictation at a time: a press while one is being processed is refused with a notice.
 - The whole processing of a dictation (waiting for the model, transcribing, pasting) is capped at 200 seconds.
 - Audio is not saved, so a dictation that fails is lost.
-- A recording is capped at 60 seconds.
+- A recording is capped at 60 seconds. The hold stops listening there, and the text is pasted once the keys are
+  released, or after 12 seconds if they never are (it then lands on the clipboard if the keys are still down).
 - No voice activity detection, so silence or noise can produce odd text, and silence gives "No speech heard".
 - The paste is promised under clipboard markers and the old clipboard comes back after a quiet period of 200 ms with no
   new read, and not sooner than 1 s after the paste. An app that reads the text more than 1 s later can get the old
@@ -95,7 +96,8 @@ macOS permission prompts cannot and must not be answered by a script):
 - [ ] Hold Control+Option+D in Notes, a text field in a browser, and Terminal, speak Spanish, and release: the text
       pastes in under 2 seconds, and what you had on the clipboard is back afterwards, rich content included.
 - [ ] The overlay never steals focus: keep the caret in the field while it shows.
-- [ ] A hold longer than 60 seconds shows the limit notice for a few seconds and still pastes what was said.
+- [ ] A hold longer than 60 seconds stops listening at the limit, shows the limit notice, and pastes what was said
+      once you release the keys (not before, and not to the clipboard).
 - [ ] A second press while a dictation is still processing shows "Still working on the last dictation".
 - [ ] With another Apple device signed in to the same account and Universal Clipboard on, a dictation does not reach
       that device's clipboard (the app writes with the current-host-only option).
