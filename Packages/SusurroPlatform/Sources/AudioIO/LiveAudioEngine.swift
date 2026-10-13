@@ -4,7 +4,8 @@ import Synchronization
 /// `AVAudioEngine` behind the `EngineProviding` seam. It needs a microphone and its permission, so it is covered by the
 /// manual check in WS5 rather than by unit tests.
 final class LiveAudioEngine: EngineProviding {
-    private static let tapBufferSize: AVAudioFrameCount = 4_096
+    /// About 21 ms at 48 kHz: the last buffer is dropped when the tap is removed, so a smaller one clips less speech.
+    private static let tapBufferSize: AVAudioFrameCount = 1_024
 
     private let engine = Mutex(AVAudioEngine())
 
@@ -16,11 +17,10 @@ final class LiveAudioEngine: EngineProviding {
         }
     }
 
-    func installTap(handler: @escaping @Sendable (AVAudioPCMBuffer) -> Void) {
+    func installTap(format: AVAudioFormat, handler: @escaping @Sendable (AVAudioPCMBuffer) -> Void) {
         engine.withLock { engine in
-            let input = engine.inputNode
-            input.installTap(onBus: 0, bufferSize: Self.tapBufferSize, format: input.outputFormat(forBus: 0)) {
-                buffer, _ in handler(buffer)
+            engine.inputNode.installTap(onBus: 0, bufferSize: Self.tapBufferSize, format: format) { buffer, _ in
+                handler(buffer)
             }
         }
     }
