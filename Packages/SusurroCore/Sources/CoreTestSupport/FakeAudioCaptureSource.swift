@@ -18,7 +18,7 @@ public final class FakeAudioCaptureSource: AudioCaptureSource {
         var active: AsyncThrowingStream<AudioChunk, Error>.Continuation?
     }
 
-    /// Opened when `stop` returns, in `holdStreamOpen` mode.
+    /// Opened when `stop` is called in `hang` mode, and when it returns in `holdStreamOpen` mode.
     public let stopped = Gate()
     private let state = Mutex(State())
     private let startFailure: (any Error)?
@@ -64,7 +64,9 @@ public final class FakeAudioCaptureSource: AudioCaptureSource {
         switch onStop {
         case .finishStream: finish()
         case .holdStreamOpen: stopped.open()
-        case .hang: await Gate().wait()
+        case .hang:
+            stopped.open()
+            await Gate().wait()
         }
     }
 

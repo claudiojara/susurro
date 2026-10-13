@@ -25,7 +25,7 @@ struct SkeletonCoordinatorTests {
         private var states: AsyncStream<PipelineState>.Iterator
 
         init(
-            microphone: PermissionStatus = .granted,
+            permissions: FakePermissionsChecker = FakePermissionsChecker(),
             capture: FakeAudioCaptureSource = FakeAudioCaptureSource(),
             recognizer: FakeRecognizer = FakeRecognizer(),
             inserter: FakeTextInserter = FakeTextInserter(),
@@ -40,7 +40,7 @@ struct SkeletonCoordinatorTests {
                 capture: capture,
                 recognizer: recognizer,
                 inserter: inserter,
-                permissions: FakePermissionsChecker([.microphone: microphone]),
+                permissions: permissions,
                 sleep: { try await sleeper.sleep($0) }
             )
             sut = coordinator
@@ -119,7 +119,7 @@ struct SkeletonCoordinatorTests {
 
     @Test("a microphone that is not granted starts no capture", arguments: [PermissionStatus.denied, .notDetermined])
     func microphoneNotGranted(status: PermissionStatus) async {
-        var h = await Harness(microphone: status)
+        var h = await Harness(permissions: FakePermissionsChecker([.microphone: status]))
         await h.sut.handle(.down(at: .zero))
 
         #expect(await h.read(through: .idle) == [.error(.microphoneNotGranted), .idle])
@@ -390,6 +390,67 @@ struct SkeletonCoordinatorTests {
 
         #expect(await h.read(through: .idle) == Self.transcribed)
         #expect(h.capture.startCount == 1)
+    }
+
+    @Test("a recognizer that throws CancellationError ends in an error, and a later press works")
+    func recognizerThrowsCancellation() async {
+        var h = await Harness(recognizer: FakeRecognizer(failure: CancellationError()))
+        await h.startRecording()
+        let first = await h.release()
+        await h.startRecording()  // never arrives if the coordinator is stuck processing
+        let second = await h.release()
+
+        let failed: [PipelineState] = [.transcribing(progress: nil), .error(.recognitionFailed), .idle]
+        #expect(first == failed)
+        #expect(second == failed)
+        #expect(h.capture.startCount == 2)
+    }
+
+    @Test("a caller cancelled while the capture stops does not leave the coordinator stuck")
+    func cancelledCallerDuringStop() async {
+        var h = await Harness(capture: FakeAudioCaptureSource(onStop: .hang))
+        await h.startRecording()
+        let sut = h.sut
+        let release = Task { await sut.handle(.up(at: Self.pressTime + .milliseconds(1200))) }
+        await h.capture.stopped.wait()
+        release.cancel()
+        await release.value
+
+        #expect(await h.read(through: .idle) == [.error(.captureFailed), .idle])
+        await h.startRecording()
+        #expect(h.capture.startCount == 2)
+    }
+
+    @Test("shutting down while the permissions are checked never starts the capture")
+    func shutdownDuringPreconditions() async {
+        let permissions = FakePermissionsChecker(gated: true)
+        var h = await Harness(permissions: permissions)
+        let sut = h.sut
+        let press = Task { await sut.handle(.down(at: Self.pressTime)) }
+        await permissions.entered.wait()
+        await sut.shutdown()
+        permissions.releaseStatus()
+        await press.value
+
+        #expect(h.capture.startCount == 0)
+        #expect(await h.read(through: .idle).isEmpty)
+    }
+
+    @Test("shutdown from a cancelled task still stops the capture")
+    func shutdownFromCancelledTask() async {
+        var h = await Harness()
+        await h.startRecording()
+        let sut = h.sut
+        let gate = Gate()
+        let stopper = Task {
+            await gate.wait()  // returns at once because the task is cancelled
+            await sut.shutdown()
+        }
+        stopper.cancel()
+        await stopper.value
+
+        #expect(h.capture.stopCount == 1)
+        #expect(await h.read(through: .idle) == [.idle])
     }
 
     @Test("reaching the 60 s clip cap finishes the recording and says so")
