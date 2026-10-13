@@ -179,9 +179,9 @@ public final class SimplePasteInserter: TextInserter {
     /// Puts the user's old pasteboard contents back at once, without waiting for an app to read the text or for the
     /// quiet period. The app calls it as it terminates, when a paste may still be waiting to finish and the task that
     /// would restore the pasteboard will not run. It does nothing when no paste is waiting, and nothing when someone
-    /// else has written to the pasteboard since our write.
+    /// else has written to the pasteboard since our write. Either way it logs what it did.
     public func restoreForTermination() {
-        restoreIfStillOurs()
+        diagnostics.record(.clipboardRestoreAtTermination(restored: restoreIfStillOurs()))
     }
 
     /// Waits for every paste that has posted its chord to finish. `insert` returns at the first read of the text,
@@ -225,14 +225,19 @@ public final class SimplePasteInserter: TextInserter {
 
     /// Puts the old contents back, unless anyone else has written to the pasteboard since our write: a newer write wins.
     /// It takes the old contents out of the inserter first, so that they are put back once, by whoever comes first.
-    private func restoreIfStillOurs() {
-        guard let pending = pendingRestore else { return }
+    /// Returns whether the old contents are back.
+    @discardableResult
+    private func restoreIfStillOurs() -> Bool {
+        guard let pending = pendingRestore else { return false }
         pendingRestore = nil
-        if pasteboard.changeCount == pending.writtenChangeCount { restore(pending.saved) }
+        return pasteboard.changeCount == pending.writtenChangeCount && restore(pending.saved)
     }
 
-    private func restore(_ saved: PasteboardSnapshot) {
-        if !saved.restore(to: pasteboard, writing: restoreItems) { diagnostics.record(.clipboardRestoreFailed) }
+    @discardableResult
+    private func restore(_ saved: PasteboardSnapshot) -> Bool {
+        let restored = saved.restore(to: pasteboard, writing: restoreItems)
+        if !restored { diagnostics.record(.clipboardRestoreFailed) }
+        return restored
     }
 
     /// Ends a paste that did not land: the text stays on the pasteboard unless the user copied something meanwhile.
