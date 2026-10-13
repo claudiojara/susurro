@@ -49,14 +49,30 @@ actor LiveParakeetEngine: ParakeetEngine {
         return language.flatMap { Language(rawValue: $0.trimmingCharacters(in: .whitespaces).lowercased()) }
     }
 
+    /// Whether another try would meet the same error. FluidAudio already purges and downloads again when a model does
+    /// not compile, and retries each download, so what reaches here as one of these is final. Everything else, such as
+    /// a network that is down, a stalled transfer, or a rate limit, may pass.
+    static func isPermanent(_ error: any Error) -> Bool {
+        switch error {
+        case DownloadError.modelNotFound, DownloadError.invalidArtifact: true
+        case ASRError.modelCompilationFailed, ASRError.unsupportedPlatform: true
+        case AsrModelsError.modelCompilationFailed: true
+        default: false
+        }
+    }
+
     func load(progress: @escaping @Sendable (Double) -> Void) async throws {
         Self.pinWeights()
-        let models = try await AsrModels.downloadAndLoad(to: modelsDirectory, version: .v3) {
-            progress($0.fractionCompleted)
+        do {
+            let models = try await AsrModels.downloadAndLoad(to: modelsDirectory, version: .v3) {
+                progress($0.fractionCompleted)
+            }
+            let manager = AsrManager()
+            try await manager.loadModels(models)
+            self.manager = manager
+        } catch  where Self.isPermanent(error) {
+            throw PermanentLoadFailure(reason: error.localizedDescription)
         }
-        let manager = AsrManager()
-        try await manager.loadModels(models)
-        self.manager = manager
     }
 
     func transcribe(_ samples: [Float], language: String?) async throws -> String {

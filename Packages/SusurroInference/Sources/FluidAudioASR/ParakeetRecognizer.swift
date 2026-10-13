@@ -30,7 +30,12 @@ public actor ParakeetRecognizer: SpeechRecognizer {
     private static let logger = Logger(subsystem: "dev.claudiojara.susurro", category: "parakeet")
 
     private let engine: any ParakeetEngine
+    private let retryPolicy: LoadRetryPolicy
+    private let now: @Sendable () -> ContinuousClock.Instant
     private var modelState = ModelState.notLoaded
+    private var failedLoads = 0
+    /// When a failed load may be tried again. Nil after a failure that no retry can fix, or after the last attempt.
+    private var retryNotBefore: ContinuousClock.Instant?
     private var progress = LoadProgress()
     private var subscribers: [Int: AsyncStream<RecognizerReadiness>.Continuation] = [:]
     private var subscriberCount = 0
@@ -42,8 +47,14 @@ public actor ParakeetRecognizer: SpeechRecognizer {
         self.init(engine: LiveParakeetEngine())
     }
 
-    init(engine: any ParakeetEngine) {
+    init(
+        engine: any ParakeetEngine,
+        retryPolicy: LoadRetryPolicy = LoadRetryPolicy(),
+        now: @escaping @Sendable () -> ContinuousClock.Instant = { .now }
+    ) {
         self.engine = engine
+        self.retryPolicy = retryPolicy
+        self.now = now
     }
 
     /// How many transcriptions wait behind the one running.
@@ -67,11 +78,15 @@ public actor ParakeetRecognizer: SpeechRecognizer {
     }
 
     /// Starts downloading and loading the model, and returns at once. It does nothing while a load runs or after one
-    /// succeeded, and starts a new load after a failed one.
-    public func prepare() {
+    /// succeeded. After a failed load it starts a new one once the wait of `LoadRetryPolicy` has passed, and never after
+    /// a failure that no retry can fix or after the last attempt.
+    // `async` so that this method, not the port's default `prepare()`, is what a call on a `SpeechRecognizer` reaches.
+    public func prepare() async {
         switch modelState {
         case .loading, .ready: return
-        case .notLoaded, .failed: break
+        case .failed:
+            guard let retryNotBefore, now() >= retryNotBefore else { return }
+        case .notLoaded: break
         }
         progress = LoadProgress()
         transition(to: .loading(progress: 0))
@@ -111,6 +126,7 @@ public actor ParakeetRecognizer: SpeechRecognizer {
             try await engine.load { sink.yield($0) }
             sink.finish()
             await relay.value
+            failedLoads = 0
             transition(to: .ready)
         } catch {
             sink.finish()
@@ -118,8 +134,23 @@ public actor ParakeetRecognizer: SpeechRecognizer {
             // Only the error's type is public; its description can name paths and hosts.
             let kind = String(reflecting: type(of: error))
             Self.logger.error("The speech model did not load: \(kind, privacy: .public): \(String(describing: error))")
-            transition(to: .failed)
+            loadFailed(with: error)
         }
+    }
+
+    private func loadFailed(with error: any Error) {
+        failedLoads += 1
+        var reason = error.localizedDescription
+        if let permanent = error as? PermanentLoadFailure {
+            reason = permanent.reason
+            retryNotBefore = nil
+        } else if let wait = retryPolicy.delay(afterFailures: failedLoads) {
+            retryNotBefore = now() + wait
+        } else {
+            retryNotBefore = nil
+            reason += " (Gave up after \(failedLoads) attempts; restart the app to try again.)"
+        }
+        transition(to: .failed(reason))
     }
 
     private func advance(to fraction: Double) {
@@ -128,7 +159,9 @@ public actor ParakeetRecognizer: SpeechRecognizer {
     }
 
     private func transition(to next: ModelState) {
+        let before = modelState.readiness
         modelState = next
+        guard next.readiness != before else { return }
         for continuation in subscribers.values { continuation.yield(next.readiness) }
     }
 
