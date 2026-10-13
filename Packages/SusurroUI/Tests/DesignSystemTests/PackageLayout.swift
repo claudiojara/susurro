@@ -8,6 +8,16 @@ enum PackageLayout {
         .deletingLastPathComponent()  // Tests
         .deletingLastPathComponent()  // the package
 
+    /// The repository: the folder that holds `Packages` and `.github`.
+    static let repository =
+        root
+        .deletingLastPathComponent()  // Packages
+        .deletingLastPathComponent()  // the repository
+
+    static func repositoryFile(_ path: String) -> URL {
+        repository.appendingPathComponent(path)
+    }
+
     static func sources(_ target: String) -> URL {
         root.appendingPathComponent("Sources").appendingPathComponent(target)
     }
