@@ -9,6 +9,9 @@ let package = Package(
         .library(name: "SusurroUI", targets: ["SusurroUI"]),
         .library(name: "DesignSystem", targets: ["DesignSystem"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/pointfreeco/swift-snapshot-testing.git", exact: "1.19.6")
+    ],
     targets: [
         .target(
             name: "DesignSystem",
@@ -20,8 +23,17 @@ let package = Package(
             dependencies: ["DesignSystem"],
             swiftSettings: [.defaultIsolation(MainActor.self)]
         ),
-        .testTarget(name: "DesignSystemTests", dependencies: ["DesignSystem"], exclude: ["Fixtures"]),
-        .testTarget(name: "SusurroUITests", dependencies: ["SusurroUI"]),
+        // Renders views the same way on every machine and asserts snapshots of them. Only test targets use it.
+        .target(
+            name: "UITestSupport",
+            dependencies: [
+                "DesignSystem",
+                .product(name: "SnapshotTesting", package: "swift-snapshot-testing"),
+            ],
+            swiftSettings: [.defaultIsolation(MainActor.self)]
+        ),
+        .testTarget(name: "DesignSystemTests", dependencies: ["DesignSystem", "UITestSupport"], exclude: ["Fixtures"]),
+        .testTarget(name: "SusurroUITests", dependencies: ["SusurroUI", "UITestSupport"]),
     ],
     swiftLanguageModes: [.v6]
 )
