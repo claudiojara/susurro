@@ -34,7 +34,7 @@ struct ThemeProviderTests {
         return seen
     }
 
-    private static let cases: [(system: ColorScheme, override: AppearanceOverride, shown: Appearance)] = [
+    nonisolated private static let cases: [(system: ColorScheme, override: AppearanceOverride, shown: Appearance)] = [
         (.light, .system, .light), (.dark, .system, .dark),
         (.light, .dark, .dark), (.dark, .light, .light),
         (.light, .light, .light), (.dark, .dark, .dark),

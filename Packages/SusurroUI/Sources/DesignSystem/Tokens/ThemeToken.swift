@@ -5,6 +5,11 @@ public nonisolated protocol ThemeToken: RawRepresentable, CaseIterable, Hashable
     static var group: String { get }
 }
 
+nonisolated extension ThemeToken {
+    /// The token as `group.name`, the form the catalog and error messages use.
+    var key: String { "\(Self.group).\(rawValue)" }
+}
+
 /// What a color is for, never what it looks like. A theme maps each one to a palette entry.
 public nonisolated enum ColorToken: String, ThemeToken {
     case surfaceWindow = "surface.window"

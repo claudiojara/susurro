@@ -88,7 +88,3 @@ public nonisolated struct OverlayGeometry: Codable, Sendable, Equatable {
 public nonisolated enum ScreenEdge: String, Codable, Sendable {
     case top, bottom
 }
-
-public nonisolated enum Appearance: Sendable, Equatable {
-    case light, dark
-}
