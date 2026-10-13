@@ -129,7 +129,23 @@ public actor DictationCoordinator {
 
     private func checkStartPreconditions() async throws {
         guard await permissions.status(.microphone) == .granted else { throw PipelineError.microphoneNotGranted }
-        guard await recognizer.readiness() != .notInstalled else { throw PipelineError.recognizerNotInstalled }
+        var readiness = await recognizer.readiness()
+        if readiness == .ready { return }
+        if readiness != .notInstalled {
+            // A press is the chance to start a load that never started, or to retry one that failed. Preparing is
+            // idempotent, so it is asked every time and the recognizer decides. What it says afterward counts, not
+            // what it said before.
+            try await withDeadline(DictationLimits.prepareTimeout, stage: .readiness, sleep: sleep) { [recognizer] in
+                await recognizer.prepare()
+            }
+            readiness = await recognizer.readiness()
+        }
+        switch readiness {
+        case .notInstalled: throw PipelineError.recognizerNotInstalled
+        case .unavailable(let reason, let retryable):
+            throw PipelineError.recognizerUnavailable(reason, retryable: retryable)
+        case .loading, .ready: break
+        }
     }
 
     private func consume(_ stream: AsyncThrowingStream<AudioChunk, Error>) async {
@@ -222,8 +238,15 @@ public actor DictationCoordinator {
         }
     }
 
+    /// Waits for a loading model while the finished clip stays in memory. The wait ends when the model is ready, when it
+    /// fails, when its progress has not changed for `readinessStallTimeout`, or at `readinessHardCap`. A clip that waits
+    /// out one of the limits is lost; keeping it for another attempt arrives with 4d.7.
     private func waitUntilRecognizerIsReady() async throws {
-        var pausesLeft = Int(DictationLimits.readinessTimeout / DictationLimits.readinessPollInterval)
+        let stallLimit = Int(DictationLimits.readinessStallTimeout / DictationLimits.readinessPollInterval)
+        let totalLimit = Int(DictationLimits.readinessHardCap / DictationLimits.readinessPollInterval)
+        var stalledPolls = 0
+        var totalPolls = 0
+        var lastProgress: Double?
         while true {
             switch await recognizer.readiness() {
             case .ready:
@@ -231,9 +254,18 @@ public actor DictationCoordinator {
                 return
             case .notInstalled:
                 throw PipelineError.recognizerNotInstalled
+            case .unavailable(let reason, let retryable):
+                throw PipelineError.recognizerUnavailable(reason, retryable: retryable)
             case .loading(let progress):
-                guard pausesLeft > 0 else { throw PipelineError.timedOut(.readiness) }
-                pausesLeft -= 1
+                if progress != lastProgress {
+                    lastProgress = progress
+                    stalledPolls = 0
+                }
+                guard stalledPolls < stallLimit, totalPolls < totalLimit else {
+                    throw PipelineError.timedOut(.readiness)
+                }
+                stalledPolls += 1
+                totalPolls += 1
                 publish(.transcribing(progress: progress))
                 try await sleep(DictationLimits.readinessPollInterval)
             }

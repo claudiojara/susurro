@@ -12,10 +12,11 @@ struct ParakeetMappingTests {
     @Test(
         "an engine state maps to the readiness the port reports",
         arguments: [
-            (ModelState.notLoaded, RecognizerReadiness.notInstalled),
+            (ModelState.notLoaded, RecognizerReadiness.loading(progress: 0)),
             (.loading(progress: 0.4), .loading(progress: 0.4)),
             (.ready, .ready),
-            (.failed, .notInstalled),
+            (.failed("offline", retryable: true), .unavailable("offline", retryable: true)),
+            (.failed("model is damaged", retryable: false), .unavailable("model is damaged", retryable: false)),
         ]
     )
     func engineStatesMapToReadiness(state: ModelState, readiness: RecognizerReadiness) {

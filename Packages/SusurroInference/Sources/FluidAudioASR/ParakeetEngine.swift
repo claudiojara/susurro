@@ -11,3 +11,9 @@ protocol ParakeetEngine: Sendable {
     /// Transcribes a whole 16 kHz mono clip. A `language` of nil lets the engine detect it.
     func transcribe(_ samples: [Float], language: String?) async throws -> String
 }
+
+/// Thrown by `ParakeetEngine.load` when trying again cannot help, such as a model that fails to compile. Any other
+/// error is taken as one that another try may fix, such as a network that is down.
+struct PermanentLoadFailure: Error, Equatable {
+    let reason: String
+}
