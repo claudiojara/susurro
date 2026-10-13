@@ -1,0 +1,16 @@
+# SDD local cache (skill registry)
+.atl/
+
+# macOS
+.DS_Store
+
+# Swift / SPM / Xcode
+.build/
+.swiftpm/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+xcuserdata/
+
+# Reverse-engineering research notes (local only, never published)
+docs/research/

@@ -1,0 +1,72 @@
+# openspec/config.yaml - SDD configuration for susurro
+# Initialized: 2026-10-13 by sdd-init.
+schema: spec-driven
+
+context: |
+  Product: native macOS dictation app (clean-room, Swift). Context-aware, local-first dictation.
+  Stack (planned): Swift 6.4, SwiftUI + AppKit, min macOS 26 (Tahoe). Toolchain: Xcode 27.0 (macOS 27 SDK), host macOS 26.6.2.
+  Planned deps: FluidAudio (Parakeet ASR + Silero VAD), KeyboardShortcuts, Apple FoundationModels, Vision; Sparkle later.
+  Architecture (preferred, not yet designed): SPM-first. Core logic in local Swift packages (testable via `swift test`), thin app target.
+  Testing: Swift Testing (not XCTest). `swift test` per package; `xcodebuild test` for the app target. Strict TDD enabled.
+  Style: Swift 6 language mode (strict concurrency), swift-format via `xcrun swift-format`; no SwiftLint installed.
+  Persistence: hybrid (openspec files + engram project "susurro"). Delivery: auto-forecast, review budget 800 lines.
+  Docs/artifacts in English.
+
+strict_tdd: true
+
+testing:
+  strict_tdd: true
+  status: planned   # no Package.swift or test targets exist yet; the first change MUST bootstrap them
+  runner:
+    framework: Swift Testing
+    unit_command: swift test --package-path Packages/<PackageName>   # per local SPM package
+    app_command: xcodebuild test -scheme Susurro -destination 'platform=macOS'   # app target, once it exists
+    coverage_command: swift test --enable-code-coverage --package-path Packages/<PackageName>   # then: xcrun llvm-cov report
+  layers:
+    unit: {available: true, tool: "Swift Testing via swift test (verified with a scratch package)"}
+    integration: {available: true, tool: "Swift Testing with fakes/adapters for audio, ASR, paste, AX"}
+    e2e: {available: false, tool: "XCUITest via xcodebuild test (needs app target; Accessibility/Microphone permissions limit automation)"}
+  coverage: {available: true, command: "swift test --enable-code-coverage; xcrun llvm-cov report"}
+  quality:
+    linter: {available: false, command: "none installed (swiftlint absent)"}
+    type_checker: {available: true, command: "swift build (Swift 6 language mode, strict concurrency)"}
+    formatter: {available: true, command: "xcrun swift-format lint --recursive Packages App"}
+  tooling_notes:
+    - "Package.swift MUST declare platforms: [.macOS(.v26)]; a default package targets macOS 14."
+    - "xcodegen 2.46.0 is installed (/opt/homebrew/bin/xcodegen); usable to generate the app Xcode project. Not decided."
+    - "Model-dependent code (Parakeet, FoundationModels) MUST sit behind protocols so tests use fakes and never download models."
+
+rules:
+  proposal:
+    - Include a rollback plan for risky changes
+    - Keep clean-room discipline - describe behavior in our own terms, never copy code from closed-source apps
+    - Call out macOS permission impact (Microphone, Accessibility, Input Monitoring, Screen Recording) when relevant
+  specs:
+    - Use Given/When/Then for scenarios
+    - Use RFC 2119 keywords (MUST, SHALL, SHOULD, MAY)
+  design:
+    - Document architecture decisions with rationale
+    - Keep domain/core logic in local SPM packages; the app target stays thin (UI, wiring, entitlements)
+    - Isolate system boundaries (audio capture, ASR, VAD, LLM, paste/AX, hotkeys) behind protocols so they are fakeable
+    - Respect Swift 6 strict concurrency (actors, Sendable); avoid unchecked escape hatches without justification
+  tasks:
+    - Group by phase, use hierarchical numbering
+    - Keep tasks completable in one session
+    - Order each behavior as RED test task, then GREEN implementation task (Strict TDD)
+    - Forecast review workload against the 800-line budget; split into chained slices when High risk
+  apply:
+    tdd: true
+    guidelines:
+      - Write the failing Swift Testing test first, then the minimum code to pass, then refactor
+      - Follow SPM-first layout; do not put business logic in the app target
+    test_command: "swift test --package-path Packages/<PackageName>"
+  verify:
+    test_command: "swift test --package-path Packages/<PackageName>"
+    build_command: "xcodebuild build -scheme Susurro -destination 'platform=macOS'"
+    coverage_threshold: 0   # no baseline yet; revisit after the first core package lands
+  archive:
+    - Warn before merging destructive deltas
+
+delivery:
+  strategy: auto-forecast   # auto-chain when the forecast exceeds the budget
+  review_budget_lines: 800
