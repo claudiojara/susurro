@@ -69,6 +69,7 @@ struct WorkflowPolicyTests {
     func theRecordJobHasNoToken() throws {
         let record = try job("record")
         #expect(record.steps.contains { $0.script.contains("make snapshots") })
+        #expect(record.steps.contains { $0.script.contains(".github/scripts/pack-references.sh") })
         for secret in ["github.token", "secrets.", "GH_TOKEN", "GITHUB_TOKEN"] {
             #expect(!record.text.contains(secret), "the record job mentions \(secret)")
         }
