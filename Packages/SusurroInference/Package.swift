@@ -9,12 +9,18 @@ let package = Package(
         .library(name: "SusurroInference", targets: ["FluidAudioASR"])
     ],
     dependencies: [
-        .package(path: "../SusurroCore")
+        .package(path: "../SusurroCore"),
+        // Pinned exactly. The default NemoTextProcessing trait is off: it links a prebuilt text-normalization engine
+        // that only speech synthesis and inverse text normalization use, and dictation uses neither.
+        .package(url: "https://github.com/FluidInference/FluidAudio.git", exact: "0.17.7", traits: []),
     ],
     targets: [
         .target(
             name: "FluidAudioASR",
-            dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]
+            dependencies: [
+                .product(name: "SusurroCore", package: "SusurroCore"),
+                .product(name: "FluidAudio", package: "FluidAudio"),
+            ]
         ),
         .testTarget(
             name: "FluidAudioASRTests",

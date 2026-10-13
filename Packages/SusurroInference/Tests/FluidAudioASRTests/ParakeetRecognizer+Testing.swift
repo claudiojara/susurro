@@ -11,6 +11,13 @@ extension ParakeetRecognizer {
         return recognizer
     }
 
+    /// Returns once a load has failed. A load that never ends ends in the suite's time limit.
+    func waitUntilUnavailable() async {
+        for await readiness in readinessChanges() {
+            if case .unavailable = readiness { return }
+        }
+    }
+
     /// Returns once the model is loaded. A load that never finishes ends in the suite's time limit.
     func waitUntilReady() async {
         for await readiness in readinessChanges() where readiness == .ready { return }
