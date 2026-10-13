@@ -70,14 +70,14 @@ public nonisolated enum ThemeLoader {
 
     // MARK: Checking
 
-    private static let fileKeys = Set(["schemaVersion", "name", "palette"]).union(ThemeTokenCatalog.names.keys)
+    private static let fileKeys = Set(["schemaVersion", "name", "palette"] + ThemeTokenCatalog.groups.map(\.name))
 
     /// Tokens the file names that the catalog does not list. Decoding would skip them without a word.
     private static func unknownTokens(in file: [String: Any]) -> [ThemeError] {
         var unknown = file.keys.filter { !fileKeys.contains($0) }
-        for (group, names) in ThemeTokenCatalog.names {
-            guard let table = file[group] as? [String: Any] else { continue }
-            unknown += table.keys.filter { !names.contains($0) }.map { "\(group).\($0)" }
+        for group in ThemeTokenCatalog.groups {
+            guard let table = file[group.name] as? [String: Any] else { continue }
+            unknown += group.qualified(Set(table.keys).subtracting(group.expected))
         }
         return unknown.sorted().map(ThemeError.unknownToken)
     }
