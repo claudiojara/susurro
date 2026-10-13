@@ -14,10 +14,10 @@ public struct ThemeProvider: ViewModifier {
     }
 
     public func body(content: Content) -> some View {
-        let appearance = override.appearance(whenSystemIs: systemScheme == .dark ? .dark : .light)
+        let appearance = override.appearance(whenSystemIs: Appearance(systemScheme))
         content
             .environment(\.theme, resolved(for: appearance))
-            .environment(\.colorScheme, appearance == .dark ? .dark : .light)
+            .environment(\.colorScheme, appearance.colorScheme)
     }
 
     /// A theme that does not resolve, which the loader never returns, shows the bundled one.
