@@ -7,46 +7,72 @@ enum PasteTiming {
     static let modifierPollInterval = Duration.milliseconds(20)
     /// How long a modifier key may stay down before the paste is given up.
     static let modifierTimeout = Duration.milliseconds(500)
-    /// How long the text stays on the pasteboard after the chord, before the old contents come back.
+    /// How long an app may take to read the text after the chord before the paste counts as failed.
+    static let receiptTimeout = Duration.seconds(8)
+    /// How long the text stays on the pasteboard after an app has read it, before the old contents come back.
     static let restoreDelay = Duration.milliseconds(300)
 }
 
-/// Pastes by writing the text to the pasteboard, posting Command+V, and putting the old pasteboard contents back after
-/// a fixed delay if nobody else has written to it since. Insertions must not overlap: the caller waits for one to
-/// finish before it starts the next.
+/// Pastes by promising the text on the pasteboard, posting Command+V, and putting the old pasteboard contents back
+/// once an app has read the text and a short quiet period has passed, if nobody else has written to the pasteboard
+/// since. Insertions must not overlap: the caller waits for one to finish before it starts the next.
+///
+/// When the paste cannot be completed, the text is left on the pasteboard on purpose, as plain marked text, so that the
+/// user can paste it by hand, and nothing is restored.
 @MainActor
 public final class SimplePasteInserter: TextInserter {
     private let pasteboard: NSPasteboard
     private let keystrokes: any KeystrokePoster
     private let sleep: @MainActor (Duration) async throws -> Void
+    private let sourceBundleID: String
 
-    /// - Parameter sleep: Paces the waits. Tests pass a fake.
+    /// - Parameters:
+    ///   - sleep: Paces the waits. Tests pass a fake.
+    ///   - sourceBundleID: Written to the pasteboard so that clipboard managers can tell which app wrote the text.
     public init(
         pasteboard: NSPasteboard = .general,
         keystrokes: any KeystrokePoster = CGEventKeystrokePoster(),
-        sleep: @escaping @MainActor (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: @escaping @MainActor (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        sourceBundleID: String = Bundle.main.bundleIdentifier ?? "dev.claudiojara.susurro"
     ) {
         self.pasteboard = pasteboard
         self.keystrokes = keystrokes
         self.sleep = sleep
+        self.sourceBundleID = sourceBundleID
     }
 
     public func insert(_ text: String) async -> InsertionOutcome {
         guard !text.isEmpty else { return .inserted }
-        guard await modifiersReleased() else {
-            write(text)
-            return .copiedToClipboard(.pasteFailed)
-        }
+        guard await modifiersReleased() else { return leaveOnClipboard(text, because: .pasteFailed) }
         let saved = PasteboardSnapshot(of: pasteboard)
-        let written = write(text)
-        if let reason = postChord() { return .copiedToClipboard(reason) }
-        do {
-            try await sleep(PasteTiming.restoreDelay)
-        } catch {
-            return .copiedToClipboard(.pasteFailed)
+        let promise = PromisedText(text)
+        let writtenChangeCount = write(promise)
+        if let reason = postChord() { return leaveOnClipboard(text, because: reason) }
+        // The chord is out, so the rest runs in a task of its own. A caller that is cancelled from here on cannot cut
+        // the wait for the read short, which would restore the old contents before the app has read the text.
+        return await Task { @MainActor in
+            await finishPaste(text, promise: promise, saved: saved, writtenChangeCount: writtenChangeCount)
+        }.value
+    }
+
+    /// Waits for an app to read the text, then restores the old contents after a quiet period. When no app reads the
+    /// text in time, the paste has failed and the text stays.
+    private func finishPaste(
+        _ text: String,
+        promise: PromisedText,
+        saved: PasteboardSnapshot,
+        writtenChangeCount: Int
+    ) async -> InsertionOutcome {
+        var waited = Duration.zero
+        while promise.receipts == 0 {
+            guard waited < PasteTiming.receiptTimeout else { return leaveOnClipboard(text, because: .pasteFailed) }
+            // Nobody cancels this task, so a pause that throws is an injected one and the loop still ends by time.
+            try? await sleep(PasteTiming.modifierPollInterval)
+            waited += PasteTiming.modifierPollInterval
         }
+        try? await sleep(PasteTiming.restoreDelay)
         // A newer write by anyone else wins over the old contents.
-        if pasteboard.changeCount == written { saved.restore(to: pasteboard) }
+        if pasteboard.changeCount == writtenChangeCount { saved.restore(to: pasteboard) }
         return .inserted
     }
 
@@ -77,11 +103,19 @@ public final class SimplePasteInserter: TextInserter {
         return true
     }
 
-    /// Replaces the pasteboard contents with the text and returns the change count that this write produced.
-    @discardableResult
-    private func write(_ text: String) -> Int {
+    /// Replaces the pasteboard contents with the promised text and returns the change count that this write produced.
+    private func write(_ promise: PromisedText) -> Int {
         pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
+        let item = NSPasteboardItem.marked(source: sourceBundleID) { $0.setDataProvider(promise, forTypes: [.string]) }
+        if let item { pasteboard.writeObjects([item]) }
         return pasteboard.changeCount
+    }
+
+    /// Replaces the pasteboard contents with the text itself, as plain marked text with nothing promised.
+    private func leaveOnClipboard(_ text: String, because reason: ClipboardReason) -> InsertionOutcome {
+        pasteboard.clearContents()
+        let item = NSPasteboardItem.marked(source: sourceBundleID) { $0.setString(text, forType: .string) }
+        if let item { pasteboard.writeObjects([item]) }
+        return .copiedToClipboard(reason)
     }
 }
