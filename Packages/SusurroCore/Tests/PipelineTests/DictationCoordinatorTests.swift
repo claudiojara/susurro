@@ -146,29 +146,81 @@ struct DictationCoordinatorTests {
         await h.startRecording()
         let states = await h.release()
 
-        let progress: [PipelineState] = [.transcribing(progress: 0.4), .transcribing(progress: 0.8)]
-        #expect(states == [.transcribing(progress: nil)] + progress + Self.transcribed)
-        let polls = Array(repeating: FakeRecognizer.Call.readiness, count: 4)
-        #expect(h.recognizer.calls == polls + [.transcribe(AudioClip(samples: Self.clip))])
-        #expect(h.sleeper.pauseCount == 2)
+        // The press asks the recognizer to prepare, which is a no-op while it loads, and then reads it again.
+        #expect(states == [.transcribing(progress: nil), .transcribing(progress: 0.8)] + Self.transcribed)
+        let calls: [FakeRecognizer.Call] = [.readiness, .prepare, .readiness, .readiness, .readiness]
+        #expect(h.recognizer.calls == calls + [.transcribe(AudioClip(samples: Self.clip))])
+        #expect(h.sleeper.pauseCount == 1)
         #expect(h.inserter.insertedTexts == ["hola"])
     }
 
     @Test("a recognizer whose load failed starts no capture, asks to try again, and is prepared again")
     func unavailableRecognizer() async {
-        let recognizer = FakeRecognizer(readiness: [.unavailable("no network")])
+        let recognizer = FakeRecognizer(readiness: [.unavailable("no network", retryable: true)])
         var h = await Harness(recognizer: recognizer)
         await h.sut.handle(.down(at: .zero))
 
-        #expect(await h.read(through: .idle) == [.error(.recognizerUnavailable("no network")), .idle])
+        #expect(await h.read(through: .idle) == [.error(.recognizerUnavailable("no network", retryable: true)), .idle])
         #expect(h.capture.startCount == 0)
-        #expect(recognizer.calls == [.readiness, .prepare])
+        #expect(recognizer.calls == [.readiness, .prepare, .readiness])
+    }
+
+    @Test("whether a failed load can be retried reaches the error", arguments: [true, false])
+    func retryabilityReachesTheError(retryable: Bool) async {
+        var h = await Harness(recognizer: FakeRecognizer(readiness: [.unavailable("why", retryable: retryable)]))
+        await h.sut.handle(.down(at: .zero))
+
+        #expect(await h.read(through: .idle) == [.error(.recognizerUnavailable("why", retryable: retryable)), .idle])
+    }
+
+    @Test("the error comes from the readiness read after prepare, not from the one before it")
+    func freshReadinessDecidesTheError() async {
+        let recognizer = FakeRecognizer(readiness: [
+            .unavailable("stale", retryable: true), .unavailable("fresh", retryable: false),
+        ])
+        var h = await Harness(recognizer: recognizer)
+        await h.sut.handle(.down(at: .zero))
+
+        #expect(await h.read(through: .idle) == [.error(.recognizerUnavailable("fresh", retryable: false)), .idle])
+    }
+
+    @Test("a press prepares a recognizer that was never prepared, and the clip is transcribed")
+    func neverPreparedRecognizer() async {
+        let recognizer = FakeRecognizer(readiness: [.loading(progress: 0)], transcript: "hola", readyAfterPrepare: true)
+        var h = await Harness(recognizer: recognizer)
+        await h.startRecording()
+        let states = await h.release()
+
+        #expect(states == Self.transcribed)
+        let calls: [FakeRecognizer.Call] = [.readiness, .prepare, .readiness, .readiness]
+        #expect(recognizer.calls == calls + [.transcribe(AudioClip(samples: Self.clip))])
+        #expect(h.inserter.insertedTexts == ["hola"])
+    }
+
+    @Test("a recognizer that is ready is not prepared on a press")
+    func readyRecognizerIsNotPrepared() async {
+        var h = await Harness()
+        await h.startRecording()
+        _ = await h.release()
+
+        #expect(h.recognizer.calls == [.readiness, .readiness, .transcribe(AudioClip(samples: Self.clip))])
+    }
+
+    @Test("a prepare that never returns times out the press and starts no capture")
+    func prepareTimeout() async {
+        let recognizer = FakeRecognizer(readiness: [.loading(progress: 0)], gatedPrepare: true)
+        let sleeper = FakeSleeper(expiring: [DictationLimits.prepareTimeout])
+        var h = await Harness(recognizer: recognizer, sleeper: sleeper)
+        await h.sut.handle(.down(at: .zero))
+
+        #expect(await h.read(through: .idle) == [.error(.timedOut(.readiness)), .idle])
+        #expect(h.capture.startCount == 0)
     }
 
     @Test("a model that fails to load while the clip waits ends in the retry error, and the press that follows works")
     func modelFailsWhileWaiting() async {
         let recognizer = FakeRecognizer(readiness: [
-            .loading(progress: 0.5), .loading(progress: 0.6), .unavailable("disk full"),
+            .loading(progress: 0.5), .loading(progress: 0.6), .unavailable("disk full", retryable: true),
         ])
         var h = await Harness(recognizer: recognizer)
         await h.startRecording()
@@ -178,7 +230,7 @@ struct DictationCoordinatorTests {
         let recovered = await h.release()
 
         let progress: [PipelineState] = [.transcribing(progress: 0.6)]
-        let error: [PipelineState] = [.error(.recognizerUnavailable("disk full")), .idle]
+        let error: [PipelineState] = [.error(.recognizerUnavailable("disk full", retryable: true)), .idle]
         #expect(failed == [.transcribing(progress: nil)] + progress + error)
         #expect(recovered == Self.transcribed)
     }
