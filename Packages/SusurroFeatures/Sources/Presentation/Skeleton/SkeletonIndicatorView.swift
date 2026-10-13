@@ -19,7 +19,9 @@ struct SkeletonIndicatorView: View {
             }
             .padding(.horizontal, Layout.horizontalPadding)
             .padding(.vertical, Layout.verticalPadding)
-            .frame(maxWidth: Layout.maxWidth)
+            // A fixed width, so that a long message wraps to the height the panel is given. With a flexible width the
+            // panel is sized for one long line and the message is cut off.
+            .frame(width: Layout.width)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: Layout.cornerRadius))
         }
     }
@@ -28,7 +30,7 @@ struct SkeletonIndicatorView: View {
         static let spacing: CGFloat = 10
         static let horizontalPadding: CGFloat = 16
         static let verticalPadding: CGFloat = 10
-        static let maxWidth: CGFloat = 420
+        static let width: CGFloat = 380
         static let cornerRadius: CGFloat = 16
     }
 

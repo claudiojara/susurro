@@ -7,10 +7,20 @@ import SwiftUI
 public final class SkeletonOverlayController: OverlaySurface {
     private let panel = SkeletonOverlayPanel()
     private let host = NSHostingView(rootView: SkeletonIndicatorView(indicator: nil))
+    private let visibleFrame: () -> CGRect
 
-    public init() {
+    public convenience init() {
+        self.init(visibleFrame: { NSScreen.main?.visibleFrame ?? .zero })
+    }
+
+    /// - Parameter visibleFrame: The area of the screen the overlay lives in, without the menu bar and the Dock.
+    init(visibleFrame: @escaping () -> CGRect) {
+        self.visibleFrame = visibleFrame
         panel.contentView = host
     }
+
+    var panelFrame: CGRect { panel.frame }
+    var isPanelVisible: Bool { panel.isVisible }
 
     public func display(_ indicator: OverlayIndicator?) {
         guard let indicator else {
@@ -19,8 +29,7 @@ public final class SkeletonOverlayController: OverlaySurface {
         }
         host.rootView = SkeletonIndicatorView(indicator: indicator)
         let size = host.fittingSize
-        let visibleFrame = NSScreen.main?.visibleFrame ?? .zero
-        panel.setFrame(SkeletonOverlayPlacement.frame(size: size, in: visibleFrame), display: true)
+        panel.setFrame(SkeletonOverlayPlacement.frame(size: size, in: visibleFrame()), display: true)
         // Never `makeKeyAndOrderFront`: the panel must not take focus from the app being dictated into.
         panel.orderFrontRegardless()
     }

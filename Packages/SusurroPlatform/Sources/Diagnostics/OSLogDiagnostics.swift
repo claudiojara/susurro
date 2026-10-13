@@ -2,7 +2,8 @@ import Domain
 import OSLog
 
 /// The live log: events go to the unified log of the app. `log show --predicate 'subsystem ==
-/// "dev.claudiojara.susurro"'` reads them. A line is built from fixed words and the names an event carries, which are
+/// "dev.claudiojara.susurro"'` reads them. Failures are errors, and the rest are at the default level, which the system
+/// keeps; the info level lives only in memory and `log show` would not find it afterwards. A line is built from fixed words and the names an event carries, which are
 /// not private (kinds, causes, sizes), so it is logged as public: the system would otherwise redact it, and there is no
 /// text of the user in it.
 public struct OSLogDiagnostics: DiagnosticsLog {
@@ -28,12 +29,12 @@ public struct OSLogDiagnostics: DiagnosticsLog {
         case .pasteboardWriteRefused: (.error, "the pasteboard refused a write")
         case .clipboardRestoreFailed: (.error, "the pasteboard refused the old contents")
         case .captureFirstBuffer(let frames, let sampleRate):
-            (.info, "first tap buffer: \(frames) frames at \(Int(sampleRate)) Hz")
-        case .appLaunched: (.info, "app launched")
-        case .modelPrepareRequested: (.info, "speech model: prepare requested")
-        case .modelReadiness(let state): (.info, "speech model: \(state)")
+            (.default, "first tap buffer: \(frames) frames at \(Int(sampleRate)) Hz")
+        case .appLaunched: (.default, "app launched")
+        case .modelPrepareRequested: (.default, "speech model: prepare requested")
+        case .modelReadiness(let state): (.default, "speech model: \(state)")
         case .launchPermissions(let microphone, let accessibility):
-            (.info, "permissions at launch: microphone \(microphone), accessibility \(accessibility)")
+            (.default, "permissions at launch: microphone \(microphone), accessibility \(accessibility)")
         }
     }
 }

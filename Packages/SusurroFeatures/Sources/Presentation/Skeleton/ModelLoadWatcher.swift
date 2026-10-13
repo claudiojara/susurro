@@ -14,6 +14,16 @@ public final class ModelLoadWatcher {
     private var isShown = false
     private var latest = 0.0
 
+    /// - Parameters:
+    ///   - sleep: Times the delay before progress shows. Tests pass a fake.
+    ///   - report: Gets the progress to show, or nil when there is none.
+    public convenience init(
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        report: @escaping @MainActor (Double?) -> Void
+    ) {
+        self.init(showAfter: Self.standardDelay, sleep: sleep, report: report)
+    }
+
     init(
         showAfter: Duration = ModelLoadWatcher.standardDelay,
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },

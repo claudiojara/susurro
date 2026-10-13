@@ -18,6 +18,16 @@ public final class SkeletonOverlayPresenter {
     /// What is on screen now.
     public private(set) var indicator: OverlayIndicator?
 
+    /// - Parameters:
+    ///   - sleep: Times the dwell of an indicator. Tests pass a fake.
+    ///   - display: Shows the indicator, or hides the overlay when it is nil.
+    public convenience init(
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        display: @escaping @MainActor (OverlayIndicator?) -> Void
+    ) {
+        self.init(timing: .standard, sleep: sleep, display: display)
+    }
+
     init(
         timing: OverlayTiming = .standard,
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
