@@ -17,9 +17,15 @@ struct ParakeetSerializationTests {
         Task { try await recognizer.transcribe(clip(samples: count), options: RecognitionOptions()) }
     }
 
-    /// Waits until `count` transcriptions are queued behind the one running.
-    private static func waitForQueue(_ recognizer: ParakeetRecognizer, count: Int) async {
-        while await recognizer.queuedTranscriptions < count { await Task.yield() }
+    /// Waits until exactly `count` transcriptions are queued behind the one running. Returns false if that does not
+    /// happen within ten seconds, so a regression fails instead of hanging.
+    private static func waitForQueue(_ recognizer: ParakeetRecognizer, count: Int) async -> Bool {
+        let deadline = ContinuousClock.now + .seconds(10)
+        while await recognizer.queuedTranscriptions != count {
+            guard ContinuousClock.now < deadline, !Task.isCancelled else { return false }
+            await Task.yield()
+        }
+        return true
     }
 
     private static func readyRecognizer(_ engine: FakeParakeetEngine) async -> ParakeetRecognizer {
@@ -37,9 +43,9 @@ struct ParakeetSerializationTests {
         let first = Self.transcribe(recognizer, samples: 5_000)
         await engine.entered.wait()
         let second = Self.transcribe(recognizer, samples: 6_000)
-        await Self.waitForQueue(recognizer, count: 1)
+        try #require(await Self.waitForQueue(recognizer, count: 1))
         let third = Self.transcribe(recognizer, samples: 7_000)
-        await Self.waitForQueue(recognizer, count: 2)
+        try #require(await Self.waitForQueue(recognizer, count: 2))
         for _ in 0..<3 { engine.releaseTranscription() }
 
         let texts = try await [first.value, second.value, third.value].map(\.text)
@@ -56,13 +62,13 @@ struct ParakeetSerializationTests {
         let first = Self.transcribe(recognizer, samples: 5_000)
         await engine.entered.wait()
         let second = Self.transcribe(recognizer, samples: 6_000)
-        await Self.waitForQueue(recognizer, count: 1)
+        try #require(await Self.waitForQueue(recognizer, count: 1))
         let third = Self.transcribe(recognizer, samples: 7_000)
-        await Self.waitForQueue(recognizer, count: 2)
+        try #require(await Self.waitForQueue(recognizer, count: 2))
 
         second.cancel()
+        try #require(await Self.waitForQueue(recognizer, count: 1))
         await #expect(throws: CancellationError.self) { try await second.value }
-        #expect(await recognizer.queuedTranscriptions == 1)
 
         for _ in 0..<2 { engine.releaseTranscription() }
         #expect(try await first.value.text == "samples:5000")

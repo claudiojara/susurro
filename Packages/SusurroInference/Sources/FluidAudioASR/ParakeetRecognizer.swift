@@ -73,6 +73,7 @@ public actor ParakeetRecognizer: SpeechRecognizer {
         guard clip.samples.count >= engine.minimumSampleCount else { return RawTranscript(text: "") }
         try await waitForTurn()
         defer { endTurn() }
+        // A turn handed over at the moment of cancellation arrives as a normal wake-up.
         try Task.checkCancellation()
         do {
             return RawTranscript(text: try await engine.transcribe(clip.samples, language: options.language))
@@ -112,9 +113,7 @@ public actor ParakeetRecognizer: SpeechRecognizer {
     }
 
     private func transition(to next: ModelState) {
-        let before = model.readiness
         model = next
-        guard next.readiness != before else { return }
         for continuation in subscribers.values { continuation.yield(next.readiness) }
     }
 
@@ -125,7 +124,6 @@ public actor ParakeetRecognizer: SpeechRecognizer {
     // MARK: Turns
 
     private func waitForTurn() async throws {
-        try Task.checkCancellation()
         guard inferenceBusy else {
             inferenceBusy = true
             return
