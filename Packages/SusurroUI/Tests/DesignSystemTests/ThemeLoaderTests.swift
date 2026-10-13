@@ -216,6 +216,12 @@ struct ThemeLoaderTests {
             ])
     }
 
+    @Test("an unknown key whose value is also bad is reported once, as unknown")
+    func unknownKeyWithABadValue() {
+        let result = load(adding: #"{"spacing": {"huge": "x"}, "typography": {"body": {"sizee": "big"}}}"#)
+        #expect(labels(result.errors) == ["unknown spacing.huge", "unknown typography.body.sizee"])
+    }
+
     // MARK: Every problem, not the first
 
     @Test("two bad values are both reported")
@@ -229,6 +235,12 @@ struct ThemeLoaderTests {
     func badValuesInOneTable() {
         let result = load(adding: #"{"spacing": {"xl": "a", "md": true, "lg": [1]}}"#)
         #expect(labels(result.errors) == ["invalid spacing.lg", "invalid spacing.md", "invalid spacing.xl"])
+    }
+
+    @Test("both colors of a new palette entry are reported when both are bad")
+    func twoBadColorsInOneEntry() {
+        let result = load(adding: ##"{"palette": {"ocean": {"light": "#GG0000", "dark": "#ZZ0000"}}}"##)
+        #expect(labels(result.errors) == ["invalid palette.ocean.dark", "invalid palette.ocean.light"])
     }
 
     @Test("a bad value, a missing part, a bad table, and a bad hex are found in one pass")
