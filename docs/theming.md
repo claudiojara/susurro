@@ -97,3 +97,24 @@ In debug builds `ThemeFileWatcher` calls `store.reload()` when a file in the fol
 folder does not have to exist: the watcher looks for it every two seconds until it does, and again if it is removed.
 Failures to watch a file are logged (subsystem `dev.claudiojara.susurro`, category `ThemeFileWatcher`) and `state` says
 whether it is watching. It waits through an injected `sleep`, so its tests decide when a debounce or a retry ends.
+
+## Token lint
+
+`TokenLintTests.sourcesAreClean` reads every Swift file in `Sources/DesignSystem` and `Sources/SusurroUI` and fails on a
+visual value written in place of a token. The message names the file, the line, the rule, and the text of the line.
+
+| Rule | What it flags | What to write instead |
+|---|---|---|
+| `colorInitializer`, `namedColor`, `hexLiteral` | `Color(`, `NSColor(`, `Color.red`, `0xFF8800`, `"#FF8800"` (`Color.clear` is allowed) | `theme.swiftUIColor(.textPrimary)` |
+| `fontSize` | `.system(size:`, `.custom(_, size:` | `theme.font(.body)` |
+| `spacing` | a number in `padding`, `frame`, `offset`, or a `spacing:` argument | `theme.spacing(.md)` |
+| `cornerRadius` | a number in `cornerRadius`, or in any `...radius:` argument | `theme.radius(.md)` |
+| `animationDuration` | a number as `duration:`, `response:`, `dampingFraction:`, `delay` | `theme.easing(.fast, motionEnabled:)` |
+
+Zero is allowed, because no space and no radius is not a design choice. `Sources/DesignSystem/Tokens/` is not scanned: it
+is where a theme value becomes a SwiftUI one (`ResolvedTheme+SwiftUI.swift`), so it is the one place that writes
+`Color(` and `.system(size:`. Anything else that has to turn a theme value into a SwiftUI value goes there too.
+
+The scanner (`Tests/DesignSystemTests/TokenLint/LiteralScanner.swift`) reads text, not syntax. It skips comments and
+the inside of strings, and it counts the text of a string interpolation as part of the string. It cannot know that a
+helper's return value is a literal, so it checks what a view writes, not what it means.
