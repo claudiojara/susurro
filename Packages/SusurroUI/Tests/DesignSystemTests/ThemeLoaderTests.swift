@@ -199,7 +199,10 @@ struct ThemeLoaderTests {
     func typosAddUp() {
         let result = load(
             adding:
-                ##"{"typography": {"body": {"sizee": 20}}, "palette": {"blue": {"ligth": "#000000"}}, "spacing": {"huge": 1}}"##
+                ##"""
+                {"typography": {"body": {"sizee": 20}}, "palette": {"blue": {"ligth": "#000000"}},
+                 "spacing": {"huge": 1}}
+                """##
         )
         #expect(
             labels(result.errors) == [
