@@ -80,7 +80,6 @@ public actor ParakeetRecognizer: SpeechRecognizer {
     /// Starts downloading and loading the model, and returns at once. It does nothing while a load runs or after one
     /// succeeded. After a failed load it starts a new one once the wait of `LoadRetryPolicy` has passed, and never after
     /// a failure that no retry can fix or after the last attempt.
-    // `async` so that this method, not the port's default `prepare()`, is what a call on a `SpeechRecognizer` reaches.
     public func prepare() async {
         switch modelState {
         case .loading, .ready: return
@@ -150,7 +149,8 @@ public actor ParakeetRecognizer: SpeechRecognizer {
             retryNotBefore = nil
             reason += " (Gave up after \(failedLoads) attempts; restart the app to try again.)"
         }
-        transition(to: .failed(reason))
+        // A permanent failure and the last attempt both leave no retry to wait for.
+        transition(to: .failed(reason, retryable: retryNotBefore != nil))
     }
 
     private func advance(to fraction: Double) {

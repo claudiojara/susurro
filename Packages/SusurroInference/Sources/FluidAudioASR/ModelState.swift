@@ -8,15 +8,15 @@ enum ModelState: Sendable, Equatable {
     case notLoaded
     case loading(progress: Double)
     case ready
-    /// The last load failed, for this reason. Another load may be started.
-    case failed(String)
+    /// The last load failed, for this reason. `retryable` is false when another load cannot help.
+    case failed(String, retryable: Bool)
 
     var readiness: RecognizerReadiness {
         switch self {
         case .notLoaded: .loading(progress: 0)
         case .loading(let progress): .loading(progress: progress)
         case .ready: .ready
-        case .failed(let reason): .unavailable(reason)
+        case .failed(let reason, let retryable): .unavailable(reason, retryable: retryable)
         }
     }
 }

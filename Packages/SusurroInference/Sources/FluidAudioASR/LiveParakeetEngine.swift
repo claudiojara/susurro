@@ -14,6 +14,12 @@ actor LiveParakeetEngine: ParakeetEngine {
     /// ones that were tested. Bump it together with the FluidAudio version, after running `RealModelTests`.
     static let weightsRevision = "7dd20fe6b1797d35f5e3307e8b1732d9a178edfe"
 
+    /// The encoder that ships. FluidAudio's default, `int8`, loads `Encoder.mlmodelc`, which is really 6-bit palettized
+    /// and, as FluidAudio's issue 760 documents, silently corrupts a word that has about 4 s or more of audio after it
+    /// inside a 15 s window. `int8V2` loads `Encoder_v2.mlmodelc`, an int8 per-channel linear re-quantization of the
+    /// same encoder that fixes it (568 MB instead of 425 MB). The pinned commit holds both files.
+    static let encoderPrecision = ParakeetEncoderPrecision.int8V2
+
     private static let logger = Logger(subsystem: "dev.claudiojara.susurro", category: "parakeet")
 
     nonisolated let minimumSampleCount = ASRConstants.minimumRequiredSamples(forSampleRate: AudioClip.sampleRate)
@@ -70,7 +76,11 @@ actor LiveParakeetEngine: ParakeetEngine {
     func load(progress: @escaping @Sendable (Double) -> Void) async throws {
         Self.pinWeights()
         do {
-            let models = try await AsrModels.downloadAndLoad(to: modelsDirectory, version: .v3) {
+            let models = try await AsrModels.downloadAndLoad(
+                to: modelsDirectory,
+                version: .v3,
+                encoderPrecision: Self.encoderPrecision
+            ) {
                 progress($0.fractionCompleted)
             }
             let manager = AsrManager()
