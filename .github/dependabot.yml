@@ -1,0 +1,30 @@
+version: 2
+updates:
+  - package-ecosystem: swift
+    directories:
+      - /Packages/SusurroCore
+      - /Packages/SusurroPlatform
+      - /Packages/SusurroInference
+      - /Packages/SusurroUI
+      - /Packages/SusurroFeatures
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: build(deps)
+    groups:
+      swift:
+        patterns:
+          - "*"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci(deps)
+    groups:
+      github-actions:
+        patterns:
+          - "*"
