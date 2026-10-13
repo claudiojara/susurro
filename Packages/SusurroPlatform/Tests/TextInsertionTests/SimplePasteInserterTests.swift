@@ -464,7 +464,7 @@ final class SimplePasteInserterTests {
 
         let outcome = await makeInserter(keys).insert("hello world")
 
-        #expect(outcome != .inserted)
+        #expect(outcome == .copiedToClipboard(.pasteFailed))
         #expect(polls == cancelledPoll)
         #expect(keys.postCount == 0)
         #expect(pasteboard.changeCount == changeCount)
@@ -482,6 +482,113 @@ final class SimplePasteInserterTests {
         #expect(outcome == .copiedToClipboard(.pasteFailed))
         #expect(keys.postCount == 0)
         #expect(contents() == before)
+    }
+
+    // MARK: Overlap and cancellation
+
+    @Test(
+        "a second insertion started while the first waits for its read does not take the first text for the pasteboard")
+    func secondInsertionWaitsForTheFirst() async {
+        putRichContent()
+        let before = contents()
+        let keys = FakeKeystrokePoster()
+        var textsWhenPosted: [String?] = []
+        keys.onPost = { [pasteboard] in textsWhenPosted.append(pasteboard.string(forType: .string)) }
+        let sut = makeInserter(keys)
+        var second: Task<InsertionOutcome, Never>?
+        onSleep = { _ in
+            if second == nil { second = Task { await sut.insert("two") } }  // the first is still waiting out its dwell
+        }
+
+        let first = await sut.insert("one")
+        let secondOutcome = await second?.value
+
+        #expect([first, secondOutcome] == [.inserted, .inserted])
+        #expect(textsWhenPosted == ["one", "two"])
+        #expect(contents() == before)
+    }
+
+    @Test("a second insertion does not wait for ever for a first one that is stuck")
+    func waitForTheFirstIsBounded() async {
+        putRichContent()
+        let keys = FakeKeystrokePoster()
+        var postedAt: [Duration] = []
+        keys.onPost = { [clock] in postedAt.append(clock.elapsed) }
+        let sut = makeInserter(keys)
+        let stuck = clock.suspendNextSleep()
+
+        let first = Task { await sut.insert("one") }
+        await stuck.entered.wait()
+        let secondOutcome = await sut.insert("two")
+        stuck.release.open()
+        _ = await first.value
+
+        #expect(secondOutcome == .copiedToClipboard(.pasteFailed))
+        #expect(postedAt.count == 2)
+        #expect(postedAt.last.map { $0 >= Self.modifierTimeout + Self.receiptTimeout + Self.restoreDelay } == true)
+    }
+
+    @Test("a caller cancelled once the modifiers are up writes nothing")
+    func cancelledBeforeTheWrite() async {
+        putRichContent()
+        let before = contents()
+        let changeCount = pasteboard.changeCount
+        let keys = FakeKeystrokePoster(modifiersHeldFor: 1)
+        let sut = makeInserter(keys)
+        var caller: Task<InsertionOutcome, Never>?
+        onSleep = { _ in caller?.cancel() }  // the wait itself is not cut short, the task is only marked as cancelled
+
+        caller = Task { await sut.insert("hello world") }
+        let outcome = await caller?.value
+
+        #expect(outcome == .copiedToClipboard(.pasteFailed))
+        #expect(keys.postCount == 0)
+        #expect(pasteboard.changeCount == changeCount)
+        #expect(contents() == before)
+    }
+
+    @Test("a caller cancelled after the write posts no chord and gives the old contents back")
+    func cancelledBeforeTheChord() async {
+        putRichContent()
+        let before = contents()
+        let keys = FakeKeystrokePoster()
+        var caller: Task<InsertionOutcome, Never>?
+        let sut = makeInserter(
+            keys,
+            writeItem: { pasteboard, item in
+                let accepted = pasteboard.writeObjects([item])
+                caller?.cancel()
+                return accepted
+            }
+        )
+
+        caller = Task { await sut.insert("hello world") }
+        let outcome = await caller?.value
+
+        #expect(outcome == .copiedToClipboard(.pasteFailed))
+        #expect(keys.postCount == 0)
+        #expect(contents() == before)
+    }
+
+    @Test("a copy by the user while the paste waits for a read is not overwritten when the wait ends")
+    func userCopyDuringTheWaitWinsOverTheFallback() async {
+        putRichContent()
+        let keys = FakeKeystrokePoster()
+        var pauses = 0
+        onSleep = { [pasteboard] _ in
+            pauses += 1
+            if pauses == 3 {
+                pasteboard.clearContents()
+                pasteboard.setString("user copy", forType: .string)
+            }
+        }
+
+        let outcome = await makeInserter(keys).insert("hello world")
+
+        #expect(outcome == .copiedToClipboard(.pasteFailed))
+        #expect(clock.elapsed == Self.receiptTimeout)
+        #expect(pasteboardText == "user copy")
+        #expect(contents().count == 1)
     }
 
     // MARK: Wall-clock deadlines
