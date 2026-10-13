@@ -5,6 +5,7 @@ public enum RecordingMode: Sendable, Equatable {
 public enum NoticeKind: Sendable, Equatable {
     case noSpeech
     case capReached
+    case copiedToClipboard(ClipboardReason)
 }
 
 /// Where the user goes to recover from an error.
@@ -22,12 +23,21 @@ public enum PipelineError: Error, Sendable, Equatable {
     case recognizerNotInstalled
     case captureFailed
     case recognitionFailed
+    /// A step did not finish in time and was abandoned.
+    case timedOut(Stage)
+
+    public enum Stage: Sendable, Equatable {
+        case readiness
+        case capture
+        case transcription
+        case insertion
+    }
 
     public var remedy: Remedy {
         switch self {
         case .microphoneNotGranted: .permissions
         case .recognizerNotInstalled: .settings
-        case .captureFailed, .recognitionFailed: .retry
+        case .captureFailed, .recognitionFailed, .timedOut: .retry
         }
     }
 }
@@ -47,5 +57,5 @@ public enum PipelineState: Sendable, Equatable {
 
 /// Where the coordinator hands the final text.
 public protocol TextInserter: Sendable {
-    func insert(_ text: String) async
+    func insert(_ text: String) async -> InsertionOutcome
 }

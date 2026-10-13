@@ -19,7 +19,7 @@ public final class FakeRecognizer: SpeechRecognizer {
 
     private let state: Mutex<State>
     private let result: Result<String, any Error>
-    private let gate: (stream: AsyncStream<Void>, continuation: AsyncStream<Void>.Continuation)?
+    private let gate: Gate?
 
     /// `readiness` has one value per call and the last one repeats. A `failure` makes `transcribe` throw. A `gated`
     /// recognizer suspends in `transcribe` until `releaseTranscription()`.
@@ -31,7 +31,7 @@ public final class FakeRecognizer: SpeechRecognizer {
     ) {
         state = Mutex(State(script: readiness))
         result = failure.map { .failure($0) } ?? .success(transcript)
-        gate = gated ? AsyncStream.makeStream() : nil
+        gate = gated ? Gate() : nil
     }
 
     public var calls: [Call] { state.withLock { $0.calls } }
@@ -42,7 +42,12 @@ public final class FakeRecognizer: SpeechRecognizer {
         }
     }
 
-    public func releaseTranscription() { gate?.continuation.yield() }
+    public func releaseTranscription() { gate?.open() }
+
+    /// Replaces the readiness script with a single value that repeats.
+    public func setReadiness(_ readiness: RecognizerReadiness) {
+        state.withLock { $0.script = [readiness] }
+    }
 
     public func readiness() async -> RecognizerReadiness {
         state.withLock { state in
@@ -53,9 +58,7 @@ public final class FakeRecognizer: SpeechRecognizer {
 
     public func transcribe(_ clip: AudioClip, options: RecognitionOptions) async throws -> RawTranscript {
         state.withLock { $0.calls.append(.transcribe(clip)) }
-        if let gate {
-            for await _ in gate.stream { break }
-        }
+        await gate?.wait()
         return RawTranscript(text: try result.get())
     }
 }

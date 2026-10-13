@@ -178,6 +178,8 @@ struct SkeletonCoordinatorTests {
         let sut = h.sut
         let release = Task { await sut.handle(.up(at: Self.pressTime + .milliseconds(1200))) }
         await h.capture.stopped.wait()
+        // Without the drain wait the coordinator moves on within a few scheduler turns; give it those turns.
+        for _ in 0..<50 { await Task.yield() }
         h.capture.emit(AudioChunk(samples: [0.9]))
         h.capture.finish()
         await release.value
@@ -318,17 +320,20 @@ struct SkeletonCoordinatorTests {
         #expect(h.inserter.insertedTexts.isEmpty)
     }
 
-    @Test("shutting down while the capture is starting stops it once it has started")
-    func shutdownWhileStarting() async {
-        var h = await Harness(capture: FakeAudioCaptureSource(gatesStart: true))
+    @Test("shutting down while the capture is starting leaves the coordinator stopped", arguments: [false, true])
+    func shutdownWhileStarting(startFails: Bool) async {
+        let failure: (any Error)? = startFails ? CaptureError.noInputDevice : nil
+        var h = await Harness(capture: FakeAudioCaptureSource(startFailure: failure, gatesStart: true))
         let sut = h.sut
         let press = Task { await sut.handle(.down(at: Self.pressTime)) }
         _ = await h.read(through: .starting)
         await sut.shutdown()
         h.capture.releaseStart()
         await press.value
+        await sut.handle(.down(at: Self.pressTime))
 
-        #expect(h.capture.stopCount == 1)
+        #expect(h.capture.startCount == 1)
+        #expect(h.capture.stopCount == (startFails ? 0 : 1))
         #expect(await h.read(through: .idle) == [.idle])
     }
 
