@@ -11,13 +11,17 @@ public nonisolated struct ThemeLoadResult: Sendable, Equatable {
 /// that cannot be used as a whole is rejected as a whole: loading never returns a theme that is half applied.
 ///
 /// When a file is rejected, the errors say everything wrong with its contents, not only the first: unknown keys, bad
-/// values, and colors that point at a missing palette entry together, in that order. Three things stop the report
-/// early because nothing past them can be read: text that is not a JSON object, a file that cannot be read (see
-/// `ThemeFiles`), and a missing or unsupported `schemaVersion`, which is checked alone since a file of another version
-/// may have another shape. A palette color that has one bad part is reported once, for its first bad part.
+/// values, colors that point at a missing palette entry, and numbers out of range, together, in that order. Three
+/// things stop the report early because nothing past them can be read: text that is not a JSON object, a file that
+/// cannot be read (see `ThemeFiles`), and a missing or unsupported `schemaVersion`, which is checked alone since a file
+/// of another version may have another shape. A file with more than 50 bad values is reported for the first 50 it
+/// meets.
 ///
 /// Loading is `nonisolated`, so a caller can read and decode files away from the main actor.
 public nonisolated enum ThemeLoader {
+    /// A file with more bad values than this is reported for the first ones it meets.
+    static let valueErrorLimit = 50
+
     public static func load(contentsOf url: URL) -> ThemeLoadResult {
         do throws(ThemeError) {
             return load(data: try ThemeFiles.contents(of: url))
@@ -106,16 +110,19 @@ public nonisolated enum ThemeLoader {
     }
 
     /// `-1e999` is read as minus infinity, which cannot be written back out as JSON to be decoded: it traps. So a
-    /// number that is not finite is taken out of the file here, and reported.
+    /// number that is not finite, anywhere in the file, is taken out of it here, and reported. A number inside a list
+    /// is reported at the list, which is taken out whole.
     private static func removeNonFinite(from file: inout [String: Any]) -> [BadValue] {
         var found: [(path: [String], number: Double)] = []
-        func walk(_ table: [String: Any], _ path: [String]) {
-            for (key, value) in table {
-                if let inner = value as? [String: Any] {
-                    walk(inner, path + [key])
-                } else if let number = value as? NSNumber, !number.doubleValue.isFinite {
-                    found.append((path + [key], number.doubleValue))
-                }
+        func walk(_ value: Any, _ path: [String]) {
+            if let table = value as? [String: Any] {
+                for (key, inner) in table { walk(inner, path + [key]) }
+            } else if let list = value as? [Any] {
+                for inner in list { walk(inner, path) }
+            } else if let number = value as? NSNumber, !number.doubleValue.isFinite,
+                !found.contains(where: { $0.path == path })
+            {
+                found.append((path, number.doubleValue))
             }
         }
         walk(file, [])
@@ -148,14 +155,15 @@ public nonisolated enum ThemeLoader {
         }
     }
 
-    /// Decodes `file` over the bundled theme. A value that does not decode is reported and taken out of the file, so the
-    /// next pass can find the next one: the decoder stops at the first, and this goes on until it has seen them all.
-    /// The theme is nil only if a failure cannot be located in the file.
+    /// Decodes `file` over the bundled theme. A value that does not decode is reported and taken out of the file, so
+    /// the next pass can find the next one: the decoder stops at the first, and this goes on until it has seen them
+    /// all, or `valueErrorLimit` of them, since each pass reads the whole file again. The theme is nil if it stopped
+    /// early.
     private static func decode(_ file: [String: Any]) -> (theme: Theme?, failures: [BadValue]) {
         let base = Theme.bundledObject
         var remaining = file
         var failures: [BadValue] = []
-        while true {
+        while failures.count < valueErrorLimit {
             let merged = overlay(remaining, on: base)
             guard JSONSerialization.isValidJSONObject(merged),
                 let data = try? JSONSerialization.data(withJSONObject: merged)
@@ -171,6 +179,7 @@ public nonisolated enum ThemeLoader {
                 return (nil, failures)
             }
         }
+        return (nil, failures)
     }
 
     /// `file` on top of `base`, key by key all the way down, so a file can change one field of one token.
