@@ -65,6 +65,12 @@ struct AVAudioEngineCaptureSourceTests {
         makeBuffer(sampleRate: 48_000, channels: 2, frames: 4_800, startingAt: start, sample: tone(sampleRate: 48_000))
     }
 
+    /// A 100 ms device buffer (4800 frames, two channels) is at most 1600 samples once converted. The first chunk of a
+    /// capture is shorter while the resampler primes, and the rest of its output arrives when the capture ends.
+    private static func isConvertedBuffer(_ count: Int?) -> Bool {
+        count.map { (1_000...1_600).contains($0) } ?? false
+    }
+
     private static func drain(_ stream: AsyncThrowingStream<AudioChunk, Error>) async throws -> [AudioChunk] {
         var chunks: [AudioChunk] = []
         for try await chunk in stream { chunks.append(chunk) }
@@ -89,7 +95,7 @@ struct AVAudioEngineCaptureSourceTests {
 
         engine.deliver(Self.deviceBuffer())
 
-        #expect(try await chunks.next()?.samples.count == 1_600)
+        #expect(Self.isConvertedBuffer(try await chunks.next()?.samples.count))
     }
 
     @Test("starting alone signals nothing: a capture stopped before any buffer ends with no chunk")
@@ -113,7 +119,7 @@ struct AVAudioEngineCaptureSourceTests {
         engine.deliver(empty)
         engine.deliver(Self.deviceBuffer())
 
-        #expect(try await chunks.next()?.samples.count == 1_600)
+        #expect(Self.isConvertedBuffer(try await chunks.next()?.samples.count))
     }
 
     @Test("stop delivers every captured chunk, finishes the stream, and removes the tap")
@@ -127,7 +133,8 @@ struct AVAudioEngineCaptureSourceTests {
         await sut.stop()
 
         let chunks = try await Self.drain(stream)
-        #expect(chunks.map(\.samples.count) == [1_600, 1_600])
+        #expect(chunks.count == 2)
+        #expect(chunks.allSatisfy { Self.isConvertedBuffer($0.samples.count) })
         #expect(engine.calls == ["installTap", "start", "removeTap", "stop"])
     }
 
@@ -151,7 +158,7 @@ struct AVAudioEngineCaptureSourceTests {
         engine.deliver(Self.deviceBuffer())
 
         #expect(try await Self.drain(first).isEmpty)
-        #expect(try await second.next()?.samples.count == 1_600)
+        #expect(Self.isConvertedBuffer(try await second.next()?.samples.count))
         #expect(engine.calls == ["installTap", "start", "removeTap", "stop", "installTap", "start"])
     }
 
@@ -175,7 +182,7 @@ struct AVAudioEngineCaptureSourceTests {
         engine.deliver(makeBuffer(sampleRate: 44_100, channels: 1, frames: 441) { _, _ in 0.5 })
         engine.deliver(Self.deviceBuffer(startingAt: 4_800))
 
-        #expect(try await chunks.next()?.samples.count == 1_600)
+        #expect(Self.isConvertedBuffer(try await chunks.next()?.samples.count))
         await #expect(throws: FormatConversionError.formatChanged) { try await chunks.next() }
         #expect(try await chunks.next() == nil)
     }

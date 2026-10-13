@@ -14,6 +14,8 @@ enum FormatConversionError: Error, Equatable {
 /// clicks. Make one converter per capture and call it from one thread at a time.
 final class FormatConverter {
     static let sampleRate = 16_000.0
+    /// Room for what the resampler holds back, which is a few dozen samples at most.
+    private static let tailCapacity: AVAudioFrameCount = 1_024
 
     private let inputFormat: AVAudioFormat
     private let monoFormat: AVAudioFormat
@@ -46,8 +48,9 @@ final class FormatConverter {
             guard let converter = AVAudioConverter(from: monoFormat, to: target) else {
                 throw FormatConversionError.unsupportedFormat
             }
-            // No priming, so the first buffer yields audio right away instead of being shortened.
-            converter.primeMethod = .none
+            // Normal priming offsets the filter delay without dropping input, so edges land where they were captured.
+            // The default (`.pre`) discards the first ~60 ms of audio, and `.none` delays the whole signal.
+            converter.primeMethod = .normal
             resampler = converter
         }
     }
@@ -56,9 +59,27 @@ final class FormatConverter {
     func convert(_ buffer: AVAudioPCMBuffer) throws -> [Float] {
         guard matchesInput(buffer.format) else { throw FormatConversionError.formatChanged }
         guard buffer.frameLength > 0 else { return [] }
-        let mono = mixedToMono(buffer)
+        let mono = try mixedToMono(buffer)
         guard let resampler else { return samples(of: mono) }
         return try resample(mono, with: resampler)
+    }
+
+    /// Returns the last samples, which the resampler holds back until the stream ends. Call it once, after the final
+    /// buffer, and not again on the same converter. With it, a capture delivers exactly the expected sample count.
+    func finish() throws -> [Float] {
+        guard let resampler else { return [] }
+        guard let output = AVAudioPCMBuffer(pcmFormat: resampler.outputFormat, frameCapacity: Self.tailCapacity) else {
+            throw FormatConversionError.conversionFailed("could not allocate the output buffer")
+        }
+        var failure: NSError?
+        let status = resampler.convert(to: output, error: &failure) { _, inputStatus in
+            inputStatus.pointee = .endOfStream
+            return nil
+        }
+        if status == .error {
+            throw FormatConversionError.conversionFailed(failure?.localizedDescription ?? "unknown error")
+        }
+        return samples(of: output)
     }
 
     /// Compares what conversion depends on. Two formats can differ only in channel layout metadata and still match.
@@ -69,11 +90,12 @@ final class FormatConverter {
             && format.isInterleaved == inputFormat.isInterleaved
     }
 
-    private func mixedToMono(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer {
+    private func mixedToMono(_ buffer: AVAudioPCMBuffer) throws -> AVAudioPCMBuffer {
         let channels = Int(buffer.format.channelCount)
-        guard channels > 1, let mono = AVAudioPCMBuffer(pcmFormat: monoFormat, frameCapacity: buffer.frameLength),
+        guard channels > 1 else { return buffer }
+        guard let mono = AVAudioPCMBuffer(pcmFormat: monoFormat, frameCapacity: buffer.frameLength),
             let source = buffer.floatChannelData, let destination = mono.floatChannelData?[0]
-        else { return buffer }
+        else { throw FormatConversionError.conversionFailed("could not allocate the mono buffer") }
         mono.frameLength = buffer.frameLength
         let stride = buffer.stride
         let weight = 1 / Float(channels)
