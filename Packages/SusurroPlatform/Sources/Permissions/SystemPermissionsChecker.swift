@@ -43,6 +43,8 @@ public struct SystemPermissionsChecker: PermissionsChecker {
             case .authorized: .granted
             // A restricted device cannot be granted by the user, so it counts as denied.
             case .denied, .restricted: .denied
+            // A status added by a later SDK is not known to be granted, and the user has not been shown to refuse it,
+            // so it reads as not determined and asking again is safe.
             @unknown default: .notDetermined
             }
         // Accessibility reports only trusted or not, so an untrusted process cannot be told from one that was
@@ -58,7 +60,9 @@ public struct SystemPermissionsChecker: PermissionsChecker {
         }
     }
 
-    /// The System Settings pane where the user changes the permission.
+    /// The System Settings pane where the user changes the permission, as an `x-apple.systempreferences:` URL that
+    /// opens the Privacy & Security pane at the permission's anchor. It belongs to this concrete checker and not to the
+    /// `PermissionsChecker` port, so only code that holds the live checker can ask for it.
     public func settingsURL(for permission: Permission) -> URL {
         let pane =
             switch permission {
