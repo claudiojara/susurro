@@ -14,6 +14,7 @@ struct DiagnosticDescriptionTests {
                 "dictation failed: timedOut.readiness"
             ),
             (.captureStreamFailed(errorType: "CaptureError"), .error, "capture stream failed: CaptureError"),
+            (.processingCapReached, .error, "processing did not finish within its total time limit"),
             (.captureStopAbandoned, .error, "capture did not stop in time and was abandoned"),
             (.shutdownDrainAbandoned, .error, "shutdown stopped waiting for the paste to finish"),
             (.pasteNotCompleted(cause: "noRead"), .error, "paste not completed: noRead"),
@@ -23,7 +24,10 @@ struct DiagnosticDescriptionTests {
                 .captureFirstBuffer(frames: 1_024, sampleRate: 48_000), .default,
                 "first tap buffer: 1024 frames at 48000 Hz"
             ),
+            (.clipboardRestoreAtTermination(restored: true), .default, "termination: the clipboard was put back"),
+            (.clipboardRestoreAtTermination(restored: false), .default, "termination: no clipboard to put back"),
             (.appLaunched, .default, "app launched"),
+            (.appTerminating, .default, "app terminating"),
             (.modelPrepareRequested, .default, "speech model: prepare requested"),
             (.modelReadiness("loading"), .default, "speech model: loading"),
             (.modelReadiness("ready"), .default, "speech model: ready"),
