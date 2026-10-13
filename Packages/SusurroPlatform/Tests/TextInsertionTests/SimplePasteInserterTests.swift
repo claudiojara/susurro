@@ -8,9 +8,11 @@ import Testing
 @MainActor
 @Suite("Simple paste inserter", .timeLimit(.minutes(1)))
 final class SimplePasteInserterTests {
-    // The numbers of the spec and the tasks, spelled out once. They are not read from `PasteTiming`, so changing a
-    // constant there fails these tests.
-    private static let restoreDelay = Duration.milliseconds(300)
+    // The timings, spelled out once. The quiet period (200 ms) and the receipt timeout (8 s) are the spec's; the
+    // modifier timeout (500 ms), the minimum dwell (1 s), and the two poll intervals come from the tasks and the review.
+    // They are not read from `PasteTiming`, so changing a constant there fails these tests.
+    private static let restoreDelay = Duration.milliseconds(200)
+    private static let minimumDwell = Duration.seconds(1)
     private static let modifierTimeout = Duration.milliseconds(500)
     private static let receiptTimeout = Duration.seconds(8)
     private static let modifierPollInterval = Duration.milliseconds(20)
@@ -125,7 +127,7 @@ final class SimplePasteInserterTests {
         #expect(outcome == .inserted)
         #expect(textWhenPosted == "hello world")
         #expect(textDuringDelay == "hello world")
-        #expect(sleeps == [Self.restoreDelay])
+        #expect(clock.elapsed == Self.minimumDwell)
         #expect(keys.postCount == 1)
         #expect(contents() == before)
     }
@@ -231,7 +233,7 @@ final class SimplePasteInserterTests {
 
         #expect(outcome == .inserted)
         #expect(promisedWhilePolling == [true, true, true, true])
-        #expect(sleeps == Array(repeating: Self.receiptPollInterval, count: 5) + [Self.restoreDelay])
+        #expect(clock.elapsed == Self.minimumDwell)
         #expect(contents() == before)
     }
 
@@ -266,8 +268,70 @@ final class SimplePasteInserterTests {
         let outcome = await caller?.value
 
         #expect(outcome == .inserted)
-        #expect(completedSleeps == [Self.restoreDelay])
+        #expect(completedSleeps.reduce(.zero, +) == Self.minimumDwell)
         #expect(contents() == before)
+    }
+
+    @Test("the old pasteboard is not restored before the minimum dwell after the chord")
+    func noRestoreBeforeTheMinimumDwell() async {
+        putRichContent()
+        let before = contents()
+        let keys = FakeKeystrokePoster()
+        readOnPost(keys)
+        var promisedAtEveryPause: [Bool] = []
+        onSleep = { [pasteboard] _ in
+            let types = pasteboard.pasteboardItems?.first?.types.map(\.rawValue) ?? []
+            promisedAtEveryPause.append(types.contains("org.nspasteboard.TransientType"))
+        }
+
+        let outcome = await makeInserter(keys).insert("hello world")
+
+        #expect(outcome == .inserted)
+        #expect(promisedAtEveryPause == Array(repeating: true, count: 20))  // one pause per 50 ms, up to 1 s
+        #expect(clock.elapsed == Self.minimumDwell)
+        #expect(contents() == before)
+    }
+
+    @Test("the old pasteboard comes back 200 ms after the last read, when that is later than the minimum dwell")
+    func quietPeriodAfterALateRead() async {
+        putRichContent()
+        let before = contents()
+        let keys = FakeKeystrokePoster()
+        var pauses = 0
+        onSleep = { [pasteboard] _ in
+            pauses += 1
+            if pauses == 19 { _ = pasteboard.string(forType: .string) }  // the app reads at 950 ms
+        }
+
+        let outcome = await makeInserter(keys).insert("hello world")
+
+        #expect(outcome == .inserted)
+        #expect(clock.elapsed == Duration.milliseconds(950) + Self.restoreDelay)
+        #expect(contents() == before)
+    }
+
+    @Test("a read before the chord is not a receipt, so the paste counts as failed and the text is left")
+    func readBeforeTheChordIsNotAReceipt() async {
+        putRichContent()
+        let keys = FakeKeystrokePoster()
+        // A clipboard manager that ignores the markers reads the text as soon as it is written. The pasteboard then
+        // serves every later read from its cache, so the app's own read cannot be seen either.
+        let sut = makeInserter(
+            keys,
+            writeItem: { pasteboard, item in
+                let accepted = pasteboard.writeObjects([item])
+                _ = pasteboard.string(forType: .string)
+                return accepted
+            }
+        )
+
+        let outcome = await sut.insert("hello world")
+
+        #expect(outcome == .copiedToClipboard(.pasteFailed))
+        #expect(keys.postCount == 1)
+        #expect(clock.elapsed == Self.receiptTimeout)
+        #expect(pasteboardText == "hello world")
+        #expect(contents().count == 1)
     }
 
     // MARK: Safety
@@ -317,7 +381,8 @@ final class SimplePasteInserterTests {
 
         #expect(outcome == .inserted)
         #expect(keys.calls == [.modifiersHeld, .modifiersHeld, .modifiersHeld, .modifiersHeld, .postPaste])
-        #expect(sleeps == Array(repeating: Self.modifierPollInterval, count: 3) + [Self.restoreDelay])
+        #expect(sleeps.prefix(3) == Array(repeating: Self.modifierPollInterval, count: 3))
+        #expect(clock.elapsed == 3 * Self.modifierPollInterval + Self.minimumDwell)
     }
 
     @Test("while a modifier is held the user's pasteboard is untouched, and it is back at the end")
@@ -373,7 +438,7 @@ final class SimplePasteInserterTests {
         if release == .atLastPoll {
             #expect(keys.postCount == 1)
             #expect(outcome == .inserted)
-            #expect(sleeps.last == Self.restoreDelay)
+            #expect(clock.elapsed == Self.modifierTimeout + Self.minimumDwell)
             #expect(contents().count == 2)
         } else {
             #expect(keys.postCount == 0)
@@ -381,7 +446,7 @@ final class SimplePasteInserterTests {
             #expect(pasteboardText == "hello world")
             #expect(contents().count == 1)
             #expect(declaredTypes().isSuperset(of: Self.markerTypes))
-            #expect(!sleeps.contains(Self.restoreDelay))
+            #expect(clock.elapsed == Self.modifierTimeout)
         }
     }
 
