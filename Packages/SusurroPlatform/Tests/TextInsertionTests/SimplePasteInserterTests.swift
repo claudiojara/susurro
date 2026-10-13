@@ -51,12 +51,25 @@ final class SimplePasteInserterTests {
         try onSleep(duration)
     }
 
-    private func makeInserter(_ keys: FakeKeystrokePoster = FakeKeystrokePoster()) -> SimplePasteInserter {
-        SimplePasteInserter(
+    private func makeInserter(
+        _ keys: FakeKeystrokePoster = FakeKeystrokePoster(),
+        writeItem: ((NSPasteboard, NSPasteboardItem) -> Bool)? = nil
+    ) -> SimplePasteInserter {
+        let sleep: @MainActor (Duration) async throws -> Void = { [unowned self] duration in try pause(duration) }
+        guard let writeItem else {
+            return SimplePasteInserter(
+                pasteboard: pasteboard,
+                keystrokes: keys,
+                sleep: sleep,
+                sourceBundleID: Self.sourceBundleID
+            )
+        }
+        return SimplePasteInserter(
             pasteboard: pasteboard,
             keystrokes: keys,
-            sleep: { [unowned self] duration in try pause(duration) },
-            sourceBundleID: Self.sourceBundleID
+            sleep: sleep,
+            sourceBundleID: Self.sourceBundleID,
+            writeItem: writeItem
         )
     }
 
@@ -373,17 +386,37 @@ final class SimplePasteInserterTests {
         }
     }
 
-    @Test("a wait for modifiers that is cancelled leaves the marked text on the pasteboard")
-    func cancelledWhileWaitingForModifiers() async {
+    @Test("a wait for modifiers that is cancelled writes nothing and posts no chord", arguments: [1, 3])
+    func cancelledWhileWaitingForModifiers(cancelledPoll: Int) async {
         putRichContent()
-        let keys = FakeKeystrokePoster(modifiersHeldFor: 1)
-        onSleep = { _ in throw CancellationError() }
+        let before = contents()
+        let changeCount = pasteboard.changeCount
+        let keys = FakeKeystrokePoster(modifiersHeldFor: 5)
+        var polls = 0
+        onSleep = { _ in
+            polls += 1
+            if polls == cancelledPoll { throw CancellationError() }
+        }
 
         let outcome = await makeInserter(keys).insert("hello world")
 
+        #expect(outcome != .inserted)
+        #expect(polls == cancelledPoll)
+        #expect(keys.postCount == 0)
+        #expect(pasteboard.changeCount == changeCount)
+        #expect(contents() == before)
+    }
+
+    @Test("a write that the pasteboard refuses posts no chord and gives the old contents back")
+    func refusedWrite() async {
+        putRichContent()
+        let before = contents()
+        let keys = FakeKeystrokePoster()
+
+        let outcome = await makeInserter(keys, writeItem: { _, _ in false }).insert("hello world")
+
         #expect(outcome == .copiedToClipboard(.pasteFailed))
         #expect(keys.postCount == 0)
-        #expect(pasteboardText == "hello world")
-        #expect(contents().count == 1)
+        #expect(contents() == before)
     }
 }
