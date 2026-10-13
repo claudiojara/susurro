@@ -46,6 +46,21 @@ struct ParakeetPrepareTests {
         #expect(transcript == RawTranscript(text: "samples:\(clip.samples.count)"))
     }
 
+    @Test("prepare called through the port loads the model")
+    func prepareThroughThePort() async {
+        // Called on the concrete type, an `async` extension method of the port once won over the actor's own `prepare()`
+        // and loaded nothing. Called through the port, the recognizer's own method is what runs.
+        let engine = FakeParakeetEngine()
+        let recognizer = ParakeetRecognizer(engine: engine)
+        let port: any SpeechRecognizer = recognizer
+
+        await port.prepare()
+        await recognizer.waitUntilReady()
+
+        #expect(engine.loadCount == 1)
+        #expect(await port.readiness() == .ready)
+    }
+
     @Test("prepare starts one load, however often it is called")
     func prepareIsIdempotent() async {
         let engine = FakeParakeetEngine(loads: [.init(gated: true)])

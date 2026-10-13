@@ -29,6 +29,13 @@ struct LiveParakeetEngineTests {
         #expect(LiveParakeetEngine.languageHint(for: code) == nil)
     }
 
+    @Test("the encoder is the int8 re-quantization, not the palettized one that corrupts words")
+    func encoderPrecision() {
+        // Triangulation skipped: two constants with one possible value each.
+        #expect(LiveParakeetEngine.encoderPrecision == .int8V2)
+        #expect(LiveParakeetEngine.encoderPrecision.encoderFileName == "Encoder_v2.mlmodelc")
+    }
+
     @Test("the weights are pinned to a full commit, not a branch name")
     func weightsRevisionIsACommit() {
         let revision = LiveParakeetEngine.weightsRevision
@@ -60,8 +67,8 @@ struct LiveParakeetEngineTests {
     @Test(
         "errors that trying again cannot fix are permanent",
         arguments: [
-            DownloadError.modelNotFound(path: "Encoder.mlmodelc"),
-            .invalidArtifact(path: "Encoder.mlmodelc", reason: "checksum"),
+            DownloadError.modelNotFound(path: "Encoder_v2.mlmodelc"),
+            .invalidArtifact(path: "Encoder_v2.mlmodelc", reason: "checksum"),
         ] as [any Error]
             + [ASRError.modelCompilationFailed, ASRError.unsupportedPlatform("needs a newer macOS")] as [any Error]
             + [AsrModelsError.modelCompilationFailed("Encoder")] as [any Error]
@@ -73,7 +80,7 @@ struct LiveParakeetEngineTests {
     @Test(
         "network and server errors are worth another try",
         arguments: [
-            DownloadError.stalled(path: "Encoder.mlmodelc", window: 120),
+            DownloadError.stalled(path: "Encoder_v2.mlmodelc", window: 120),
             .rateLimited(statusCode: 429, message: "slow down"),
             .invalidResponse,
         ] as [any Error]

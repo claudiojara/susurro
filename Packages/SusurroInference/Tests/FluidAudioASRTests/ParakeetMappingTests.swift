@@ -15,8 +15,8 @@ struct ParakeetMappingTests {
             (ModelState.notLoaded, RecognizerReadiness.loading(progress: 0)),
             (.loading(progress: 0.4), .loading(progress: 0.4)),
             (.ready, .ready),
-            (.failed("offline"), .unavailable("offline")),
-            (.failed("disk full"), .unavailable("disk full")),
+            (.failed("offline", retryable: true), .unavailable("offline", retryable: true)),
+            (.failed("model is damaged", retryable: false), .unavailable("model is damaged", retryable: false)),
         ]
     )
     func engineStatesMapToReadiness(state: ModelState, readiness: RecognizerReadiness) {

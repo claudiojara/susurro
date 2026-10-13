@@ -40,7 +40,9 @@ struct ParakeetRetryTests {
     func failedLoadIsUnavailable() async {
         let (recognizer, _, _) = await Self.failedRecognizer(Offline())
 
-        #expect(await recognizer.readiness() == .unavailable("The Internet connection appears to be offline."))
+        #expect(
+            await recognizer.readiness()
+                == .unavailable("The Internet connection appears to be offline.", retryable: true))
     }
 
     @Test("a failure that is not localized still gives a reason")
@@ -48,11 +50,12 @@ struct ParakeetRetryTests {
         struct Broken: Error {}
         let (recognizer, _, _) = await Self.failedRecognizer(Broken())
 
-        guard case .unavailable(let reason) = await recognizer.readiness() else {
+        guard case .unavailable(let reason, let retryable) = await recognizer.readiness() else {
             Issue.record("the recognizer should be unavailable")
             return
         }
         #expect(!reason.isEmpty)
+        #expect(retryable)
     }
 
     @Test("prepare tries again only once the wait after the failure has passed")
@@ -65,7 +68,9 @@ struct ParakeetRetryTests {
         time.advance(by: wait - .milliseconds(1))
         await recognizer.prepare()
         #expect(engine.loadCount == 1)
-        #expect(await recognizer.readiness() == .unavailable("The Internet connection appears to be offline."))
+        #expect(
+            await recognizer.readiness()
+                == .unavailable("The Internet connection appears to be offline.", retryable: true))
 
         time.advance(by: .milliseconds(1))
         await recognizer.prepare()
@@ -101,7 +106,7 @@ struct ParakeetRetryTests {
         await recognizer.prepare()
 
         #expect(engine.loadCount == 1)
-        #expect(await recognizer.readiness() == .unavailable("model is damaged"))
+        #expect(await recognizer.readiness() == .unavailable("model is damaged", retryable: false))
     }
 
     @Test("after the last attempt it stops, and says so")
@@ -121,7 +126,7 @@ struct ParakeetRetryTests {
         #expect(engine.loadCount == 3)
         let expected =
             "The Internet connection appears to be offline. (Gave up after 3 attempts; restart the app to try again.)"
-        #expect(await recognizer.readiness() == .unavailable(expected))
+        #expect(await recognizer.readiness() == .unavailable(expected, retryable: false))
     }
 
     @Test(
