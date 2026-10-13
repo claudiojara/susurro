@@ -3,8 +3,8 @@ import Domain
 import Pipeline
 import Testing
 
-@Suite("Skeleton hold-to-talk coordinator", .timeLimit(.minutes(1)))
-struct SkeletonCoordinatorTests {
+@Suite("Dictation coordinator", .timeLimit(.minutes(1)))
+struct DictationCoordinatorTests {
     private static let clip: [Float] = [0.1, 0.2, 0.3]
     private static let capSamples = 60 * 16_000
     /// Presses happen away from the timestamp origin, so a hold is measured from its own press.
@@ -12,6 +12,7 @@ struct SkeletonCoordinatorTests {
     private static let transcribed: [PipelineState] = [.transcribing(progress: nil), .inserted, .idle]
 
     private struct Failure: Error {}
+    private static let noInputDevice = String(describing: CaptureError.noInputDevice)
 
     /// Wires the coordinator to fakes and reads its published states. Tests call `handle` directly, so an ignored
     /// event is provably applied before the next step. One test goes through the hotkey source and `run()`.
@@ -59,15 +60,15 @@ struct SkeletonCoordinatorTests {
         }
 
         /// Presses, delivers one chunk, and waits for the recording state.
-        mutating func startRecording(samples: [Float] = SkeletonCoordinatorTests.clip) async {
-            await sut.handle(.down(at: SkeletonCoordinatorTests.pressTime))
+        mutating func startRecording(samples: [Float] = DictationCoordinatorTests.clip) async {
+            await sut.handle(.down(at: DictationCoordinatorTests.pressTime))
             capture.emit(AudioChunk(samples: samples))
             _ = await read(through: .recording(.hold))
         }
 
         /// Releases after the given hold and reads the rest of the cycle.
         mutating func release(after milliseconds: Int = 1200) async -> [PipelineState] {
-            await sut.handle(.up(at: SkeletonCoordinatorTests.pressTime + .milliseconds(milliseconds)))
+            await sut.handle(.up(at: DictationCoordinatorTests.pressTime + .milliseconds(milliseconds)))
             return await read(through: .idle)
         }
     }
@@ -113,7 +114,7 @@ struct SkeletonCoordinatorTests {
         await h.sut.handle(.down(at: Self.pressTime))
         let states = await h.release()
 
-        #expect(states == [.starting, .error(.captureFailed), .idle])
+        #expect(states == [.starting, .error(.captureFailed("no audio was captured")), .idle])
         #expect(h.recognizer.transcribedClips.isEmpty)
     }
 
@@ -167,7 +168,7 @@ struct SkeletonCoordinatorTests {
         var h = await Harness(capture: FakeAudioCaptureSource(startFailure: CaptureError.noInputDevice))
         await h.sut.handle(.down(at: .zero))
 
-        #expect(await h.read(through: .idle) == [.starting, .error(.captureFailed), .idle])
+        #expect(await h.read(through: .idle) == [.starting, .error(.captureFailed(Self.noInputDevice)), .idle])
         #expect(h.capture.startCount == 1)
     }
 
@@ -193,9 +194,22 @@ struct SkeletonCoordinatorTests {
         var h = await Harness()
         await h.startRecording(samples: [0.1])
         h.capture.fail(CaptureError.noInputDevice)
+        let states = await h.release()
 
-        #expect(await h.release() == Self.transcribed)
+        #expect(states == Self.transcribed)
         #expect(h.recognizer.transcribedClips == [AudioClip(samples: [0.1])])
+        withKnownIssue("3b: a device lost mid-recording should also publish a notice (AUD Device failures)") {
+            #expect(states.contains { if case .notice = $0 { true } else { false } })
+        }
+    }
+
+    @Test("a capture stream that fails before any audio reports its error")
+    func captureStreamFailureBeforeAudio() async {
+        var h = await Harness()
+        await h.sut.handle(.down(at: Self.pressTime))
+        h.capture.fail(CaptureError.noInputDevice)
+
+        #expect(await h.release() == [.error(.captureFailed(Self.noInputDevice)), .idle])
     }
 
     @Test("a blank transcript inserts nothing and reports no speech", arguments: ["", "   ", " \n\t "])
@@ -215,7 +229,8 @@ struct SkeletonCoordinatorTests {
         await h.startRecording()
         let states = await h.release()
 
-        #expect(states == [.transcribing(progress: nil), .error(.recognitionFailed), .idle])
+        #expect(
+            states == [.transcribing(progress: nil), .error(.recognitionFailed(String(describing: Failure()))), .idle])
         #expect(h.inserter.insertedTexts.isEmpty)
     }
 
@@ -261,7 +276,7 @@ struct SkeletonCoordinatorTests {
 
     @Test("a transcription that never finishes times out")
     func transcriptionTimeout() async {
-        let sleeper = FakeSleeper(expiring: [SkeletonLimits.transcriptionTimeout])
+        let sleeper = FakeSleeper(expiring: [DictationLimits.transcriptionTimeout])
         var h = await Harness(recognizer: FakeRecognizer(gated: true), sleeper: sleeper)
         await h.startRecording()
 
@@ -271,7 +286,7 @@ struct SkeletonCoordinatorTests {
 
     @Test("an insertion that never finishes times out")
     func insertionTimeout() async {
-        let sleeper = FakeSleeper(expiring: [SkeletonLimits.insertionTimeout])
+        let sleeper = FakeSleeper(expiring: [DictationLimits.insertionTimeout])
         var h = await Harness(inserter: FakeTextInserter(gated: true), sleeper: sleeper)
         await h.startRecording()
 
@@ -280,7 +295,7 @@ struct SkeletonCoordinatorTests {
 
     @Test("a capture that never stops times out")
     func captureStopTimeout() async {
-        let sleeper = FakeSleeper(expiring: [SkeletonLimits.captureStopTimeout])
+        let sleeper = FakeSleeper(expiring: [DictationLimits.captureStopTimeout])
         var h = await Harness(capture: FakeAudioCaptureSource(onStop: .hang), sleeper: sleeper)
         await h.startRecording()
 
@@ -402,6 +417,18 @@ struct SkeletonCoordinatorTests {
         #expect(states == [.starting, .recording(.hold), .notice(.capReached)] + Self.transcribed)
         #expect(h.recognizer.transcribedClips.map(\.samples.count) == [Self.capSamples])
         #expect(h.capture.stopCount == 1)
+    }
+
+    @Test("a release after the cap fired stops and transcribes only once")
+    func releaseAfterCap() async {
+        var h = await Harness()
+        await h.sut.handle(.down(at: Self.pressTime))
+        h.capture.emit(AudioChunk(samples: [Float](repeating: 0.5, count: Self.capSamples)))
+        _ = await h.read(through: .notice(.capReached))
+
+        #expect(await h.release(after: 61_000) == Self.transcribed)
+        #expect(h.capture.stopCount == 1)
+        #expect(h.recognizer.transcribedClips.count == 1)
     }
 
     @Test("one sample short of the cap keeps recording until the release")
