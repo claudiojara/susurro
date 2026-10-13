@@ -4,10 +4,10 @@
 
 | Field | Value |
 |-------|-------|
-| Estimated changed lines | ~23,600 authored (range 19,000-28,000): code + tests + docs. Excludes snapshot PNGs, `Package.resolved`, generated `.xcodeproj` |
-| 400-line budget risk | High (32 of 37 PRs forecast above 400; every slice exceeds 800). Project budget is 800 (`openspec/config.yaml`); every PR is planned at or below it |
+| Estimated changed lines | ~25,700 authored (range 21,500-32,000): code + tests + docs. Includes ~2,000 lines of walking-skeleton code that later PRs rework or delete. Excludes snapshot PNGs, `Package.resolved`, generated `.xcodeproj` |
+| 400-line budget risk | High (37 of 42 PRs forecast above 400; every slice exceeds 800). Project budget is 800 (`openspec/config.yaml`); every PR is planned at or below it |
 | Chained PRs recommended | Yes |
-| Suggested split | 9 slices -> 37 stacked PRs: 1a-1f, 2a-2e, 3a-3c, 4a-4d, 5a-5b, 6a-6c, 7a-7e, 8a-8b, 9a-9g |
+| Suggested split | Walking skeleton + 9 slices -> 42 stacked PRs in delivery order: 1a, WS1-WS5 (first usable build at WS5), then 1b-1f, 2a-2e, 3a-3c, 4a-4d, 5a-5b, 6a-6c, 7a-7e, 8a-8b, 9a-9g |
 | Delivery strategy | auto-chain (resolved from auto-forecast) |
 | Chain strategy | stacked-to-main |
 
@@ -18,26 +18,31 @@ Chain strategy: stacked-to-main
 
 Preconditions (not decisions): the project dir is not yet a git repository; PR delivery and CI presuppose a GitHub remote and an available `xcode-27-arm64` runner label (task 1a.0).
 
+Delivery order: 1a, then the walking skeleton WS1-WS5, then the deferred PRs in file order (1b-1f, 2a-2e, 3a-3c, 4a-4d, 5a-5b, 6a-6c, 7a-7e, 8a-8b, 9a-9g). FIRST USABLE BUILD = WS5, five PRs after 1a. Every deferred PR hardens or replaces a skeleton seam and says which one in its first affected task, so the post-milestone order can be re-prioritized (for example pulling 5a-5b forward) without rework.
+
 ### Forecast per slice
 
 | Slice | Scope | PRs | Est. lines |
 |-------|-------|-----|-----------|
-| 1 | Bootstrap, engineering process, theme/UI scaffolding, permissions onboarding | 1a-1f | 3,950 |
-| 2 | Activation reducer, coordinator loop, hotkeys, overlay | 2a-2e | 2,700 |
-| 3 | Audio capture, durable store, VAD | 3a-3c | 1,900 |
-| 4 | ASR protocol, Parakeet, chunker, queue, history repo, raw end to end | 4a-4d | 2,950 |
+| 1a | Bootstrap and engineering process | 1a | 700 |
+| WS | Walking skeleton, first usable build: hold-to-talk, 16 kHz capture, Parakeet v3, clipboard paste, Mic/Accessibility prompts, bare overlay | WS1-WS5 | 3,150 |
+| 1b-1f | Deferred: theme/UI scaffolding, snapshots, full onboarding | 1b-1f | 3,100 |
+| 2 | Activation reducer, hands-free, Esc, hotkey configuration, themed overlay | 2a-2e | 2,600 |
+| 3 | Durable audio, capture hardening, VAD | 3a-3c | 1,500 |
+| 4 | Recognizer registry, chunker, queue, history repo, durable pipeline | 4a-4d | 2,550 |
 | 5 | Reliable text insertion | 5a-5b | 1,400 |
 | 6 | Style resolution, context capture | 6a-6c | 1,950 |
 | 7 | Cleanup: prompt, guard, shaping, stage, FoundationModels | 7a-7e | 2,650 |
 | 8 | Vocabulary, OCR | 8a-8b | 1,400 |
 | 9 | Retention/retry, history UI, settings UI, optional providers | 9a-9g | 4,700 |
-| Total | | 37 | ~23,600 |
+| Total | | 42 | ~25,700 |
 
 Forecast rules:
 - The proposal's "each slice under 800 lines" does not hold. Each slice is split into stacked sub-PRs (letter suffix).
 - Estimates are +/-25%. Re-measure at PR open with `git diff --shortstat main...HEAD`, excluding PNGs.
 - If a PR measures over 800, split along its own task groups. Adjacent PRs MAY merge when the combined diff is 800 or less. No `size:exception` is planned.
-- Eleven PRs sit within 50 lines of the cap: 1b, 1d, 3b, 4c, 4d, 5a, 6b, 8a, 9a, 9b, 9c. If one overshoots, defer its edge-case table rows to a follow-up PR.
+- Nine PRs sit within 50 lines of the cap: 1b, 4c, 4d, 5a, 6b, 8a, 9a, 9b, 9c. If one overshoots, defer its edge-case table rows to a follow-up PR.
+- Walking-skeleton PRs use the prefix `WS` and keep the 800-line cap. Skeleton code that a later PR replaces is counted twice (once added, once deleted); the totals above include both.
 - Stacked-to-main: branch `feat/dictation-mvp-<unit>` from latest `main`; open the PR against `main`; merge in order; rebase the next branch after each merge. Every PR leaves `main` green.
 
 ### Suggested Work Units
@@ -47,25 +52,30 @@ Test commands use the package paths from `openspec/config.yaml`. "Whole PR" proo
 | Unit | Goal | Est. | Focused test command | Runtime harness | Rollback boundary |
 |------|------|------|----------------------|-----------------|-------------------|
 | 1a | Process and skeletons: 5 SPM packages, xcodegen app, Makefile, swift-format, CI, ADRs | 700 | `swift test --package-path Packages/SusurroCore --filter ModuleSmokeTests` | `make bootstrap && make run`: menu bar item appears; CI green on `xcode-27-arm64` | Revert PR; nothing depends on it |
+| WS1 | Walking skeleton: core ports and hold-to-talk coordinator with fakes | 700 | `swift test --package-path Packages/SusurroCore --filter DictationCoordinatorTests` | N/A: fakes only | Revert; app stays on the 1a placeholder |
+| WS2 | Walking skeleton: fixed hotkey (KeyboardShortcuts) and 16 kHz mic capture | 650 | `swift test --package-path Packages/SusurroPlatform --filter AudioIOTests` | N/A: wired in WS5; adapters proven by seam tests | Revert; ports keep fakes |
+| WS3 | Walking skeleton: Mic/Accessibility permission checker, simple clipboard paste with basic restore | 650 | `swift test --package-path Packages/SusurroPlatform --filter SimplePasteInserterTests` | N/A: wired in WS5 | Revert; no consumers |
+| WS4 | Walking skeleton: Parakeet v3 whole-clip transcription (FluidAudio) | 450 | `swift test --package-path Packages/SusurroInference --filter ParakeetMappingTests` | N/A: no model download in tests; live check in WS5 | Revert; no consumers |
+| WS5 | **FIRST USABLE BUILD**: bare overlay, launch prompts, menu bar, wiring | 700 | `swift test --package-path Packages/SusurroFeatures --filter SkeletonOverlayPresenterTests` | `make run`: hold Control+Option+D in any app, speak, release; text pastes (see "First usable build") | Revert to the 1a placeholder app |
 | 1b | Theme model, default JSON, ThemeLoader, ThemeStore | 800 | `swift test --package-path Packages/SusurroUI --filter ThemeLoaderTests` | N/A: pure decoding, no runtime surface yet | Revert; DesignSystem returns to skeleton |
 | 1c | Token lint, atoms, snapshot infra, CI record job | 650 | `make snapshots` | N/A: views render only in tests/previews; `record-snapshots` workflow run on the branch | Revert; atoms unused by app |
-| 1d | ManualClock, permission domain/policy, system checker, SettingsStore | 800 | `swift test --package-path Packages/SusurroCore --filter PermissionPolicyTests` | N/A: adapters not wired yet | Revert; no consumers |
+| 1d | ManualClock, permission policy, Input Monitoring/Screen Recording probes, SettingsStore | 650 | `swift test --package-path Packages/SusurroCore --filter PermissionPolicyTests` | N/A: adapters extend WS3 checker | Revert; no consumers |
 | 1e | PermissionsMonitor, onboarding view model and contracts | 550 | `swift test --package-path Packages/SusurroFeatures --filter OnboardingViewModelTests` | N/A: wired in 1f | Revert; no consumers |
 | 1f | Onboarding UI, menu bar shell, AppEnvironment | 450 | `make snapshots` | `make run`: revoke Accessibility in System Settings; banner within ~1 s | Revert; app returns to placeholder menu bar |
 | 2a | ActivationMachine reducer, StartPreconditions | 500 | `swift test --package-path Packages/SusurroCore --filter ActivationMachineTests` | N/A: pure reducer, fakes | Revert; no consumers |
-| 2b | DictationCoordinator activation loop (timers, Esc arming) | 500 | `swift test --package-path Packages/SusurroCore --filter DictationCoordinatorActivationTests` | N/A: fakes + ManualClock | Revert; hotkeys not wired yet |
-| 2c | Hotkeys adapter (KeyboardShortcuts, modifier-only, Esc, Secure Input) | 450 | `swift test --package-path Packages/SusurroPlatform --filter HotkeyConfigurationTests` | `make run` + `log stream --predicate 'subsystem == "dev.claudiojara.susurro"'`: hold, tap, double-tap, Esc transitions; Esc passes through when idle | Revert; app falls back to no hotkeys |
+| 2b | Reducer-driven DictationCoordinator (timers, Esc arming) replacing the skeleton's inline hold logic | 550 | `swift test --package-path Packages/SusurroCore --filter DictationCoordinatorActivationTests` | N/A: fakes + ManualClock | Revert to the skeleton hold-only coordinator |
+| 2c | Hotkey configuration (modifier-only/fn, Secure Input warning, Esc registration, settings keys) | 350 | `swift test --package-path Packages/SusurroPlatform --filter HotkeyConfigurationTests` | `make run` + `log stream --predicate 'subsystem == "dev.claudiojara.susurro"'`: hold, tap, double-tap, Esc transitions; Esc passes through when idle | Revert; fixed default hotkey remains |
 | 2d | Overlay contracts, mapper, throttle, placement, auto-dismiss | 650 | `swift test --package-path Packages/SusurroFeatures --filter OverlayViewModelTests` | N/A: pure mapping; UI in 2e | Revert; no consumers |
-| 2e | Overlay HUD, variant registry, NSPanel host, wiring | 600 | `make snapshots` | `make run`: hold hotkey; HUD appears and TextEdit keeps focus | Revert; app returns to log-only states |
-| 3a | RecordingSession, audio domain, fakes | 700 | `swift test --package-path Packages/SusurroCore --filter RecordingSessionTests` | N/A: fakes | Revert; coordinator keeps interim controller |
-| 3b | CAF store, AVAudioEngine capture adapter, wiring | 750 | `swift test --package-path Packages/SusurroPlatform --filter AudioIOTests` | `make run`: record 5 s, `afplay` the CAF in Application Support; unplug USB mic mid-record | Revert to `NoopRecordingController` |
+| 2e | Themed overlay HUD, variant registry, panel host; replaces the skeleton overlay | 550 | `make snapshots` | `make run`: hold hotkey; HUD appears and TextEdit keeps focus | Revert; skeleton overlay returns |
+| 3a | RecordingSession (durable, bounded), store ports, fakes | 650 | `swift test --package-path Packages/SusurroCore --filter RecordingSessionTests` | N/A: fakes | Revert; coordinator keeps in-memory capture |
+| 3b | CAF store, device-removal handling, RecordingSession wiring | 400 | `swift test --package-path Packages/SusurroPlatform --filter CAFRecordingStoreTests` | `make run`: record 5 s, `afplay` the CAF in Application Support; unplug USB mic mid-record | Revert to in-memory capture |
 | 3c | VAD span/silence logic, Silero adapter | 450 | `swift test --package-path Packages/SusurroCore --filter SpeechSpanTests` | Manual: Silero on a recorded CAF (no model download in tests) | Revert; VAD unused |
-| 4a | ASR domain, registry, runner, readiness wait | 700 | `swift test --package-path Packages/SusurroCore --filter RecognitionRunnerTests` | N/A: fakes | Revert; no consumers |
-| 4b | AudioChunker, Parakeet adapter | 700 | `swift test --package-path Packages/SusurroCore --filter AudioChunkerTests` | `make run` debug: measure Parakeet clip limit on 30/60/120 s clips | Revert; chunker unused |
+| 4a | Recognizer registry, runner (timeout, cloud fallback), readiness wait | 650 | `swift test --package-path Packages/SusurroCore --filter RecognitionRunnerTests` | N/A: fakes | Revert; coordinator keeps inline readiness wait |
+| 4b | AudioChunker, ChunkedTranscriber, Parakeet clip-limit measurement | 400 | `swift test --package-path Packages/SusurroCore --filter AudioChunkerTests` | `make run` debug: measure Parakeet clip limit on 30/60/120 s clips | Revert; chunker unused |
 | 4c | ProcessingQueue, GRDB HistoryRepository | 750 | `swift test --package-path Packages/SusurroPlatform --filter GRDBHistoryRepositoryTests` | N/A: in-memory and temp-file DB | Revert; no consumers |
-| 4d | Raw dictation end to end (interim clipboard inserter) | 800 | `swift test --package-path Packages/SusurroCore --filter DictationPipelineE2ETests` | `make run`: dictate Spanish; text on clipboard in under 2 s after release | Revert to log-only recording (3b state) |
-| 5a | PasteTransaction policy and fakes | 800 | `swift test --package-path Packages/SusurroCore --filter PasteTransactionTests` | N/A: FakePasteboard + ManualClock | Revert; interim inserter stays |
-| 5b | NSPasteboard and CGEvent adapters, replace interim inserter | 600 | `swift test --package-path Packages/SusurroPlatform --filter TextInsertionTests` | `make run`: paste in Mail, Slack, Terminal, ChatGPT; rich clipboard restored | Revert to `ClipboardOnlyInserter` |
+| 4d | Durable pipeline end to end (VAD, chunker, queue, history record) replacing the skeleton flow | 750 | `swift test --package-path Packages/SusurroCore --filter DictationPipelineE2ETests` | `make run`: dictate Spanish; text pastes in under 2 s after release; CAF file and history row exist | Revert to the skeleton pipeline |
+| 5a | PasteTransaction policy and fakes | 800 | `swift test --package-path Packages/SusurroCore --filter PasteTransactionTests` | N/A: FakePasteboard + ManualClock | Revert; `SimplePasteInserter` stays |
+| 5b | NSPasteboard and CGEvent adapters, replace `SimplePasteInserter` | 600 | `swift test --package-path Packages/SusurroPlatform --filter TextInsertionTests` | `make run`: paste in Mail, Slack, Terminal, ChatGPT; rich clipboard restored | Revert to `SimplePasteInserter` |
 | 6a | StyleResolver, seeds, override persistence | 650 | `swift test --package-path Packages/SusurroCore --filter StyleResolverTests` | N/A: pure | Revert; no consumers |
 | 6b | Context domain/assembler, AXContextReader | 800 | `swift test --package-path Packages/SusurroPlatform --filter AXContextReaderTests` | Manual: Safari URL, Notes cursor text, password field, Slack (Electron) | Revert; context unused |
 | 6c | Coordinator context integration and privacy lifetime | 500 | `swift test --package-path Packages/SusurroCore --filter ContextIntegrationTests` | `make run` + `log stream`: `category=... tone=... source=...` (no text) | Disable `useAppContext`, or revert |
@@ -90,12 +100,14 @@ Test commands use the package paths from `openspec/config.yaml`. "Whole PR" proo
 - Strict TDD: every behavior is RED (failing Swift Testing test, committed first) then GREEN (minimum code) then REFACTOR (tests stay green). DOC and VERIFY tasks are marked as such.
 - Every PR is done when `make lint test build` and CI pass. Snapshot references are recorded only by the CI `record-snapshots` job, never locally. No model download and no network in `swift test`. UI test suites are `@MainActor`.
 - Paths are relative to the repo root. Test targets mirror source targets, e.g. `Packages/SusurroCore/Tests/ActivationTests/`.
-- Interim seams not in the design: `RecordingControlling` (2b, replaced in 3b) and `TextInserter` with `ClipboardOnlyInserter` (4d, replaced in 5b).
+- Walking-skeleton seams, each hardened or replaced by a later PR: hold-only logic inline in the skeleton `DictationCoordinator` (WS1; replaced by the reducer-driven coordinator in 2b), in-memory clip accumulation with a 60 s cap (WS1/WS2; replaced by `RecordingSession` in 3a/3b and chunking in 4b), the fixed `DefaultHotkey` constant (WS2; configurable in 2c), `SimplePasteInserter` (WS3; replaced by `PasteTransaction` in 5b), and the unthemed overlay and launch `PermissionPrompter` under `Presentation/Skeleton/` (WS5; replaced in 2e and 1e/1f).
+- Skeleton ports (WS1) use the design's signatures, so later PRs extend them instead of renaming them. Skeleton code stays out of the `DesignSystem` and `SusurroUI` targets, so the token lint added in 1c never scans it.
+- `TextInserter` is a port not in the design's port list; it is the coordinator's insertion seam and `PasteTransaction` conforms to it (5a).
 - Commits: conventional commits, no AI attribution.
 
 ---
 
-## Slice 1: Bootstrap, engineering process, design-system scaffolding, permissions
+## Slice 1: Bootstrap and engineering process (PR 1a)
 
 ### PR 1a: Engineering bootstrap (~700)
 
@@ -109,7 +121,85 @@ Test commands use the package paths from `openspec/config.yaml`. "Whole PR" proo
 - [x] 1a.7 GREEN: Extend the existing root `.gitignore` with `*.xcodeproj`, `build/`, and `Local.xcconfig` (it already covers `.build/` and `DerivedData/`). Keep all existing entries. `Package.resolved` stays committed.
 - [x] 1a.8 GREEN: `.github/workflows/ci.yml`: `runs-on: xcode-27-arm64`; PR and push-to-main triggers; steps bootstrap, lint, test, build; cancel superseded runs; cache `.build`.
 - [x] 1a.9 DOC: `docs/adr/0000-template.md` (MADR), `docs/adr/README.md` index, and ADRs 0001 SPM-first hexagonal + five-package split, 0002 xcodegen app project, 0003 identity (`dev.claudiojara.susurro`) + external Keychain service `app.tuminuta`, 0004 GRDB + per-key UserDefaults, 0005 hotkeys (Carbon first, Input Monitoring only for modifier-only) + Esc semantics (armed only in flight; cancel keeps audio), 0006 cloud data boundary (`CloudCleanupRequest`), 0007 tooling (swift-format, token-lint test, snapshots on `xcode-27-arm64`).
-- [ ] 1a.10 VERIFY: A scratch mis-formatted file makes `make lint` fail and `make format` fixes it (not committed). CI green. `make run` shows the menu bar item. Status: lint/format check and `make run` verified locally; CI is blocked, the job stays queued because no runner carries the `xcode-27-arm64` label.
+- [x] 1a.10 VERIFY: A scratch mis-formatted file makes `make lint` fail and `make format` fixes it (not committed). CI green. `make run` shows the menu bar item. Status: lint/format check and `make run` verified locally; CI green on the hosted `xcode-27` runner (run 38344070852).
+
+---
+
+## Walking skeleton: first usable build (WS1-WS5)
+
+Goal: dictate into any app within five PRs after 1a. The thin end-to-end path is a menu bar app, hold-to-talk on one fixed hotkey, 16 kHz microphone capture, Parakeet v3 on the whole clip, clipboard paste with a basic restore, Microphone and Accessibility prompts, and a bare overlay indicator.
+
+Deferred past the milestone (each hardened or replaced by the PR in Conventions): theming and snapshots (1b-1c), onboarding UI (1d-1f), double-tap, hands-free, and Esc (2a-2c), VAD (3c), durable audio and history (3a-3b, 4c-4d), reliable paste (5a-5b), context, cleanup, and vocabulary (6-8), settings and providers (9). A press while a dictation is processing is ignored until the queue lands (4c).
+
+Skeleton rules: strict TDD through fakes; every WS PR at or below 800 changed lines; ports use the design's signatures; skeleton views and the launch prompter live in `Packages/SusurroFeatures/Sources/Presentation/Skeleton/`, outside the token-lint scope.
+
+### PR WS1: Core ports and hold-to-talk coordinator (~700)
+
+- [x] WS1.1 RED: `Packages/SusurroCore/Tests/PipelineTests/DictationCoordinatorTests.swift` (fakes only), hold. Down starts capture and the state goes idle, starting (until the first chunk), recording. Up at 1200 ms stops capture, passes the whole clip to the recognizer, and passes the text to the inserter. The state then goes transcribing, inserted, idle. [ACT Hold-to-talk: Held press is submitted; OVL Pipeline-driven state: Ready gating]
+- [x] WS1.2 RED: A release under 300 ms (event timestamps) discards the clip: no recognizer call and no insertion. 300 ms is kept. [AUD Minimum duration: Accidental blip; ACT Tap discard, discard half only]
+- [x] WS1.3 RED: Preconditions. Microphone not granted starts no capture and publishes an error with a permissions remedy [ACT Start preconditions: Permission denied]. Recognizer `notInstalled` starts no capture and gives a settings remedy. `loading` records normally and transcription waits for `ready` while publishing progress [ACT: Model missing vs loading; ASR Model readiness: Recording during load].
+- [x] WS1.4 RED: A blank transcript inserts nothing and publishes a no-speech notice [ASR Empty results: Blank transcript]. A throwing recognizer publishes an error and inserts nothing. The audio is not retained in the skeleton.
+- [x] WS1.5 RED: A down while transcribing or inserting is ignored, and a duplicate down while recording is ignored. Overlap arrives with the queue in 4c.
+- [x] WS1.6 RED: Skeleton clip cap. Accumulated samples reaching `DictationLimits.recordingCap` (60 s) finish the recording as if released and publish a cap notice. The cap is counted from samples, so no clock is needed. [ACT Hands-free stop: Safety cap, reduced form]
+- [x] WS1.7 GREEN: In `Packages/SusurroCore/Sources/Domain/`: `Hotkey.swift` (`HotkeyEvent`, `HotkeySource`), `Audio.swift` (`AudioChunk`, `AudioClip`, `AudioCaptureSource`, `CaptureError`), `Recognition.swift` (`SpeechRecognizer`, `RecognizerReadiness`, `RawTranscript`, `RecognitionOptions`, `Locality`, `ASRProviderID`), `Permissions.swift` (`Permission`, `PermissionStatus`, `PermissionsChecker`), `Pipeline.swift` (`PipelineState` with `RecordingMode.hold`, `NoticeKind`, `TextInserter`). All use the design's port signatures.
+- [x] WS1.8 GREEN: `Sources/Pipeline/DictationCoordinator.swift` (actor; hold-only logic inline) and `CoreTestSupport` fakes `FakeHotkeySource`, `FakeAudioCaptureSource`, `FakeRecognizer`, `FakeTextInserter`, `FakePermissionsChecker`. Add the `Pipeline` target and `PipelineTests` to the Core manifest.
+- [x] WS1.9 REFACTOR: Name states and transitions so 2b can swap the inline logic for the reducer without changing the tests' public surface.
+- [x] WS1.10 RED+GREEN (review round 1): Every wait is bounded. A recognizer stuck loading ends in `timedOut(.readiness)` after a poll budget of `readinessTimeout / readinessPollInterval`. `transcribe`, `insert`, and the capture stop/drain are raced against their timeouts with the injected sleep (`withDeadline`) and a timed-out operation is abandoned. After each timeout the coordinator is idle and a later press works.
+- [x] WS1.11 RED+GREEN (review round 1): Lifecycle. `shutdown()` (also run when `run()` ends or is cancelled) stops the capture, cancels the capture and process tasks, inserts nothing, and finishes `states`. A `.starting` phase is set before the first await, so a concurrent press cannot start a second capture; a release during `.starting` is honored once the capture has started. `TextInserter.insert` returns `InsertionOutcome`; `copiedToClipboard` becomes a notice. `FakeAudioCaptureSource` gives each `start` a fresh stream, and the inserting window is tested with a gated `FakeTextInserter`.
+- [x] WS1.12 REFACTOR (review round 1, readability): `receive(_:)` and one `beginFinishing(reason:)` claim shared by the release and cap paths; `DictationLimits` in its own file; `DictationCoordinatorTests`; the underlying error is kept in `PipelineError.captureFailed(String)` and `recognitionFailed(String)`; `withKnownIssue` marks the missing device-loss notice (3b).
+- [x] WS1.13 REFACTOR (review round 1): Removed port surface with no consumer in WS1. Reintroduced by: `HotkeySource.setEscapeArmed` in 2b.4; `PermissionsChecker.request` and `Permission.accessibility` in WS3.1; `Permission.inputMonitoring` and `.screenRecording` in 1d.5; `SpeechRecognizer.id`, `locality`, `ASRProviderID`, and `Locality` in 4a.6; `maxClipDuration` in 4b.7; `RecognitionOptions.vocabulary` in WS4.1.
+- [x] WS1.14 RED+GREEN (review round 2): A `CancellationError` that does not come from `shutdown()` settles to an error instead of leaving `processing` or `finishing` (a recognizer that throws it, and in PR #4 a caller cancelled during the capture stop; with `beginFinishing` in WS1b the finish runs in its own task, so that second case no longer applies). `pressed` checks the phase again after the permission check, so `shutdown()` during it never starts the capture. `shutdown()` stops the capture even when called from a cancelled task (the stop runs in an unstructured task).
+
+### PR WS2: Fixed hotkey and 16 kHz capture (~650)
+
+- [ ] WS2.1 RED: `Packages/SusurroPlatform/Tests/HotkeysTests/HotkeyEventMapperTests.swift`. Raw key down/up map to `HotkeyEvent` with timestamps. A duplicate down while held is ignored. An up without a down is ignored.
+- [ ] WS2.2 GREEN: Add the pinned KeyboardShortcuts dependency and the `Hotkeys` target. `Platform/Hotkeys/HotkeyService.swift` (`HotkeySource`) registers one fixed keyed combo, `DefaultHotkey.holdToTalk` (proposed Control+Option+D, a single constant; confirm it collides with no macOS system shortcut). A keyed combo needs no Input Monitoring [ACT Hotkey configuration]. `HotkeySource` has no `setEscapeArmed` until 2b.4 adds it; the real Esc registration arrives in 2c.
+- [ ] WS2.3 RED: `FormatConverterTests`. A 48 kHz stereo one-second buffer yields 16000 mono Float32 samples (+/-1). A 44.1 kHz mono buffer also converts. [AUD Capture format: Device at 48 kHz stereo]
+- [ ] WS2.4 GREEN: `Platform/AudioIO/FormatConverter.swift` (AVAudioConverter); add the `AudioIO` target.
+- [ ] WS2.5 RED: `AVAudioEngineCaptureSourceTests` against an `EngineProviding` seam. No input device makes `start` throw `noInputDevice` before any chunk. The first buffer yields the first chunk (readiness). `stop` finishes the stream and removes the tap. [AUD Readiness signal: Slow device; Device failures, start-time half]
+- [ ] WS2.6 GREEN: `Platform/AudioIO/AVAudioEngineCaptureSource.swift`. The realtime tap converts to 16 kHz mono and yields `Sendable` chunks into an AsyncStream. This bridge is the single documented `@unchecked Sendable`.
+- [ ] WS2.7 REFACTOR: Keep the `EngineProviding` seam minimal so 3b can add device-removal observation without changing these tests.
+
+### PR WS3: Permission checker and simple paste (~650)
+
+- [ ] WS3.1 RED: `Packages/SusurroPlatform/Tests/PermissionsTests/SystemPermissionsCheckerTests.swift`. `PermissionProbes` closures map the microphone authorization status and `AXIsProcessTrusted` to notDetermined, granted, and denied. this task adds `Permission.accessibility` and `PermissionsChecker.request`; `request(.microphone)` and `request(.accessibility)` call their requesters (the Accessibility one shows the system prompt). `settingsURL(for:)` returns the pane for both. Input Monitoring and Screen Recording return notDetermined until 1d. [PRM Permission status model, Microphone and Accessibility only]
+- [ ] WS3.2 GREEN: `Platform/Permissions/SystemPermissionsChecker.swift`.
+- [ ] WS3.3 RED: `Packages/SusurroPlatform/Tests/TextInsertionTests/SimplePasteInserterTests.swift`, using a uniquely named `NSPasteboard`, a `FakeKeystrokePoster`, and an injected `sleep` closure (no clock type). The snapshot captures every item and type. The inserter writes the text, posts the paste chord, and after a fixed 300 ms restores the snapshot only if `changeCount` still equals the value recorded after our write [INS Pasteboard snapshot: Rich pasteboard; Conditional restore, basic form]. A user copy in that window means no restore [INS: User copied meanwhile].
+- [ ] WS3.4 RED: Safety. Empty text leaves the pasteboard and its `changeCount` untouched [INS Ordering and empty text: Empty text]. Accessibility not trusted posts no chord, leaves the text on the pasteboard with no restore, and reports `copiedToClipboard(.accessibilityMissing)` [INS Failure fallback: Accessibility missing]. Modifiers still held are polled for up to 500 ms before the chord; on timeout no chord is posted and the text stays on the pasteboard [INS Safe paste chord, basic form].
+- [ ] WS3.5 RED: `PasteChordTests`. The chord event for "v" carries only the Command flag (fixed ANSI keycode in the skeleton).
+- [ ] WS3.6 GREEN: `Sources/Domain/Insertion.swift` (`KeystrokePoster` port per the design, `InsertionOutcome`), `CoreTestSupport/FakeKeystrokePoster.swift`, `Platform/TextInsertion/CGEventKeystrokePoster.swift`, and `Platform/TextInsertion/SimplePasteInserter.swift` (`TextInserter`, `@MainActor`). It writes eagerly, with no promise, no target-app check, and no read receipt. Add the `TextInsertion` target.
+- [ ] WS3.7 REFACTOR: Keep snapshot and restore code separate from the chord logic so 5b can reuse the pieces.
+
+### PR WS4: Parakeet v3 whole-clip transcription (~450)
+
+- [ ] WS4.1 RED: `Packages/SusurroInference/Tests/FluidAudioASRTests/ParakeetMappingTests.swift` against a `ParakeetEngine` seam fake (no model download). FluidAudio states map to notInstalled, loading(progress), and ready. The whole clip (16 kHz mono Float32) reaches the engine unchanged, with no chunking and no VAD trim. Language is auto. Vocabulary is ignored without error (this task adds `RecognitionOptions.vocabulary`). An engine error becomes a thrown `RecognitionError`. Cancellation propagates. [ASR Provider protocol; Default and optional providers; Vocabulary biasing: Unsupported biasing]
+- [ ] WS4.2 RED: `prepare()` starts the model load once (idempotent) and publishes readiness changes. [ASR Model readiness]
+- [ ] WS4.3 GREEN: Add the pinned FluidAudio dependency. `Inference/FluidAudioASR/ParakeetRecognizer.swift` (actor serializing inference; id `parakeet-v3`; locality `.local`; `maxClipDuration` nil), the `ParakeetEngine` seam, and `LiveParakeetEngine`.
+- [ ] WS4.4 REFACTOR: Keep engine-state mapping in one pure function that 3c and 4b can reuse.
+
+### PR WS5: Overlay indicator, launch prompts, wiring: FIRST USABLE BUILD (~700)
+
+- [ ] WS5.1 RED: `Packages/SusurroFeatures/Tests/PresentationTests/SkeletonOverlayPresenterTests.swift`. Each `PipelineState` maps to indicator text and visibility: hidden when idle; starting and recording; transcribing with model-load progress when present; inserted, notice, and error with their messages. Inserted, notice, and error dismiss after fixed delays through an injected `sleep` closure, and the error delay is longer. The coordinator moves on right after a cap notice (it goes straight to `transcribing`), so the presenter must hold a notice for its own dwell time. [OVL Pipeline-driven state; Auto-dismiss, reduced form]
+- [ ] WS5.2 RED: `SkeletonOverlayPanelTests`. The panel is non-activating and borderless, cannot become key or main, ignores mouse events, and joins all Spaces and full-screen auxiliary. Placement is bottom center of the main screen (the focused-window screen arrives in 2d). [OVL Non-activating panel: Panel configuration]
+- [ ] WS5.3 RED: `PermissionPrompterTests` (FakePermissionsChecker). At launch each missing required permission, Microphone and Accessibility, is requested once. Granted permissions are not requested again. Input Monitoring and Screen Recording are never requested. Statuses are re-read on app activation for the menu. [PRM Required vs conditional: Default setup, minimal form]
+- [ ] WS5.4 GREEN: Under `Packages/SusurroFeatures/Sources/Presentation/Skeleton/`: `SkeletonOverlayPresenter`, `SkeletonOverlayPanel` with a plain SwiftUI indicator (system styling, no theme), and `PermissionPrompter`.
+- [ ] WS5.5 GREEN: `Composition/AppEnvironment.swift`. Make concurrent `shutdown()` callers await one stored shutdown task (the WS1 coordinator lets a second caller return early) and give the coordinator a log sink for best-effort failures. `.live` wires `HotkeyService`, `AVAudioEngineCaptureSource`, `ParakeetRecognizer` (`prepare()` at launch), `SimplePasteInserter`, `SystemPermissionsChecker`, and the coordinator. `.preview` uses the fakes.
+- [ ] WS5.6 GREEN: `App/Sources/SusurroApp.swift` replaces the 1a placeholder menu: Microphone and Accessibility status rows with an "Open System Settings" action, a model readiness line, the hotkey hint, and Quit.
+- [ ] WS5.7 DOC: `docs/running.md` with the instructions in "First usable build" below and the known limits.
+- [ ] WS5.8 VERIFY (manual): Follow "First usable build". Confirm Spanish dictation pastes in Notes, a browser text field, and Terminal in under 2 s after release (os_signpost), the previous clipboard is restored, the overlay never steals focus, and each permission prompt appears once.
+
+**FIRST USABLE BUILD.** WS5 is the first PR after which the user can dictate into any app. `make run` instructions (macOS 26 or later, Xcode 27, xcodegen installed):
+
+1. Run `make bootstrap && make run`. For permissions to survive rebuilds, set `DEVELOPMENT_TEAM` in the gitignored `App/Config/Local.xcconfig`.
+2. Accept the Microphone prompt, then the Accessibility prompt (System Settings > Privacy & Security > Accessibility). The menu bar item shows both statuses.
+3. The first run downloads the Parakeet v3 model, so the network is needed once. The menu and overlay show progress, and recording is allowed meanwhile.
+4. Focus a text field in any app, hold Control+Option+D, speak, and release. The text is pasted at the cursor and the previous clipboard is restored.
+
+Known limits until later PRs: no cancel and no hands-free mode (2a-2c); one dictation at a time, with presses ignored while busy (4c-4d); audio is not saved, so a failed transcription is lost (3a-3b, 4c-4d, 9a); whole-clip transcription capped at 60 s (4b); no VAD, so silence or noise can produce odd text (3c); paste is eager with a fixed-delay restore and can race slow apps (5a-5b); text is pasted as transcribed, with no cleanup, capitalization, or spacing (7); hotkey is fixed (2c, 9c); the overlay is unthemed (2e); no onboarding window (1f).
+
+---
+
+## Slice 1, deferred past the first usable build: design system and full onboarding
 
 ### PR 1b: Theme model and loader (~800)
 
@@ -137,14 +227,14 @@ Test commands use the package paths from `openspec/config.yaml`. "Whole PR" proo
 - [ ] 1c.9 VERIFY: Dispatch `record-snapshots` on the PR branch, commit the references, CI green.
 - [ ] 1c.10 REFACTOR: Share atom sizing through tokens; no duplicated preview fixtures.
 
-### PR 1d: ManualClock, permissions domain, settings foundation (~800)
+### PR 1d: ManualClock, permission policy, settings foundation (~650)
 
 - [ ] 1d.1 RED: `ManualClockTests`. `sleep(for:)` suspends until `advance(by:)`; waiters wake in deadline order; cancellation throws `CancellationError`; `now` is monotonic.
-- [ ] 1d.2 GREEN: `Packages/SusurroCore/Sources/CoreTestSupport/ManualClock.swift` (`Clock<Duration>`) and `FakePermissionsChecker`.
+- [ ] 1d.2 GREEN: `Packages/SusurroCore/Sources/CoreTestSupport/ManualClock.swift` (`Clock<Duration>`). `FakePermissionsChecker` already exists from WS1.
 - [ ] 1d.3 RED: `PermissionPolicyTests` in `Packages/SusurroCore/Tests/DomainTests/`. Required set is Microphone and Accessibility. Input Monitoring only for a modifier-only or fn hotkey. Screen Recording only when OCR is on. A default setup requests only Microphone and Accessibility [PRM Required vs conditional: Default setup]. Onboarding is complete only when all required are granted and reappears only when one becomes missing [PRM Onboarding completion: Already granted].
-- [ ] 1d.4 GREEN: `Sources/Domain/Permissions.swift`: `Permission`, `PermissionStatus` (notDetermined, granted, denied), the `PermissionsChecker` port, `PermissionNeeds`, `PermissionPolicy`. (Pure policy in Domain is a small extension of the design's package layout.)
-- [ ] 1d.5 RED: `SystemPermissionsCheckerTests` in `Packages/SusurroPlatform/Tests/PermissionsTests/`. `PermissionProbes` closures map AVAuthorizationStatus, `AXIsProcessTrusted`, IOHID access, and screen-capture preflight to `PermissionStatus`. `settingsURL(for:)` returns the right pane. [PRM Permission status model]
-- [ ] 1d.6 GREEN: `Platform/Permissions/SystemPermissionsChecker.swift`, including the request calls.
+- [ ] 1d.4 GREEN: Extend `Sources/Domain/Permissions.swift` (`Permission`, `PermissionStatus`, and the `PermissionsChecker` port exist from WS1) with `PermissionNeeds` and `PermissionPolicy`. (Pure policy in Domain is a small extension of the design's package layout.)
+- [ ] 1d.5 RED: Extend `SystemPermissionsCheckerTests` (created in WS3). This task adds `Permission.inputMonitoring` and `.screenRecording`. New `PermissionProbes` closures map IOHID access (Input Monitoring) and screen-capture preflight (Screen Recording) to `PermissionStatus`, and `settingsURL(for:)` covers both panes. [PRM Permission status model]
+- [ ] 1d.6 GREEN: Add the Input Monitoring and Screen Recording probes and request calls to the WS3 `Platform/Permissions/SystemPermissionsChecker.swift`.
 - [ ] 1d.7 RED: `SettingsStoreTests` in `Platform/Tests/SettingsTests/`. Typed per-key get/set with defaults; a change stream emits on set; one corrupt key does not affect the others; a suite-isolated `UserDefaults` simulates relaunch.
 - [ ] 1d.8 GREEN: `Domain/Settings.swift` (`SettingsStore` port, `SettingKey<Value>`), `Platform/Settings/UserDefaultsSettingsStore.swift`, `CoreTestSupport/InMemorySettingsStore.swift`. Add the `Settings` target to the Platform manifest.
 - [ ] 1d.9 REFACTOR: Unify key naming (`<area>.<name>`).
@@ -152,7 +242,7 @@ Test commands use the package paths from `openspec/config.yaml`. "Whole PR" proo
 ### PR 1e: Permissions monitor and onboarding view model (~550)
 
 - [ ] 1e.1 RED: `PermissionsMonitorTests` in `Packages/SusurroFeatures/Tests/PresentationTests/` (FakePermissionsChecker + ManualClock). A status flipping to granted is published within the 1 s poll without relaunch [PRM Permission status model: Granted in System Settings]. Polling runs on app activation and every 1 s only while onboarding is visible. A runtime revocation publishes denied and sets a dictation-disabled reason [PRM Runtime revocation: Accessibility revoked]. Still denied after the bounded time (default 30 s) after returning from Settings sets stale guidance [PRM Stale-grant guidance: Still denied].
-- [ ] 1e.2 GREEN: `Presentation/PermissionsMonitor.swift` (`@Observable @MainActor`, injected clock).
+- [ ] 1e.2 GREEN: `Presentation/PermissionsMonitor.swift` (`@Observable @MainActor`, injected clock). It supersedes the WS5 launch-time `PermissionPrompter`, which 1f deletes.
 - [ ] 1e.3 RED: `OnboardingViewModelTests`. Rows exist only for required permissions (default: Microphone, Accessibility). Each row has why-text, a request or open-settings action, and a waiting state until the status changes. Dictation is disabled with a visible reason and settings link while one is missing [PRM Guided request flow: Missing required permission]. Not shown at launch when already granted; reappears if one is revoked [PRM Onboarding completion].
 - [ ] 1e.4 GREEN: `Sources/SusurroUI/Contracts/OnboardingViewState.swift` and `OnboardingViewModeling` (intents `request`, `openSettings`, `recheck`); `Presentation/OnboardingViewModel.swift`.
 - [ ] 1e.5 REFACTOR: Extract the shared "dictation disabled reason" type for the menu and overlay.
@@ -161,8 +251,8 @@ Test commands use the package paths from `openspec/config.yaml`. "Whole PR" proo
 
 - [ ] 1f.1 RED: Snapshot tests in `Packages/SusurroUI/Tests/SusurroUITests/`: `PermissionRow` (granted, waiting, denied, stale), `PermissionChecklist`, `OnboardingScreen` (default, all granted, stale), each in light and dark.
 - [ ] 1f.2 GREEN: Molecule `PermissionRow`, organism `PermissionChecklist`, screen `OnboardingScreen`, and `OnboardingContainer`, with previews. Token lint stays green.
-- [ ] 1f.3 GREEN: `Composition/AppEnvironment.swift` with `.live` (permissions checker, settings, theme store) and `.preview` (fakes).
-- [ ] 1f.4 GREEN: `App/Sources/SusurroApp.swift`: `MenuBarExtra` showing permission status, the disabled reason, and an "Open System Settings" link; the onboarding window opens at launch only when incomplete.
+- [ ] 1f.3 GREEN: Extend the WS5 `Composition/AppEnvironment.swift`: `.live` gains the settings store, theme store, and `PermissionsMonitor`; `.preview` gains the matching fakes.
+- [ ] 1f.4 GREEN: Extend the WS5 `App/Sources/SusurroApp.swift` menu with the disabled reason; the onboarding window opens at launch only when incomplete. Delete `Presentation/Skeleton/PermissionPrompter.swift`.
 - [ ] 1f.5 VERIFY: Record snapshots via CI. Manually: revoke Accessibility and see the banner within ~1 s; stale guidance appears after the timeout.
 
 ---
@@ -177,57 +267,57 @@ Test commands use the package paths from `openspec/config.yaml`. "Whole PR" proo
 - [ ] 2a.4 RED: Escape. While pressed or handsFree it gives idle with [cancelCap, cancelDoubleTapTimeout, cancelCapture(keepAudio)]. Idle with a job in flight gives [cancelNewestJob]. Idle with nothing in flight, including awaitingSecondTap after a tap, produces no effects and `consumed == false` [ACT Escape cancels: Cancel while recording, Cancel during transcription, Escape when idle].
 - [ ] 2a.5 RED: Esc lifecycle [validator note 1]. State tracks `jobsInFlight` through `jobEnqueued` and `jobFinished` events. The last `jobFinished` while idle or awaitingSecondTap emits an explicit `disarmEsc`. It is not emitted while another job or a recording is active. A job cancelled by `cancelNewestJob` still disarms when it is the last to finish.
 - [ ] 2a.6 RED: Overlap and preconditions. A down with `jobsInFlight > 0` starts a new recording [ACT Overlapping dictations: Press during processing]. A down during recording or handsFree never starts a second capture. `StartPreconditions.evaluate` matrix: mic denied gives a permissions remedy; recognizer notInstalled gives a settings remedy; cloud without key gives an add-a-key remedy; loading is allowed [ACT Start preconditions: Permission denied, Model missing vs loading]. A failed precondition stays idle with `showError(remedy)` and no `startCapture`.
-- [ ] 2a.7 GREEN: `Sources/Domain/Hotkey.swift` (`HotkeyEvent`), `Sources/Activation/ActivationMachine.swift` (State, Event, Effect, `reduce`), `Sources/Activation/StartPreconditions.swift`. Add `Activation` and `ActivationTests` targets to the manifest.
+- [ ] 2a.7 GREEN: Extend `Sources/Domain/Hotkey.swift` (`HotkeyEvent` exists from WS1) as needed, add `Sources/Activation/ActivationMachine.swift` (State, Event, Effect, `reduce`), `Sources/Activation/StartPreconditions.swift`. Add `Activation` and `ActivationTests` targets to the manifest.
 - [ ] 2a.8 RED+GREEN: `ActivationInvariantTests` replays effects over 1,000+ seeded random event sequences. Invariants: at most one capture active; Esc armed if and only if (recording or `jobsInFlight > 0`).
 - [ ] 2a.9 REFACTOR: Table-driven test helper; document effect ordering in the reducer header comment.
 
-### PR 2b: DictationCoordinator activation loop (~500)
+### PR 2b: Reducer-driven DictationCoordinator (~550)
 
-- [ ] 2b.1 RED: `Packages/SusurroCore/Tests/PipelineTests/DictationCoordinatorActivationTests.swift` (FakeHotkeySource, FakeRecordingController, ManualClock). Hold of 1200 ms starts at t=0 and finishes at 1200. A tap discards, and the 350 ms timeout fires through the clock. A double tap keeps recording past the second up. 5 minutes of silence leaves it recording [ACT: Long silence does not stop]. The 10-minute cap finishes with a cap notice in hold and hands-free modes [ACT: Safety cap].
+- [ ] 2b.1 RED: `Packages/SusurroCore/Tests/PipelineTests/DictationCoordinatorActivationTests.swift` (FakeHotkeySource, FakeAudioCaptureSource, ManualClock; the WS1 hold tests keep passing). Hold of 1200 ms starts at t=0 and finishes at 1200. A tap discards, and the 350 ms timeout fires through the clock. A double tap keeps recording past the second up. 5 minutes of silence leaves it recording [ACT: Long silence does not stop]. The 10-minute cap finishes with a cap notice in hold and hands-free modes [ACT: Safety cap].
 - [ ] 2b.2 RED: `setEscapeArmed` calls on FakeHotkeySource. True on press; false after a tap discard with no job [validator note 1]; true again on hands-free; false after the last `jobFinished`; stays true while another job is in flight. Esc while recording calls `cancelCapture(keepAudio)` and inserts nothing.
-- [ ] 2b.3 RED: A precondition failure publishes `PipelineState.error(remedy)` and starts no capture. State is `.starting` until the controller's start returns, then `.recording(.hold)` or `.recording(.handsFree)`.
-- [ ] 2b.4 GREEN: `Sources/Domain/Pipeline.swift` (`PipelineState`, `NoticeKind`, `RecordingControlling`, `HotkeySource` port), `CoreTestSupport/FakeHotkeySource.swift` and `FakeRecordingController.swift`, and `Sources/Pipeline/DictationCoordinator.swift` (actor). It consumes hotkey events, runs the reducer, executes effects, runs timers as `Task`s on the injected `any Clock<Duration>` (cancelled by `cancel...` effects), and publishes the `PipelineState` stream. Add the `Pipeline` target.
+- [ ] 2b.3 RED: A precondition failure publishes `PipelineState.error(remedy)` and starts no capture. State is `.starting` until the first audio chunk arrives, then `.recording(.hold)` or `.recording(.handsFree)`.
+- [ ] 2b.4 GREEN: Rework the WS1 `Sources/Pipeline/DictationCoordinator.swift` so it consumes hotkey events, runs the `ActivationMachine` reducer, executes effects, runs timers as `Task`s on the injected `any Clock<Duration>` (cancelled by `cancel...` effects), and publishes the `PipelineState` stream. Delete the hold-only logic WS1 placed inline. `PipelineState`, `HotkeySource`, and the fakes exist from WS1; extend them (add `HotkeySource.setEscapeArmed` and `FakeHotkeySource` recording of it, which WS1 trimmed; add `RecordingMode.handsFree`; `NoticeKind.capReached` already exists from WS1.6).
 - [ ] 2b.5 REFACTOR: Extract the timer registry; assert no leaked tasks after each test.
 
-### PR 2c: Hotkeys adapter (~450)
+### PR 2c: Hotkey configuration, Esc, Secure Input (~350)
 
-- [ ] 2c.1 RED: `Packages/SusurroPlatform/Tests/HotkeysTests/HotkeyEventMapperTests.swift`. Raw down/up map to `HotkeyEvent` with timestamps. A duplicate down while held is ignored. An up without a down is ignored. Flag changes map to down and up for modifier-only keys.
+- [ ] 2c.1 RED: Extend `Packages/SusurroPlatform/Tests/HotkeysTests/HotkeyEventMapperTests.swift` (created in WS2; the raw down/up, duplicate-down, and up-without-down cases already pass). Flag changes map to down and up for modifier-only keys.
 - [ ] 2c.2 RED: `HotkeyConfigurationTests`. The default is a keyed combo needing no Input Monitoring. A modifier-only or fn hotkey without Input Monitoring is not armed and status is `.needsInputMonitoring` [ACT Hotkey configuration: Modifier-only without permission]; once granted it arms. A Secure Event Input probe returning true exposes the warning [ACT: Secure input active].
-- [ ] 2c.3 GREEN: Add the pinned KeyboardShortcuts dependency. `Platform/Hotkeys/HotkeyService.swift` (`HotkeySource`): KeyboardShortcuts for keyed combos, a listen-only `flagsChanged` monitor for modifier-only and fn, a `SecureInputProbe` seam, and `HotkeyStatus`.
+- [ ] 2c.3 GREEN: Extend the WS2 `Platform/Hotkeys/HotkeyService.swift` (KeyboardShortcuts is already a dependency): the fixed `DefaultHotkey` becomes a user-configurable keyed combo, and the service gains a listen-only `flagsChanged` monitor for modifier-only and fn, a `SecureInputProbe` seam, and `HotkeyStatus`.
 - [ ] 2c.4 RED: `EscapeRegistrationTests`. `setEscapeArmed(true)` registers the Esc handler and `false` unregisters it; both are idempotent; Esc is not registered at launch. [ACT Escape cancels: Escape when idle]
 - [ ] 2c.5 GREEN: Esc registration inside `HotkeyService`.
-- [ ] 2c.6 GREEN: Settings keys `hotkey.combo` and `hotkey.kind`. Add `NoopRecordingController` (interim). `AppEnvironment.live` wires `HotkeyService` to the coordinator.
+- [ ] 2c.6 GREEN: Settings keys `hotkey.combo` and `hotkey.kind` replace the fixed `DefaultHotkey` constant; `AppEnvironment.live` reads them.
 - [ ] 2c.7 VERIFY: `make run` + `log stream`: hold, tap, double-tap, and Esc transitions are logged. Esc passes through to TextEdit when idle.
 
 ### PR 2d: Overlay state, mapping, throttle, placement, auto-dismiss (~650)
 
 - [ ] 2d.1 RED: `Packages/SusurroFeatures/Tests/PresentationTests/OverlayViewModelTests.swift`. `.starting` shows until the first buffer, then recording [OVL Pipeline-driven state: Ready gating]. Hands-free sets the flag and a stop hint [OVL Hands-free indication]. Transcribing and polishing map through [OVL: Cleanup stage]. A cap notice maps to `notice`. Errors name the recovery path (history or permissions) [OVL Auto-dismiss].
-- [ ] 2d.2 GREEN: `Sources/SusurroUI/Contracts/OverlayViewState.swift` (hidden, starting, recording(handsFree, hint), transcribing, polishing, inserted, notice, error) and `OverlayViewModeling`; `Presentation/OverlayViewModel.swift` (`@Observable @MainActor`).
+- [ ] 2d.2 GREEN: `Sources/SusurroUI/Contracts/OverlayViewState.swift` (hidden, starting, recording(handsFree, hint), transcribing, polishing, inserted, notice, error) and `OverlayViewModeling`; `Presentation/OverlayViewModel.swift` (`@Observable @MainActor`). It replaces the WS5 `SkeletonOverlayPresenter`, whose tests move over.
 - [ ] 2d.3 RED: `LevelThrottleTests` (ManualClock). 100 samples within 100 ms deliver at most 3 [OVL Level meter throttling: Burst of levels].
 - [ ] 2d.4 GREEN: `Presentation/LevelThrottle.swift`.
-- [ ] 2d.5 RED: `AutoDismissTests`. Inserted hides after the success delay [OVL: Success dismissal]. An error is still visible at the success delay and hides after the longer error delay [OVL: Error persists longer]. Notices are bounded. A new state cancels the pending dismissal.
+- [ ] 2d.5 RED: `AutoDismissTests`. Inserted hides after the success delay [OVL: Success dismissal]. An error is still visible at the success delay and hides after the longer error delay [OVL: Error persists longer]. Notices are bounded and keep their dwell time even when the pipeline moves on at once (the cap notice is followed by `transcribing`). A new state cancels the pending dismissal except for a notice still within its dwell time.
 - [ ] 2d.6 GREEN: Dismissal scheduling in `OverlayViewModel` with an injectable `OverlayTiming` (success, notice, error).
 - [ ] 2d.7 RED: `Packages/SusurroUI/Tests/SusurroUITests/OverlayPlacementTests.swift`. Two screens with the focused window on the second give a frame on the second screen, horizontally centered, at the bottom by default or the top by setting. With no focused window it uses the main screen. Geometry comes from the Theme. [OVL Placement: Multi-screen]
 - [ ] 2d.8 GREEN: `Sources/SusurroUI/Overlay/OverlayPlacement.swift` (pure function).
 - [ ] 2d.9 REFACTOR: Share the dismissal timer helper with the future notice flow.
 
-### PR 2e: Overlay UI, variants, NSPanel host (~600)
+### PR 2e: Themed overlay UI, variants, panel host (~550)
 
 - [ ] 2e.1 RED: `OverlayStyleRegistryTests`. A test variant "compact" is registered and the setting selects it; the host renders that variant for the same state values [THM Replaceable overlay variants: Register a variant]. An unknown id falls back to the default variant with a reported error [THM: Unknown variant].
 - [ ] 2e.2 GREEN: `Sources/SusurroUI/Overlay/OverlayStyle.swift` (protocol), `OverlayStyleRegistry`, default `PillOverlayStyle`, and an error channel.
-- [ ] 2e.3 RED: `OverlayPanelTests`. The panel is non-activating and borderless, `canBecomeKey == false`, `canBecomeMain == false`, `ignoresMouseEvents == true`, collection behavior has `.canJoinAllSpaces` and `.fullScreenAuxiliary`, level `.statusBar` [OVL Non-activating panel: Panel configuration].
-- [ ] 2e.4 GREEN: `OverlayPanel` and `OverlayPanelHost` (NSHostingView with the theme environment).
+- [ ] 2e.3 RED: Move the WS5 `SkeletonOverlayPanelTests` into the SusurroUI test target as `OverlayPanelTests`. The panel is non-activating and borderless, `canBecomeKey == false`, `canBecomeMain == false`, `ignoresMouseEvents == true`, collection behavior has `.canJoinAllSpaces` and `.fullScreenAuxiliary`, level `.statusBar` [OVL Non-activating panel: Panel configuration].
+- [ ] 2e.4 GREEN: Move the WS5 panel into SusurroUI as `OverlayPanel` and `OverlayPanelHost` (NSHostingView with the theme environment), and delete the unthemed views under `Presentation/Skeleton/`.
 - [ ] 2e.5 RED: `FocusPreservationTests`. The frontmost app is unchanged after show and hide [OVL: Focus preserved]. Guarded with `.enabled(if:)` for GUI-less CI; manual otherwise.
 - [ ] 2e.6 RED: Snapshot tests for every overlay state (starting, recording hold, recording hands-free, transcribing, polishing, inserted, notice, error) in light and dark with the default Theme [THM Deterministic presentational views: State coverage], plus a stable-render check [THM: Stable snapshot].
 - [ ] 2e.7 GREEN: `OverlayHUD` organism, `WaveformMeter` molecule (reuses `LevelBar`), variants, previews, and `OverlayContainer`.
-- [ ] 2e.8 GREEN: Composition wires `OverlayPanelHost` to `OverlayViewModel`. The app owns the overlay controller.
+- [ ] 2e.8 GREEN: Composition wires `OverlayPanelHost` to `OverlayViewModel` in place of the skeleton presenter. The app owns the overlay controller.
 - [ ] 2e.9 VERIFY: Record snapshots via CI. Manually: hold the hotkey with TextEdit focused; the HUD shows and focus is kept; hands-free hint; Esc.
 
 ---
 
 ## Slice 3: Audio capture, VAD, durable store
 
-### PR 3a: RecordingSession and audio domain (~700)
+### PR 3a: RecordingSession and durable-store ports (~650)
 
 - [ ] 3a.1 RED: `Packages/SusurroCore/Tests/PipelineTests/RecordingSessionTests.swift` (FakeAudioCaptureSource, FakeRecordingStore, ManualClock). Ready is signaled at the first buffer, which arrives 300 ms after start [AUD Readiness signal: Slow device]. Chunks reach the sink incrementally while capturing [AUD Durable audio before processing].
 - [ ] 3a.2 RED: A scripted 10-minute stream never holds more than 30 s of audio (`peakBufferedDuration`) [AUD Bounded memory: Long recording].
@@ -235,20 +325,18 @@ Test commands use the package paths from `openspec/config.yaml`. "Whole PR" proo
 - [ ] 3a.4 RED: Sink write failure, finish failure, or verification failure (unreadable, empty, duration outside tolerance) gives `.failed(.persistence)` and no `VerifiedRecording`, so the recognizer cannot be invoked [AUD: Store failure; Stored before recognition].
 - [ ] 3a.5 RED: `start` throwing `noInputDevice` fails before recording. `deviceRemoved` after 4 s completes with the 4 s stored plus `notice(.deviceDisconnected)` [AUD Device failures: Disconnect mid-recording].
 - [ ] 3a.6 RED: A constant-amplitude chunk yields the expected RMS on the level stream.
-- [ ] 3a.7 GREEN: `Sources/Domain/Audio.swift` (`SessionID`, `AudioChunk`, `AudioClip`, `AudioCaptureSource`, `AudioRecordingStore`, `AudioRecordingSink`, `VerifiedRecording`, `CaptureError`), `Sources/Pipeline/RecordingSession.swift` (actor), and fakes in `CoreTestSupport`.
+- [ ] 3a.7 GREEN: Extend `Sources/Domain/Audio.swift` (`AudioChunk`, `AudioClip`, `AudioCaptureSource`, and `CaptureError` exist from WS1) with `SessionID`, `AudioRecordingStore`, `AudioRecordingSink`, and `VerifiedRecording`. Add `Sources/Pipeline/RecordingSession.swift` (actor) wrapping `AudioCaptureSource`, which replaces the skeleton coordinator's in-memory accumulation, plus store fakes in `CoreTestSupport`.
 - [ ] 3a.8 REFACTOR: Make the memory-bound policy a named constant with a doc comment.
 
-### PR 3b: CAF store and AVAudioEngine capture (~750)
+### PR 3b: CAF store and capture hardening (~400)
 
 - [ ] 3b.1 RED: `Packages/SusurroPlatform/Tests/AudioIOTests/CAFRecordingStoreTests.swift`. Int16 CAF is written incrementally in a temp dir. `finish()` verifies readable, non-empty, and duration within tolerance of the sample count (read back with `AVAudioFile`). A corrupt or empty file fails verification. `delete` removes the file. [AUD Durable audio before processing]
 - [ ] 3b.2 GREEN: `Platform/AudioIO/CAFRecordingStore.swift` with an injected Application Support path provider (`Audio/<id>.caf`).
-- [ ] 3b.3 RED: `FormatConverterTests`. A 48 kHz stereo one-second buffer yields 16000 mono Float32 samples (+/-1). A 44.1 kHz mono buffer also converts. [AUD Capture format: Device at 48 kHz stereo]
-- [ ] 3b.4 GREEN: `Platform/AudioIO/FormatConverter.swift` (AVAudioConverter).
-- [ ] 3b.5 RED: `AVAudioEngineCaptureSourceTests` against an `EngineProviding` seam. No input device makes `start` throw `noInputDevice` before any chunk. The first buffer yields the first chunk. A configuration-change or device-removed notification finishes the stream with `deviceRemoved`. [AUD Readiness; Device failures]
-- [ ] 3b.6 GREEN: `Platform/AudioIO/AVAudioEngineCaptureSource.swift`. The realtime tap converts to 16 kHz mono and yields `Sendable` chunks into an AsyncStream. This bridge is the single documented `@unchecked Sendable`.
-- [ ] 3b.7 GREEN: Replace `NoopRecordingController` with a `RecordingSession`-backed controller in `AppEnvironment.live`. On finish, the verified recording path and duration are logged (the pipeline arrives in 4d).
-- [ ] 3b.8 DOC: ADR "VAD placement: post-pass on the persisted file; file stays untrimmed".
-- [ ] 3b.9 VERIFY: `make run`, record 5 s, `afplay` the CAF in Application Support. Unplug a USB mic mid-record and see the notice.
+- [ ] 3b.3 RED: Extend `AVAudioEngineCaptureSourceTests` (created in WS2; the converter, no-device, and first-buffer cases already pass). A configuration-change or device-removed notification finishes the stream with `deviceRemoved`. [AUD Device failures: Disconnect mid-recording]
+- [ ] 3b.4 GREEN: Add device-removal observation to the WS2 `Platform/AudioIO/AVAudioEngineCaptureSource.swift`.
+- [ ] 3b.5 GREEN: In `AppEnvironment.live`, replace the skeleton coordinator's in-memory accumulation with a `RecordingSession` writing to `CAFRecordingStore`. On finish, the verified recording path and duration are logged (the durable pipeline arrives in 4d).
+- [ ] 3b.6 DOC: ADR "VAD placement: post-pass on the persisted file; file stays untrimmed".
+- [ ] 3b.7 VERIFY: `make run`, record 5 s, `afplay` the CAF in Application Support. Unplug a USB mic mid-record and see the notice.
 
 ### PR 3c: VAD logic and Silero adapter (~450)
 
@@ -263,25 +351,25 @@ Test commands use the package paths from `openspec/config.yaml`. "Whole PR" proo
 
 ## Slice 4: ASR protocol, Parakeet, raw end to end
 
-### PR 4a: ASR domain, registry, runner, readiness (~700)
+### PR 4a: Recognizer registry, runner, readiness wait (~650)
 
 - [ ] 4a.1 RED: `Packages/SusurroCore/Tests/PipelineTests/RecognizerRegistryTests.swift`. Swapping the selected id uses the new fake provider with identical pipeline code [ASR Provider protocol: Swap providers]. A fresh install resolves Parakeet v3 [ASR Default and optional providers: Fresh install]. The selection persists across relaunch (InMemorySettingsStore).
 - [ ] 4a.2 RED: A cloud provider is unusable until enabled with a key, and the reason feeds `StartPreconditions` ("add a key") [ASR Cloud opt-in boundary: Enabled without key]. With default settings the resolved recognizer is local and a spy network records zero requests [ASR: Default sends nothing].
 - [ ] 4a.3 RED: Pinned Spanish passes language "es" and auto passes none [ASR Language: Pinned Spanish]. Vocabulary is passed through; a provider without biasing succeeds when given 5 terms [ASR Vocabulary biasing: Unsupported biasing].
 - [ ] 4a.4 RED: `RecognitionRunnerTests` (ManualClock). A per-call timeout marks the attempt failed with audio retained [ASR Failure, timeout, and fallback: Local failure]. A cloud failure retries once with local Parakeet and records the provider actually used [ASR: Cloud outage]. A blank "   " transcript ends as no-speech [ASR Empty results: Blank transcript].
-- [ ] 4a.5 RED: A dictation ending while the model loads at 40% waits for readiness and publishes progress. `notInstalled` fails with a settings remedy [ASR Model readiness: Recording during load].
-- [ ] 4a.6 GREEN: `Sources/Domain/Recognition.swift` (`SpeechRecognizer`, `RecognizerReadiness`, `RawTranscript`, `RecognitionOptions`, `Locality`, `ASRProviderID`), `Sources/Pipeline/RecognizerRegistry.swift`, `RecognitionRunner.swift`, `ReadinessWaiter.swift`, `CoreTestSupport/FakeRecognizer.swift` and `SpyNetworkTransport.swift`.
+- [ ] 4a.5 RED: A dictation ending while the model loads at 40% waits for readiness and publishes progress. `notInstalled` fails with a settings remedy [ASR Model readiness: Recording during load]. The runner replaces the WS1 poll budget and `withDeadline`, and also bounds `readiness()`, `permissions.status`, and `capture.start`, which the WS1 coordinator calls without a deadline; rewrite the WS1 `loadingRecognizer` test as state-based (progress driven by the fake's readiness, not by the number of polls).
+- [ ] 4a.6 GREEN: Extend `Sources/Domain/Recognition.swift` as needed (the WS1 types and `FakeRecognizer` stay; this task also adds `id`, `locality`, `ASRProviderID`, and `Locality`). Add `Sources/Pipeline/RecognizerRegistry.swift`, `RecognitionRunner.swift`, and `ReadinessWaiter.swift`, which replaces the skeleton coordinator's inline readiness wait, plus `CoreTestSupport/SpyNetworkTransport.swift`.
 - [ ] 4a.7 REFACTOR: Replace stringly-typed provider ids with `ASRProviderID` constants.
 
-### PR 4b: AudioChunker and Parakeet adapter (~700)
+### PR 4b: AudioChunker and Parakeet clip limit (~400)
 
 - [ ] 4b.1 RED: `AudioChunkerTests`. A synthetic 10-minute clip with silence gaps and a 60 s limit gives every chunk at most 60 s, ending on a silence boundary, with transcripts joined in chunk order [ASR Long audio chunking: Ten-minute audio]. A clip under the limit or a nil limit gives one chunk. With no silence in the window it hard-splits at the limit.
 - [ ] 4b.2 GREEN: `Sources/Pipeline/AudioChunker.swift`.
 - [ ] 4b.3 RED: `ChunkedTranscriberTests`. Results are joined in order even when chunk completion order differs. Cancellation mid-chunk stops further chunks.
 - [ ] 4b.4 GREEN: `Sources/Pipeline/ChunkedTranscriber.swift`.
-- [ ] 4b.5 RED: `ParakeetMappingTests` (Inference). Against a `ParakeetEngine` seam fake: FluidAudio states map to notInstalled, loading(progress), ready. Language is mapped and unsupported vocabulary is ignored. Cancellation propagates. No model download.
-- [ ] 4b.6 GREEN: `Inference/FluidAudioASR/ParakeetRecognizer.swift` (actor serializing inference, preload at launch) and the live `ParakeetEngine`.
-- [ ] 4b.7 VERIFY: Resolve Open Question 2. Measure the effective `maxClipDuration` on 30/60/120 s clips with a debug action and record the constant in an ADR.
+- [ ] 4b.5 VERIFY: Resolve Open Question 2. Measure the effective Parakeet `maxClipDuration` on 30/60/120 s clips with a debug action and record the constant in an ADR.
+- [ ] 4b.6 RED: Extend `ParakeetMappingTests` (created in WS4): `ParakeetRecognizer.maxClipDuration` equals the measured constant, and `AudioChunker` splits at it.
+- [ ] 4b.7 GREEN: Set `maxClipDuration` on the WS4 `ParakeetRecognizer` (it joins the `SpeechRecognizer` port here) and replace the skeleton's 60 s whole-clip cap with chunked transcription.
 
 ### PR 4c: ProcessingQueue and GRDB history repository (~750)
 
@@ -291,18 +379,18 @@ Test commands use the package paths from `openspec/config.yaml`. "Whole PR" proo
 - [ ] 4c.4 GREEN: Add the pinned GRDB dependency. `Sources/Domain/History.swift` (`DictationRecord`, `DictationStatus`, `HistoryRepository` port), `Platform/Persistence/GRDBHistoryRepository.swift`, `Migrations.swift`, `CoreTestSupport/InMemoryHistoryRepository.swift`. The spec requires `finalText`, `asrProvider`, `cleanerProvider`, `appName`, and `urlHost`, which the design's column list omits. Add them in migration v1.
 - [ ] 4c.5 RED+GREEN: Startup recovery marks stale `processing` rows as `failed(interrupted)`, with audio kept and retriable.
 
-### PR 4d: Raw dictation end to end (~800)
+### PR 4d: Durable dictation pipeline end to end (~750)
 
-- [ ] 4d.1 RED: `Packages/SusurroCore/Tests/PipelineTests/DictationPipelineE2ETests.swift`, fakes only. A scripted hold through VAD speech and recognizer "hola mundo" reaches the interim inserter with the raw text. The `captured` record is inserted before the recognizer is called (spy ordering) [AUD Durable audio: Stored before recognition]. The final record is succeeded with raw text and provider. The spy network records zero requests.
+- [ ] 4d.1 RED: `Packages/SusurroCore/Tests/PipelineTests/DictationPipelineE2ETests.swift`, fakes only. A scripted hold through VAD speech and recognizer "hola mundo" reaches the `FakeTextInserter` with the raw text. The `captured` record is inserted before the recognizer is called (spy ordering) [AUD Durable audio: Stored before recognition]. The final record is succeeded with raw text and provider. The spy network records zero requests.
 - [ ] 4d.2 RED: No-speech paths. VAD with no segments ends as no-speech with a notice and the recognizer is never called [AUD: Silent room]. A muted mic gets the silent-microphone notice [AUD: Muted microphone]. A blank transcript ends as no-speech [ASR: Blank transcript].
 - [ ] 4d.3 RED: A recording under 300 ms and a tap leave no job and no history row [AUD: Accidental blip; ACT Tap discard].
 - [ ] 4d.4 RED: Esc during recording keeps a cancelled record with audio and inserts nothing [ACT: Cancel while recording]. Esc during ASR with a later recognizer return discards the text and inserts nothing [ACT: Cancel during transcription]. The cancel token is checked at every stage boundary.
 - [ ] 4d.5 RED: Overlap. A processing, B recorded: A is inserted before B, each with its own `SessionID` [ACT: Press during processing].
 - [ ] 4d.6 RED: Esc lifecycle integration [validator note 1]. Tap discard calls `setEscapeArmed(false)`. After the last job ends (succeeded, failed, cancelled, or no-speech) it is false. While another job is in flight it stays true.
-- [ ] 4d.7 RED: ASR timeout stores a failed record with audio retained and an error naming history [ASR: Local failure]. A persistence failure shows an error and the recognizer is never invoked.
-- [ ] 4d.8 GREEN: Extend `DictationCoordinator`: finish, RecordingSession result, insert `captured` record, VAD, chunker, recognition runner, record update, `TextInserter`, and a `jobFinished` event. Add `Domain/TextInserter.swift` and `Platform/TextInsertion/ClipboardOnlyInserter.swift` (writes to NSPasteboard and shows a "copied to clipboard" notice; interim). Publish transcribing, inserted, and error states.
-- [ ] 4d.9 GREEN: `AppEnvironment.live` wires hotkeys, capture, store, VAD, Parakeet, GRDB, and the interim inserter. Preload Parakeet at launch with progress to the overlay [ASR Model readiness].
-- [ ] 4d.10 VERIFY: `make run`, dictate Spanish; text reaches the clipboard in under 2 s after release (os_signpost).
+- [ ] 4d.7 RED: ASR timeout stores a failed record with audio retained and an error naming history [ASR: Local failure]. A persistence failure shows an error and the recognizer is never invoked. The WS1 coordinator drops the clip when a transcription fails or times out; retain it here (with 4c) so the failed record can be retried.
+- [ ] 4d.8 GREEN: Extend the `DictationCoordinator` (hold-only flow from WS1, reducer-driven since 2b): finish, `RecordingSession` result, insert `captured` record, VAD, chunker, recognition runner, record update, `TextInserter`, and a `jobFinished` event. Replace the skeleton busy guard with `ProcessingQueue`. Publish transcribing, inserted, and error states.
+- [ ] 4d.9 GREEN: `AppEnvironment.live` adds VAD, GRDB, the queue, and the recognition runner to the skeleton wiring (hotkeys, capture, Parakeet, `SimplePasteInserter`). Parakeet preload with progress already exists from WS5 [ASR Model readiness].
+- [ ] 4d.10 VERIFY: `make run`, dictate Spanish; text pastes in under 2 s after release (os_signpost), and the CAF file and history row exist.
 
 ---
 
@@ -311,7 +399,7 @@ Test commands use the package paths from `openspec/config.yaml`. "Whole PR" proo
 ### PR 5a: PasteTransaction policy (~800)
 
 - [ ] 5a.1 RED: `FakePasteboardTests`. `changeCount` increments on write, publish, and restore. A promise supplies data lazily and emits read receipts. `pendingPromiseCount` is observable.
-- [ ] 5a.2 GREEN: `Sources/Domain/Insertion.swift` (`Pasteboard` and `KeystrokePoster` ports, `PasteboardSnapshot`, `ReadReceipt`, `InsertionOutcome`); `CoreTestSupport/FakePasteboard.swift` and `FakeKeystrokePoster.swift`.
+- [ ] 5a.2 GREEN: Extend `Sources/Domain/Insertion.swift` (the `KeystrokePoster` port and `InsertionOutcome` exist from WS3) with the `Pasteboard` port, `PasteboardSnapshot`, and `ReadReceipt`; add `CoreTestSupport/FakePasteboard.swift` (`FakeKeystrokePoster` exists from WS3).
 - [ ] 5a.3 RED: `Packages/SusurroCore/Tests/PipelineTests/PasteTransactionTests.swift`, promise. The promise declares transient, concealed, and auto-generated markers, and the text is supplied only when requested [INS Promised pasteboard write: Marked types].
 - [ ] 5a.4 RED: Restore. `baseline` is `changeCount` immediately after publishing. After success and a 200 ms quiet period the snapshot is restored [INS Conditional restore: Clean restore]. A user copy during the quiet period means no restore [INS: User copied meanwhile]. Another data request resets the quiet timer. Two items with text, RTF, and image types all restore equal [INS Pasteboard snapshot: Rich pasteboard].
 - [ ] 5a.5 RED: Safe chord. Option held after release means no chord until it is released, and the chord carries only Command [INS Safe paste chord: Modifier still held]. Never released gives no chord and the failure path [INS: Modifier never released].
@@ -327,11 +415,12 @@ Test commands use the package paths from `openspec/config.yaml`. "Whole PR" proo
 
 - [ ] 5b.1 RED: `Packages/SusurroPlatform/Tests/TextInsertionTests/NSPasteboardAdapterTests.swift`, using a uniquely named `NSPasteboard`. A snapshot captures every item and every type including custom ones, and restore reproduces them [INS: Rich pasteboard]. The promise declares the transient, concealed, and auto-generated markers and supplies the string lazily through `NSPasteboardItemDataProvider` [INS: Marked types]. A data request emits a read receipt.
 - [ ] 5b.2 GREEN: `Platform/TextInsertion/NSPasteboardAdapter.swift`.
-- [ ] 5b.3 RED: `KeystrokePosterTests`. The "v" keycode is resolved from the active layout (a Dvorak fixture differs from QWERTY). The event carries only the Command flag from a private event source. `modifiersHeld()` reads physical flags. Missing Accessibility throws `accessibilityNotGranted` before posting.
-- [ ] 5b.4 GREEN: `Platform/TextInsertion/CGEventKeystrokePoster.swift`.
+- [ ] 5b.3 RED: Extend the WS3 `PasteChordTests` and add `KeystrokePosterTests`. The "v" keycode is resolved from the active layout (a Dvorak fixture differs from QWERTY; WS3 used a fixed ANSI keycode). The event carries only the Command flag from a private event source. `modifiersHeld()` reads physical flags. Missing Accessibility throws `accessibilityNotGranted` before posting.
+- [ ] 5b.4 GREEN: Extend the WS3 `Platform/TextInsertion/CGEventKeystrokePoster.swift` with layout-based keycode resolution.
 - [ ] 5b.5 GREEN: `Platform/TextInsertion/NSWorkspaceFrontmostAppProvider.swift` (`FrontmostAppProvider`, PID captured at record start).
-- [ ] 5b.6 GREEN: Replace `ClipboardOnlyInserter` with `PasteTransaction` in `AppEnvironment.live`; delete the interim inserter and its tests.
+- [ ] 5b.6 GREEN: Replace `SimplePasteInserter` with `PasteTransaction` in `AppEnvironment.live`; delete `SimplePasteInserter` and its tests.
 - [ ] 5b.7 VERIFY: Manual checklist. Paste in Mail, Slack, Terminal, and ChatGPT (browser). Copy an image plus text, dictate, and confirm the clipboard is restored. Copy during the quiet period. Revoke Accessibility and see the notice. Switch apps before insertion.
+- [ ] 5b.8 RED+GREEN: An insertion timeout in the coordinator reports an uncertain outcome (the text may already have been pasted) instead of the WS1 `retry` remedy, so the notice does not invite a duplicate dictation.
 
 ---
 
