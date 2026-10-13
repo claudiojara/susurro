@@ -231,7 +231,7 @@ struct ReceiptTests: PasteTestCase {
 
         let outcome = await makeInserter(keys).insert("hello world")
 
-        #expect(outcome == .copiedToClipboard(.pasteFailed))
+        #expect(outcome == .notInserted(.clipboardChanged))  // the text is nowhere: not pasted, and not kept
         #expect(clock.elapsed == Self.receiptTimeout)
         #expect(pasteboardText == "user copy")
         #expect(contents().count == 1)

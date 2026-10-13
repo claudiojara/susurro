@@ -133,8 +133,27 @@ struct PasteRestoreTests: PasteTestCase {
 
         let outcome = await makeInserter(keys, writeItem: { _, _ in false }).insert("hello world")
 
-        #expect(outcome == .copiedToClipboard(.pasteFailed))
+        #expect(outcome == .notInserted(.clipboardWriteFailed))
         #expect(keys.postCount == 0)
         #expect(contents() == before)
+    }
+
+    @Test("when the chord fails and the pasteboard refuses the plain text too, the outcome says it is nowhere")
+    func refusedFallbackWrite() async {
+        let keys = FakeKeystrokePoster(postFailure: .eventCreationFailed)
+        var writes = 0
+        let sut = makeInserter(
+            keys,
+            writeItem: { pasteboard, item in
+                writes += 1
+                return writes == 1 && pasteboard.writeObjects([item])  // the promise is accepted, the plain text is not
+            }
+        )
+
+        let outcome = await sut.insert("hello world")
+
+        #expect(outcome == .notInserted(.clipboardWriteFailed))
+        #expect(writes == 2)
+        #expect(keys.postCount == 1)
     }
 }
