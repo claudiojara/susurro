@@ -23,14 +23,18 @@ public struct OSLogDiagnostics: DiagnosticsLog {
         switch event {
         case .dictationFailed(let kind): (.error, "dictation failed: \(kind)")
         case .captureStreamFailed(let errorType): (.error, "capture stream failed: \(errorType)")
+        case .processingCapReached: (.error, "processing did not finish within its total time limit")
         case .captureStopAbandoned: (.error, "capture did not stop in time and was abandoned")
         case .shutdownDrainAbandoned: (.error, "shutdown stopped waiting for the paste to finish")
         case .pasteNotCompleted(let cause): (.error, "paste not completed: \(cause)")
         case .pasteboardWriteRefused: (.error, "the pasteboard refused a write")
         case .clipboardRestoreFailed: (.error, "the pasteboard refused the old contents")
+        case .clipboardRestoreAtTermination(let restored):
+            (.default, restored ? "termination: the clipboard was put back" : "termination: no clipboard to put back")
         case .captureFirstBuffer(let frames, let sampleRate):
             (.default, "first tap buffer: \(frames) frames at \(Int(sampleRate)) Hz")
         case .appLaunched: (.default, "app launched")
+        case .appTerminating: (.default, "app terminating")
         case .modelPrepareRequested: (.default, "speech model: prepare requested")
         case .modelReadiness(let state): (.default, "speech model: \(state)")
         case .launchPermissions(let microphone, let accessibility):

@@ -44,6 +44,8 @@ public actor DictationCoordinator {
     private var processTask: Task<Void, Never>?
     /// The stage of the dictation being processed, which a cap that runs out names in its error.
     private var processingStage = PipelineError.Stage.readiness
+    /// Whether the total cap ran out on the dictation being processed, as opposed to the limit of one of its stages.
+    private var processingCapRanOut = false
     /// The one shutdown, so that every caller waits for the same work.
     private var shutdownTask: Task<Void, Never>?
 
@@ -133,7 +135,7 @@ public actor DictationCoordinator {
             try await checkStartPreconditions()
             guard phase == .starting else { return }  // shut down meanwhile
             publish(.starting)
-            let stream = try await capture.start()
+            let stream = try await startCapture()
             guard phase == .starting else { return await abandonCapture() }  // shut down meanwhile
             samples = []
             receivedAudio = false
@@ -143,6 +145,20 @@ public actor DictationCoordinator {
             if let release = pendingRelease { await released(at: release) }
         } catch {
             settle(.error(Self.pipelineError(from: error, otherwise: PipelineError.captureFailed)))
+        }
+    }
+
+    /// Starts the capture within its limit. One that has not started in time is told to stop, in case it starts late
+    /// and would otherwise keep the microphone open for nobody.
+    private func startCapture() async throws -> AsyncThrowingStream<AudioChunk, Error> {
+        do {
+            return try await withDeadline(DictationLimits.captureStartTimeout, stage: .capture, sleep: sleep) {
+                [capture] in
+                try await capture.start()
+            }
+        } catch PipelineError.timedOut(.capture) {
+            await abandonCapture()
+            throw PipelineError.timedOut(.capture)
         }
     }
 
@@ -264,16 +280,25 @@ public actor DictationCoordinator {
     /// the cycle itself, so work that the cap abandons cannot settle it after the cap has.
     private func process(_ clip: AudioClip) async {
         processingStage = .readiness
+        processingCapRanOut = false
         do {
             let outcome = try await withDeadline(
-                DictationLimits.processingCap, stageAtExpiry: { await self.processingStage }, sleep: sleep
+                DictationLimits.processingCap, stageAtExpiry: { await self.capRanOut() }, sleep: sleep
             ) {
                 try await self.transcribeAndInsert(clip)
             }
             settle(outcome)
         } catch {
+            // The error alone cannot say which limit ended the dictation: the cap and a stage name the same stage.
+            if processingCapRanOut { diagnostics.record(.processingCapReached) }
             settle(.error(Self.pipelineError(from: error, otherwise: PipelineError.recognitionFailed)))
         }
+    }
+
+    /// Called when the total cap runs out, and only then. Returns the stage the cap interrupted.
+    private func capRanOut() -> PipelineError.Stage {
+        processingCapRanOut = true
+        return processingStage
     }
 
     private func transcribeAndInsert(_ clip: AudioClip) async throws -> PipelineState {
