@@ -122,6 +122,23 @@ struct AppEnvironmentTests {
         await f.environment.shutdown()
     }
 
+    @Test("a model that fails to load after its progress showed puts a warning on the overlay, and then hides it")
+    func modelUnavailable() async {
+        let f = AppEnvironmentFixture()
+        f.environment.start()
+        f.readiness.publish(.loading(progress: 0.4))
+        f.sleeper.fire(ModelLoadWatcher.standardDelay)
+        await f.eventually("the overlay progress") { f.overlay.current == "Preparing the speech model… 40%" }
+
+        f.readiness.publish(.unavailable("offline", retryable: true))
+        await f.eventually("the warning") {
+            f.overlay.current == "Speech model unavailable. Open the Susurro menu for details."
+        }
+        f.sleeper.fire(OverlayTiming.standard.error)
+        await f.eventually("the overlay to hide") { f.overlay.current == nil }
+        await f.environment.shutdown()
+    }
+
     // MARK: Permissions in the menu
 
     @Test("the menu reads the permissions again when the app becomes active")
@@ -164,12 +181,13 @@ struct AppEnvironmentTests {
         #expect(f.capture.startCount == 0)
     }
 
-    @Test("termination puts the clipboard back")
+    @Test("termination is logged, and then puts the clipboard back")
     func termination() {
         let f = AppEnvironmentFixture()
 
-        f.environment.restoreClipboardForTermination()
+        f.environment.willTerminate()
 
+        #expect(f.diagnostics.events == [.appTerminating])
         #expect(f.clipboardRestores == 1)
     }
 

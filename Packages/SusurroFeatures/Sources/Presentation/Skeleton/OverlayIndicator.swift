@@ -43,9 +43,14 @@ public struct OverlayIndicator: Equatable, Sendable {
         }
     }
 
+    /// The speech model failed to load after its progress had been on screen.
+    static let modelUnavailable = OverlayIndicator(
+        tone: .warning, symbol: "exclamationmark.triangle",
+        message: "Speech model unavailable. Open the Susurro menu for details.", progress: nil)
+
     /// The speech model loading, whether a dictation waits for it or the app is idle.
     static func modelLoading(progress: Double) -> OverlayIndicator {
-        let fraction = min(max(progress, 0), 1)
+        let fraction = progress.loadFraction
         return OverlayIndicator(
             tone: .neutral, symbol: "arrow.down.circle",
             message: "Preparing the speech model… \(Int((fraction * 100).rounded()))%", progress: fraction)

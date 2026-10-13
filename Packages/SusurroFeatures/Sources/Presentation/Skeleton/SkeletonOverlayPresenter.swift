@@ -2,9 +2,12 @@ import Domain
 
 /// Turns the pipeline's states into the indicator on screen. An indicator that dismisses itself (inserted, a notice, an
 /// error) is held for its dwell even though the pipeline moves on at once, and the states that arrive meanwhile wait for
-/// it, the latest of them first in line. A new recording, an error, and a busy notice cannot wait and replace it.
+/// it, the latest of them first in line. A new recording, an error, and a busy notice cannot wait and replace it. A busy
+/// notice is the exception among the held indicators: it only says that the last dictation is still under way, so the
+/// result of that dictation replaces it at once.
 ///
-/// While the pipeline is idle, the progress of the speech model load shows, if there is any.
+/// While the pipeline is idle, the progress of the speech model load shows, if there is any, and so does the warning
+/// that the model could not load.
 @MainActor
 public final class SkeletonOverlayPresenter {
     private let timing: OverlayTiming
@@ -14,6 +17,8 @@ public final class SkeletonOverlayPresenter {
     private var holding: Task<Void, Never>?
     /// The latest state that arrived while an indicator was held.
     private var waiting: PipelineState?
+    /// Whether the indicator that is held is the busy notice.
+    private var isHoldingBusyNotice = false
 
     /// What is on screen now.
     public private(set) var indicator: OverlayIndicator?
@@ -44,7 +49,7 @@ public final class SkeletonOverlayPresenter {
     }
 
     func apply(_ state: PipelineState) {
-        if holding != nil, !Self.replacesAHeldIndicator(state) {
+        if holding != nil, !replacesAHeldIndicator(state) {
             wait(state)
             return
         }
@@ -57,15 +62,26 @@ public final class SkeletonOverlayPresenter {
         if holding == nil, !isPipelineActive { update(modelIndicator()) }
     }
 
+    /// Tells that the speech model could not load. The warning holds for the error dwell, in place of the progress. It
+    /// does not cover a dictation or an indicator that is held, and it is not shown later.
+    public func showModelUnavailable() {
+        modelProgress = nil
+        guard holding == nil, !isPipelineActive else { return }
+        update(.modelUnavailable)
+        hold(for: timing.error)
+    }
+
     // MARK: Showing
 
     private var isPipelineActive = false
 
-    /// A recording that starts, an error, and a press that was refused matter more than whatever is held.
-    private static func replacesAHeldIndicator(_ state: PipelineState) -> Bool {
+    /// A recording that starts, an error, and a press that was refused matter more than whatever is held. So does the
+    /// result of a dictation when what is held is only the notice that it is still under way.
+    private func replacesAHeldIndicator(_ state: PipelineState) -> Bool {
         switch state {
         case .starting, .recording, .error, .notice(.busy): true
-        case .idle, .transcribing, .inserted, .notice: false
+        case .inserted, .notice: isHoldingBusyNotice
+        case .idle, .transcribing: false
         }
     }
 
@@ -80,6 +96,7 @@ public final class SkeletonOverlayPresenter {
         holding?.cancel()
         holding = nil
         waiting = nil
+        isHoldingBusyNotice = state == .notice(.busy)
         isPipelineActive = state != .idle
         update(OverlayIndicator.indicator(for: state) ?? modelIndicator())
         if let dwell = timing.dwell(for: state) { hold(for: dwell) }

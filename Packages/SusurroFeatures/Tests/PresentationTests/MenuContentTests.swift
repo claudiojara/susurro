@@ -52,10 +52,13 @@ struct MenuContentTests {
             (RecognizerReadiness.ready, "Speech model: ready"),
             (.loading(progress: 0), "Speech model: preparing…"),
             (.loading(progress: 0.42), "Speech model: preparing… 42%"),
-            (.notInstalled, "Speech model: not installed. Open the Susurro settings to install it."),
+            (.loading(progress: .nan), "Speech model: preparing…"),
+            (.loading(progress: .infinity), "Speech model: preparing…"),
+            (.loading(progress: 1.7), "Speech model: preparing… 100%"),
+            (.notInstalled, "Speech model: not installed. Restart Susurro to download it."),
             (
                 .unavailable("no network", retryable: true),
-                "Speech model: could not load (no network). Hold the key to try again."
+                "Speech model: could not load (no network). Susurro will retry loading the model shortly."
             ),
             (
                 .unavailable("the model is damaged", retryable: false),
@@ -77,6 +80,8 @@ struct MenuContentTests {
         ).modelLine
 
         #expect(
-            line == "Speech model: could not load (\(String(repeating: "x", count: 80))…). Hold the key to try again.")
+            line
+                == "Speech model: could not load (\(String(repeating: "x", count: 80))…). "
+                + "Susurro will retry loading the model shortly.")
     }
 }

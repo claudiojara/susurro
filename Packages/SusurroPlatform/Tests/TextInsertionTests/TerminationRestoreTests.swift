@@ -99,6 +99,71 @@ struct TerminationRestoreTests: PasteTestCase {
         #expect(pasteboardText == "user copy")
     }
 
+    @Test("terminating while a paste waits records that the clipboard was put back")
+    func recordsARestore() async {
+        putRichContent()
+        let diagnostics = RecordingDiagnostics()
+        let sut = makeInserter(diagnostics: diagnostics)
+        let stuck = clock.suspendNextSleep()
+        let paste = Task { await sut.insert("hello world") }
+        await stuck.entered.wait()
+
+        sut.restoreForTermination()
+        let recorded = diagnostics.events
+        stuck.release.open()
+        _ = await paste.value
+
+        #expect(recorded == [.clipboardRestoreAtTermination(restored: true)])
+    }
+
+    @Test("terminating with nothing to put back records a no-op")
+    func recordsANoOp() {
+        putRichContent()
+        let diagnostics = RecordingDiagnostics()
+        let sut = makeInserter(diagnostics: diagnostics)
+
+        sut.restoreForTermination()
+
+        #expect(diagnostics.events == [.clipboardRestoreAtTermination(restored: false)])
+    }
+
+    @Test("terminating after the user copied something records a no-op, and leaves the copy")
+    func recordsANoOpWhenTheUserCopied() async {
+        putRichContent()
+        let diagnostics = RecordingDiagnostics()
+        let sut = makeInserter(diagnostics: diagnostics)
+        let stuck = clock.suspendNextSleep()
+        let paste = Task { await sut.insert("hello world") }
+        await stuck.entered.wait()
+        pasteboard.clearContents()
+        pasteboard.setString("user copy", forType: .string)
+
+        sut.restoreForTermination()
+        let recorded = diagnostics.events
+        stuck.release.open()
+        _ = await paste.value
+
+        #expect(recorded == [.clipboardRestoreAtTermination(restored: false)])
+        #expect(pasteboardText == "user copy")
+    }
+
+    @Test("a pasteboard that refuses the old contents at termination is recorded as failed, and not as restored")
+    func recordsARefusedRestore() async {
+        putRichContent()
+        let diagnostics = RecordingDiagnostics()
+        let sut = makeInserter(diagnostics: diagnostics, restoreItems: { _, _ in false })
+        let stuck = clock.suspendNextSleep()
+        let paste = Task { await sut.insert("hello world") }
+        await stuck.entered.wait()
+
+        sut.restoreForTermination()
+        let recorded = diagnostics.events
+        stuck.release.open()
+        _ = await paste.value
+
+        #expect(recorded == [.clipboardRestoreFailed, .clipboardRestoreAtTermination(restored: false)])
+    }
+
     @Test("a text left on the clipboard on purpose stays there")
     func leftTextStays() async {
         putRichContent()

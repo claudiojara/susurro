@@ -82,7 +82,9 @@ public final class AppEnvironment {
         let overlay = dependencies.overlay
         presenter = SkeletonOverlayPresenter(sleep: sleep, display: { overlay.display($0) })
         let presenter = presenter
-        watcher = ModelLoadWatcher(sleep: sleep, report: { presenter.setModelProgress($0) })
+        watcher = ModelLoadWatcher(
+            sleep: sleep, report: { presenter.setModelProgress($0) },
+            reportUnavailable: { presenter.showModelUnavailable() })
         prompter = PermissionPrompter(checker: dependencies.permissions)
         menu = MenuModel(
             permissions: dependencies.permissions,
@@ -118,8 +120,10 @@ public final class AppEnvironment {
         tasks = []
     }
 
-    /// The last resort at termination: if a paste is still under way, the user's clipboard goes back synchronously.
-    public func restoreClipboardForTermination() {
+    /// What the app does as it terminates, after the shutdown: it logs that it is terminating, and as a last resort, if a
+    /// paste is still under way, the user's clipboard goes back synchronously.
+    public func willTerminate() {
+        dependencies.diagnostics.record(.appTerminating)
         dependencies.restoreClipboardNow()
     }
 

@@ -2,6 +2,7 @@ PACKAGES := SusurroCore SusurroPlatform SusurroInference SusurroUI SusurroFeatur
 PROJECT := App/Susurro.xcodeproj
 DERIVED_DATA := build
 APP := $(DERIVED_DATA)/Build/Products/Debug/Susurro.app
+APP_ID := dev.claudiojara.susurro
 
 # SwiftPM looks up github.com credentials in the keychain before it downloads a binary artifact, as FluidAudio's
 # dependency does. With several github.com entries that lookup stalled the build, and no dependency needs credentials.
@@ -46,8 +47,15 @@ build: bootstrap resolve
 	xcodebuild build -project $(PROJECT) -scheme Susurro -destination 'platform=macOS' -derivedDataPath $(DERIVED_DATA) $(XCODEBUILD_PACKAGE_FLAGS)
 
 # Builds the app and starts it, replacing a copy that is already running. The first launch downloads the speech model.
+# A running copy is asked to quit, as the menu does, so that it stops the recording and puts the clipboard back. Only a
+# copy that is still there after about 5 seconds, or that cannot be asked, is killed.
 run: build
-	-pkill -x Susurro
+	@if pgrep -x Susurro >/dev/null; then \
+		if osascript -e 'tell application id "$(APP_ID)" to quit' >/dev/null 2>&1; then \
+			for _ in $$(seq 50); do pgrep -x Susurro >/dev/null || break; sleep 0.1; done; \
+		fi; \
+		if pgrep -x Susurro >/dev/null; then echo "Susurro did not quit; stopping it."; pkill -x Susurro || true; fi; \
+	fi
 	open $(APP)
 
 clean:

@@ -6,6 +6,9 @@ public enum DiagnosticEvent: Sendable, Equatable {
     /// The capture stream failed while recording. The audio captured until then is kept. `errorType` is the name of the
     /// error's type.
     case captureStreamFailed(errorType: String)
+    /// The total limit on processing one dictation ran out. It comes just before the `dictationFailed` event for the
+    /// stage that was under way, which tells it apart from the limit of that stage alone running out.
+    case processingCapReached
     /// A capture did not stop within its limit and was left behind.
     case captureStopAbandoned
     /// The inserter did not finish its clean-up before the shutdown gave up on it.
@@ -17,10 +20,15 @@ public enum DiagnosticEvent: Sendable, Equatable {
     case pasteboardWriteRefused
     /// The pasteboard refused to take the user's old contents back.
     case clipboardRestoreFailed
+    /// The app asked the inserter to put the clipboard back as it terminated. `restored` is false when there was
+    /// nothing to put back: no paste was under way, or the user had copied something since.
+    case clipboardRestoreAtTermination(restored: Bool)
     /// The first buffer the microphone tap delivered in a capture. Its size sets how soon the first chunk arrives.
     case captureFirstBuffer(frames: Int, sampleRate: Double)
     /// The app finished launching and started its work.
     case appLaunched
+    /// The app is terminating.
+    case appTerminating
     /// The app asked the speech recognizer to load its model.
     case modelPrepareRequested
     /// The speech model changed state. `state` is one of "loading", "ready", "unavailable", or "notInstalled".

@@ -187,6 +187,112 @@ struct SkeletonOverlayPresenterTests {
         #expect(h.message(of: await h.nextDisplay()) == "Transcribing…")
     }
 
+    // MARK: A busy notice does not hold the result back
+
+    @Test(
+        "a result that arrives while the busy notice is held replaces it at once",
+        arguments: [
+            (PipelineState.inserted, "Pasted"),
+            (.notice(.noSpeech), "No speech heard"),
+            (.notice(.copiedToClipboard(.pasteFailed)), "Copied to the clipboard. Paste it with Command-V."),
+        ]
+    )
+    func resultReplacesTheBusyNotice(result: PipelineState, message: String) async {
+        var h = await PresenterHarness()
+        await h.presenter.apply(.transcribing(progress: nil))
+        await h.presenter.apply(.notice(.busy))
+        await h.presenter.apply(.transcribing(progress: nil))  // the coordinator brings the wait back after the notice
+        await h.presenter.apply(result)
+        await h.presenter.apply(.idle)
+
+        #expect(h.message(of: await h.nextDisplay()) == "Transcribing…")
+        #expect(h.message(of: await h.nextDisplay()) == "Still working on the last dictation")
+        #expect(h.message(of: await h.nextDisplay()) == message)
+        #expect(await h.presenter.indicator?.message == message)
+    }
+
+    @Test("the result that replaced a busy notice gets its own dwell, which the notice's dwell does not cut short")
+    func resultKeepsItsOwnDwell() async {
+        var h = await PresenterHarness()
+        await h.presenter.apply(.transcribing(progress: nil))
+        await h.presenter.apply(.notice(.busy))
+        await h.presenter.apply(.inserted)
+        h.sleeper.fire(h.timing.notice)  // the dwell of the notice that was replaced
+        await h.settle()
+
+        #expect(await h.presenter.indicator?.message == "Pasted")
+        h.sleeper.fire(h.timing.inserted)
+        _ = await h.nextDisplay()  // transcribing
+        _ = await h.nextDisplay()  // busy
+        #expect(h.message(of: await h.nextDisplay()) == "Pasted")
+        #expect(await h.nextDisplay() == .some(nil))
+    }
+
+    @Test("a busy notice that was held keeps the wait and the idle state behind it, as any other notice does")
+    func busyNoticeStillHoldsTheWait() async {
+        var h = await PresenterHarness()
+        await h.presenter.apply(.transcribing(progress: nil))
+        await h.presenter.apply(.notice(.busy))
+        await h.presenter.apply(.transcribing(progress: 0.5))
+        await h.settle()
+
+        #expect(await h.presenter.indicator?.message == "Still working on the last dictation")
+        h.sleeper.fire(h.timing.notice)
+        _ = await h.nextDisplay()  // transcribing
+        _ = await h.nextDisplay()  // busy
+        #expect(h.message(of: await h.nextDisplay()) == "Preparing the speech model… 50%")
+    }
+
+    @Test("a result still waits behind a notice that is not the busy one")
+    func resultStillWaitsBehindOtherNotices() async {
+        var h = await PresenterHarness()
+        await h.presenter.apply(.notice(.noSpeech))
+        await h.presenter.apply(.inserted)
+        await h.settle()
+
+        #expect(await h.presenter.indicator?.message == "No speech heard")
+    }
+
+    // MARK: Model unavailable
+
+    @Test("a model that is unavailable shows a warning for the error dwell, in place of the progress, and then hides")
+    func modelUnavailableWarns() async {
+        var h = await PresenterHarness()
+        await h.presenter.setModelProgress(0.4)
+        await h.presenter.showModelUnavailable()
+        await h.settle()
+
+        #expect(await h.presenter.indicator?.message == "Speech model unavailable. Open the Susurro menu for details.")
+        h.sleeper.fire(h.timing.error)
+        #expect(h.message(of: await h.nextDisplay()) == "Preparing the speech model… 40%")
+        let warning = await h.nextDisplay()
+        #expect(warning??.tone == .warning)
+        #expect(await h.nextDisplay() == .some(nil))
+        #expect(await h.presenter.indicator == nil)
+    }
+
+    @Test("the unavailable warning does not cover a dictation, and does not come back after it")
+    func modelUnavailableYieldsToADictation() async {
+        var h = await PresenterHarness()
+        await h.presenter.apply(.recording(.hold))
+        await h.presenter.showModelUnavailable()
+        await h.presenter.apply(.idle)
+
+        #expect(h.message(of: await h.nextDisplay()) == "Listening…")
+        #expect(await h.nextDisplay() == .some(nil))
+        #expect(await h.presenter.indicator == nil)
+    }
+
+    @Test("a dictation that starts during the unavailable warning replaces it")
+    func dictationReplacesTheUnavailableWarning() async {
+        var h = await PresenterHarness()
+        await h.presenter.showModelUnavailable()
+        await h.presenter.apply(.starting)
+
+        _ = await h.nextDisplay()  // the warning
+        #expect(h.message(of: await h.nextDisplay()) == "Getting ready…")
+    }
+
     // MARK: Model load progress while idle
 
     @Test("model load progress shows while the pipeline is idle, and hides when the load ends")
