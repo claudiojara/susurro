@@ -23,7 +23,8 @@ enum PasteTiming {
 
 /// Pastes by promising the text on the pasteboard, posting Command+V, and putting the old pasteboard contents back
 /// once an app has read the text and a short quiet period has passed, if nobody else has written to the pasteboard
-/// since. Insertions must not overlap: the caller waits for one to finish before it starts the next.
+/// since. `insert` returns as soon as an app has read the text; the old contents come back later, in a task of its
+/// own, so the caller is not held up. A new insertion waits for that task before it takes its snapshot.
 ///
 /// When the paste cannot be completed, the text is left on the pasteboard on purpose, as plain marked text, so that the
 /// user can paste it by hand, and nothing is restored.
@@ -38,6 +39,8 @@ public final class SimplePasteInserter: TextInserter {
     private let writeItem: (NSPasteboard, NSPasteboardItem) -> Bool
     /// How many pastes have posted their chord and are still waiting to finish. A new insertion waits for them.
     private var inFlight = 0
+    /// The task of the most recent paste that posted its chord.
+    private var finishing: Task<Void, Never>?
 
     /// - Parameters:
     ///   - clock: Measures and paces every wait. Tests pass a clock they control.
@@ -105,45 +108,43 @@ public final class SimplePasteInserter: TextInserter {
         if let reason = postChord() { return leaveOnClipboard(text, because: reason) }
         let chordPostedAt = now()
         // The chord is out, so the rest runs in a task of its own. A caller that is cancelled from here on cannot cut
-        // the wait for the read short, which would restore the old contents before the app has read the text.
+        // the wait for the read short, which would restore the old contents before the app has read the text. The
+        // caller gets its outcome at the first read; the task then goes on to put the old contents back.
         inFlight += 1
-        return await Task { @MainActor in
-            defer { inFlight -= 1 }
-            return await finishPaste(
-                text,
-                promise: promise,
-                saved: saved,
-                writtenChangeCount: writtenChangeCount,
-                readsBeforeTheChord: readsBeforeTheChord,
-                chordPostedAt: chordPostedAt
-            )
-        }.value
+        return await withCheckedContinuation { continuation in
+            finishing = Task { @MainActor in
+                defer { inFlight -= 1 }
+                // `writtenChangeCount` is the change count after our write. Providing the promised text to an app does
+                // not change it (see `PromisedTextTests`), so a different count means that someone else has written to
+                // the pasteboard.
+                var watch = ReceiptWatch(baseline: readsBeforeTheChord, chordPostedAt: chordPostedAt)
+                let outcome = await awaitFirstRead(
+                    of: text, promise: promise, writtenChangeCount: writtenChangeCount, watch: &watch)
+                continuation.resume(returning: outcome)
+                guard outcome == .inserted else { return }
+                await restoreWhenQuiet(
+                    promise: promise, saved: saved, writtenChangeCount: writtenChangeCount, watch: &watch)
+            }
+        }
     }
 
-    /// Waits for an app to read the text and for the pasteboard to go quiet, then restores the old contents. When no
-    /// app reads the text in time, the paste has failed and the text stays.
-    private func finishPaste(
-        _ text: String,
+    /// Waits for every paste that has posted its chord to finish. `insert` returns at the first read of the text,
+    /// before the old pasteboard is back, so a caller that needs the final pasteboard waits here.
+    func drain() async {
+        await finishing?.value
+    }
+
+    /// Waits for an app to read the text. When none does in time, the paste has failed and the text stays.
+    private func awaitFirstRead(
+        of text: String,
         promise: PromisedText,
-        saved: PasteboardSnapshot,
         writtenChangeCount: Int,
-        readsBeforeTheChord: Int,
-        chordPostedAt: Duration
+        watch: inout ReceiptWatch
     ) async -> InsertionOutcome {
-        // `writtenChangeCount` is the change count after our write. Providing the promised text to an app does not change
-        // it (see `PromisedTextTests`), so a different count means that someone else has written to the pasteboard.
-        var watch = ReceiptWatch(baseline: readsBeforeTheChord, chordPostedAt: chordPostedAt)
         while true {
-            switch watch.observe(reads: promise.receipts, at: now()) {
-            case .wait:
-                break
-            case .failed:
-                return giveUp(on: text, writtenChangeCount: writtenChangeCount)
-            case .restore:
-                // A newer write by anyone else wins over the old contents.
-                if pasteboard.changeCount == writtenChangeCount { saved.restore(to: pasteboard) }
-                return .inserted
-            }
+            let verdict = watch.observe(reads: promise.receipts, at: now())
+            if watch.hasRead { return .inserted }
+            if verdict == .failed { return giveUp(on: text, writtenChangeCount: writtenChangeCount) }
             do {
                 try await sleep(PasteTiming.receiptPollInterval)
             } catch {
@@ -151,6 +152,25 @@ public final class SimplePasteInserter: TextInserter {
                 return giveUp(on: text, writtenChangeCount: writtenChangeCount)
             }
         }
+    }
+
+    /// Waits for the minimum dwell and for the pasteboard to go quiet, then restores the old contents.
+    private func restoreWhenQuiet(
+        promise: PromisedText,
+        saved: PasteboardSnapshot,
+        writtenChangeCount: Int,
+        watch: inout ReceiptWatch
+    ) async {
+        while watch.observe(reads: promise.receipts, at: now()) != .restore {
+            do {
+                try await sleep(PasteTiming.receiptPollInterval)
+            } catch {
+                // A clock that cannot pause cannot be waited on. The paste has landed, so the old contents come back now.
+                break
+            }
+        }
+        // A newer write by anyone else wins over the old contents.
+        if pasteboard.changeCount == writtenChangeCount { saved.restore(to: pasteboard) }
     }
 
     /// Ends a paste that did not land: the text stays on the pasteboard unless the user copied something meanwhile.
