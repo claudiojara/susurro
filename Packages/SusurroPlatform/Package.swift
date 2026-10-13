@@ -6,11 +6,40 @@ let package = Package(
     name: "SusurroPlatform",
     platforms: [.macOS(.v26)],
     products: [
-        .library(name: "SusurroPlatform", targets: ["Permissions"])
+        .library(name: "SusurroPlatform", targets: ["Permissions", "Hotkeys", "AudioIO"])
+    ],
+    dependencies: [
+        .package(path: "../SusurroCore"),
+        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts.git", exact: "3.1.0"),
     ],
     targets: [
         .target(name: "Permissions"),
+        .target(
+            name: "Hotkeys",
+            dependencies: [
+                .product(name: "SusurroCore", package: "SusurroCore"),
+                .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
+            ]
+        ),
+        .target(name: "AudioIO", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .testTarget(name: "PermissionsTests", dependencies: ["Permissions"]),
+        .testTarget(
+            name: "AudioIOTests",
+            dependencies: [
+                "AudioIO",
+                .product(name: "SusurroCore", package: "SusurroCore"),
+                .product(name: "CoreTestSupport", package: "SusurroCore"),
+            ]
+        ),
+        .testTarget(
+            name: "HotkeysTests",
+            dependencies: [
+                "Hotkeys",
+                .product(name: "SusurroCore", package: "SusurroCore"),
+                .product(name: "CoreTestSupport", package: "SusurroCore"),
+                .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
+            ]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )
