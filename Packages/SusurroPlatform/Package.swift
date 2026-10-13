@@ -36,6 +36,14 @@ let package = Package(
             ]
         ),
         .testTarget(
+            name: "TextInsertionTests",
+            dependencies: [
+                "TextInsertion",
+                .product(name: "SusurroCore", package: "SusurroCore"),
+                .product(name: "CoreTestSupport", package: "SusurroCore"),
+            ]
+        ),
+        .testTarget(
             name: "HotkeysTests",
             dependencies: [
                 "Hotkeys",
