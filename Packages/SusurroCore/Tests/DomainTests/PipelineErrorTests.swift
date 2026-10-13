@@ -7,6 +7,7 @@ struct PipelineErrorTests {
     func remedies() {
         #expect(PipelineError.microphoneNotGranted.remedy == .permissions)
         #expect(PipelineError.recognizerNotInstalled.remedy == .settings)
+        #expect(PipelineError.recognizerUnavailable("offline").remedy == .retry)
         #expect(PipelineError.captureFailed("device").remedy == .retry)
         #expect(PipelineError.recognitionFailed("model").remedy == .retry)
         #expect(PipelineError.timedOut(.transcription).remedy == .retry)
