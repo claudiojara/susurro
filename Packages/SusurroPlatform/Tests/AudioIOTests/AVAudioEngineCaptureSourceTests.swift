@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreTestSupport
 import Domain
 import Synchronization
 import Testing
@@ -9,15 +10,21 @@ import Testing
 struct AVAudioEngineCaptureSourceTests {
     private struct EngineFailure: Error, Equatable {}
 
-    /// An input device scripted by the test. It records what the source asks of it, in order, and delivers buffers
-    /// through the installed tap the way the real engine does: only while a tap is installed.
+    private enum Call: Equatable {
+        case installTap, removeTap, start, stop
+    }
+
+    /// An input device scripted by the test. It records what the source asks of it, in order.
     private final class FakeEngine: EngineProviding {
         private struct State {
             var tap: (@Sendable (AVAudioPCMBuffer) -> Void)?
-            var calls: [String] = []
+            var tapFormat: AVAudioFormat?
+            var calls: [Call] = []
         }
 
-        private let format: AVAudioFormat?
+        /// Opened when the engine is stopped, so tests can wait for a teardown the source starts on its own.
+        let stopped = Gate()
+        let format: AVAudioFormat?
         private let startFailure: (any Error)?
         private let state = Mutex(State())
 
@@ -29,44 +36,47 @@ struct AVAudioEngineCaptureSourceTests {
             self.startFailure = startFailure
         }
 
-        var calls: [String] { state.withLock { $0.calls } }
+        var calls: [Call] { state.withLock { $0.calls } }
+        var tapFormat: AVAudioFormat? { state.withLock { $0.tapFormat } }
 
         func deliver(_ buffer: AVAudioPCMBuffer) {
-            let tap = state.withLock { $0.tap }
-            tap?(buffer)
+            state.withLock { $0.tap }?(buffer)
         }
 
         func inputFormat() -> AVAudioFormat? { format }
 
-        func installTap(handler: @escaping @Sendable (AVAudioPCMBuffer) -> Void) {
+        func installTap(format: AVAudioFormat, handler: @escaping @Sendable (AVAudioPCMBuffer) -> Void) {
             state.withLock {
-                $0.calls.append("installTap")
+                $0.calls.append(.installTap)
                 $0.tap = handler
+                $0.tapFormat = format
             }
         }
 
         func removeTap() {
             state.withLock {
-                $0.calls.append("removeTap")
+                $0.calls.append(.removeTap)
                 $0.tap = nil
             }
         }
 
         func start() throws {
-            state.withLock { $0.calls.append("start") }
+            state.withLock { $0.calls.append(.start) }
             if let startFailure { throw startFailure }
         }
 
-        func stop() { state.withLock { $0.calls.append("stop") } }
+        func stop() {
+            state.withLock { $0.calls.append(.stop) }
+            stopped.open()
+        }
     }
 
-    /// 100 ms of a 48 kHz stereo device: 1600 samples once converted.
+    /// 100 ms of a 48 kHz stereo device.
     private static func deviceBuffer(startingAt start: Int = 0) -> AVAudioPCMBuffer {
         makeBuffer(sampleRate: 48_000, channels: 2, frames: 4_800, startingAt: start, sample: tone(sampleRate: 48_000))
     }
 
-    /// A 100 ms device buffer (4800 frames, two channels) is at most 1600 samples once converted. The first chunk of a
-    /// capture is shorter while the resampler primes, and the rest of its output arrives when the capture ends.
+    /// A 100 ms device buffer converts to at most 1600 samples; the first chunk is shorter while the resampler primes.
     private static func isConvertedBuffer(_ count: Int?) -> Bool {
         count.map { (1_000...1_600).contains($0) } ?? false
     }
@@ -87,7 +97,7 @@ struct AVAudioEngineCaptureSourceTests {
         #expect(engine.calls.isEmpty)
     }
 
-    @Test("the first real buffer yields the first chunk, converted to 16 kHz mono")
+    @Test("the first real buffer yields the first chunk, converted, through a tap in the device format")
     func firstBufferIsTheFirstChunk() async throws {
         let engine = FakeEngine()
         let sut = AVAudioEngineCaptureSource(engine: engine)
@@ -95,7 +105,9 @@ struct AVAudioEngineCaptureSourceTests {
 
         engine.deliver(Self.deviceBuffer())
 
-        #expect(Self.isConvertedBuffer(try await chunks.next()?.samples.count))
+        let chunk = try #require(try await chunks.next())
+        #expect(Self.isConvertedBuffer(chunk.samples.count))
+        #expect(engine.tapFormat == engine.format)
     }
 
     @Test("starting alone signals nothing: a capture stopped before any buffer ends with no chunk")
@@ -108,34 +120,43 @@ struct AVAudioEngineCaptureSourceTests {
         #expect(try await Self.drain(stream).isEmpty)
     }
 
-    @Test("an empty buffer is not a real buffer, so it signals nothing")
-    func emptyBufferIsIgnored() async throws {
+    @Test(
+        "a buffer that is empty, or converts to nothing, is not readiness",
+        arguments: [0, 16]
+    )
+    func bufferWithoutSamplesIsIgnored(frames: Int) async throws {
         let engine = FakeEngine()
         let sut = AVAudioEngineCaptureSource(engine: engine)
         var chunks = try await sut.start().makeAsyncIterator()
-        let empty = Self.deviceBuffer()
-        empty.frameLength = 0
 
-        engine.deliver(empty)
+        engine.deliver(makeBuffer(sampleRate: 48_000, channels: 2, frames: frames) { _, _ in 0.5 })
         engine.deliver(Self.deviceBuffer())
 
-        #expect(Self.isConvertedBuffer(try await chunks.next()?.samples.count))
+        let chunk = try #require(try await chunks.next())
+        #expect(Self.isConvertedBuffer(chunk.samples.count))
     }
 
-    @Test("stop delivers every captured chunk, finishes the stream, and removes the tap")
-    func stopFinishesAndRemovesTap() async throws {
-        let engine = FakeEngine()
+    @Test(
+        "stop delivers everything captured, including the resampler's tail, and removes the tap",
+        arguments: [44_100.0, 48_000, 96_000]
+    )
+    func stopDeliversEverythingCaptured(sampleRate: Double) async throws {
+        let frames = 4_096
+        let engine = FakeEngine(format: AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 2))
         let sut = AVAudioEngineCaptureSource(engine: engine)
         let stream = try await sut.start()
-        engine.deliver(Self.deviceBuffer())
-        engine.deliver(Self.deviceBuffer(startingAt: 4_800))
+        for buffer in tapBuffers(
+            sampleRate: sampleRate, count: 50, frames: frames, sample: tone(sampleRate: sampleRate))
+        {
+            engine.deliver(buffer)
+        }
 
         await sut.stop()
 
-        let chunks = try await Self.drain(stream)
-        #expect(chunks.count == 2)
-        #expect(chunks.allSatisfy { Self.isConvertedBuffer($0.samples.count) })
-        #expect(engine.calls == ["installTap", "start", "removeTap", "stop"])
+        let total = try await Self.drain(stream).reduce(0) { $0 + $1.samples.count }
+        let nominal = Double(50 * frames) * 16_000 / sampleRate
+        #expect(abs(Double(total) - nominal) <= 1)
+        #expect(engine.calls == [.installTap, .start, .removeTap, .stop])
     }
 
     @Test("stop without a running capture does nothing")
@@ -158,8 +179,9 @@ struct AVAudioEngineCaptureSourceTests {
         engine.deliver(Self.deviceBuffer())
 
         #expect(try await Self.drain(first).isEmpty)
-        #expect(Self.isConvertedBuffer(try await second.next()?.samples.count))
-        #expect(engine.calls == ["installTap", "start", "removeTap", "stop", "installTap", "start"])
+        let chunk = try #require(try await second.next())
+        #expect(Self.isConvertedBuffer(chunk.samples.count))
+        #expect(engine.calls == [.installTap, .start, .removeTap, .stop, .installTap, .start])
     }
 
     @Test("an engine that fails to start throws its error and leaves nothing installed")
@@ -169,21 +191,54 @@ struct AVAudioEngineCaptureSourceTests {
 
         await #expect(throws: EngineFailure()) { try await sut.start() }
 
-        #expect(engine.calls == ["installTap", "start", "removeTap", "stop"])
+        #expect(engine.calls == [.installTap, .start, .removeTap, .stop])
     }
 
-    @Test("a buffer in another format than the device's ends the stream with the conversion error")
-    func formatChangeFailsTheStream() async throws {
+    @Test("a buffer in another format than the device's ends the stream and tears the capture down")
+    func formatChangeEndsTheCapture() async throws {
         let engine = FakeEngine()
         let sut = AVAudioEngineCaptureSource(engine: engine)
         var chunks = try await sut.start().makeAsyncIterator()
 
         engine.deliver(Self.deviceBuffer())
         engine.deliver(makeBuffer(sampleRate: 44_100, channels: 1, frames: 441) { _, _ in 0.5 })
-        engine.deliver(Self.deviceBuffer(startingAt: 4_800))
 
-        #expect(Self.isConvertedBuffer(try await chunks.next()?.samples.count))
+        let chunk = try #require(try await chunks.next())
+        #expect(Self.isConvertedBuffer(chunk.samples.count))
         await #expect(throws: FormatConversionError.formatChanged) { try await chunks.next() }
         #expect(try await chunks.next() == nil)
+        await engine.stopped.wait()
+        #expect(engine.calls == [.installTap, .start, .removeTap, .stop])
+        await sut.stop()
+        #expect(engine.calls == [.installTap, .start, .removeTap, .stop])
+    }
+
+    @Test("a consumer that stops reading ends the capture")
+    func consumerCancellationEndsTheCapture() async throws {
+        let engine = FakeEngine()
+        let sut = AVAudioEngineCaptureSource(engine: engine)
+        let stream = try await sut.start()
+        let firstChunk = Gate()
+        let reader = Task {
+            for try await _ in stream { firstChunk.open() }
+        }
+        engine.deliver(Self.deviceBuffer())
+        await firstChunk.wait()
+
+        reader.cancel()
+
+        await engine.stopped.wait()
+        #expect(engine.calls == [.installTap, .start, .removeTap, .stop])
+    }
+
+    @Test("a stream that is dropped without being read ends the capture")
+    func droppedStreamEndsTheCapture() async throws {
+        let engine = FakeEngine()
+        let sut = AVAudioEngineCaptureSource(engine: engine)
+
+        _ = try await sut.start()
+
+        await engine.stopped.wait()
+        #expect(engine.calls == [.installTap, .start, .removeTap, .stop])
     }
 }

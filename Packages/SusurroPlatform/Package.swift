@@ -25,7 +25,11 @@ let package = Package(
         .testTarget(name: "PermissionsTests", dependencies: ["Permissions"]),
         .testTarget(
             name: "AudioIOTests",
-            dependencies: ["AudioIO", .product(name: "SusurroCore", package: "SusurroCore")]
+            dependencies: [
+                "AudioIO",
+                .product(name: "SusurroCore", package: "SusurroCore"),
+                .product(name: "CoreTestSupport", package: "SusurroCore"),
+            ]
         ),
         .testTarget(
             name: "HotkeysTests",
