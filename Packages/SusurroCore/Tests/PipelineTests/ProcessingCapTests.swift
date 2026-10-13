@@ -53,6 +53,27 @@ struct ProcessingCapTests {
         #expect(recognizer.transcribedClips.isEmpty)
     }
 
+    @Test("a dictation that the cap ends is logged as the cap, ahead of the failure it causes")
+    func capIsLoggedApartFromTheStageLimits() async {
+        var h = await Harness(recognizer: FakeRecognizer(gated: true))
+        await h.startProcessing()
+        await h.recognizer.transcribeEntered.wait()
+        h.sleeper.fire(DictationLimits.processingCap)
+        _ = await h.read(through: .idle)
+
+        #expect(h.diagnostics.events == [.processingCapReached, .dictationFailed(kind: "timedOut.transcription")])
+    }
+
+    @Test("a stage that runs out its own limit before the cap is not logged as the cap")
+    func stageLimitIsNotTheCap() async {
+        let sleeper = FakeSleeper(expiring: [DictationLimits.transcriptionTimeout])
+        var h = await Harness(recognizer: FakeRecognizer(gated: true), sleeper: sleeper)
+        await h.startRecording()
+
+        #expect(await h.release() == [.transcribing(progress: nil), .error(.timedOut(.transcription)), .idle])
+        #expect(h.diagnostics.events == [.dictationFailed(kind: "timedOut.transcription")])
+    }
+
     @Test("a dictation that finishes inside the cap is untouched by it")
     func capLeavesAFastDictationAlone() async {
         var h = await Harness()

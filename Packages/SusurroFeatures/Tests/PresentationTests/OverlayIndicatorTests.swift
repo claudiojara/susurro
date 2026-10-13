@@ -28,22 +28,33 @@ struct OverlayIndicatorTests {
     }
 
     @Test(
-        "model load progress shows as a percentage and a bar",
+        "model load progress shows as a percentage and a bar, and progress that is not a number counts as none",
         arguments: [
-            (0.0, "0%"), (0.42, "42%"), (0.29, "29%"), (0.994, "99%"), (1.0, "100%"), (-0.5, "0%"), (1.7, "100%"),
+            (0.0, "0%", 0.0), (0.42, "42%", 0.42), (0.29, "29%", 0.29), (0.994, "99%", 0.994), (1.0, "100%", 1.0),
+            (-0.5, "0%", 0.0), (1.7, "100%", 1.0), (Double.nan, "0%", 0.0), (Double.infinity, "0%", 0.0),
+            (-Double.infinity, "0%", 0.0),
         ]
     )
-    func loadProgress(progress: Double, percent: String) {
+    func loadProgress(progress: Double, percent: String, fraction: Double) {
         let indicator = OverlayIndicator.indicator(for: .transcribing(progress: progress))
 
         #expect(indicator?.message == "Preparing the speech model… \(percent)")
-        #expect(indicator?.progress == min(max(progress, 0), 1))
+        #expect(indicator?.progress == fraction)
         #expect(indicator?.tone == .neutral)
     }
 
     @Test("the model indicator while idle reads like the one while waiting for the model")
     func modelIndicatorMatchesTheWait() {
         #expect(OverlayIndicator.modelLoading(progress: 0.3) == .indicator(for: .transcribing(progress: 0.3)))
+    }
+
+    @Test("a model that is unavailable shows a warning that names the menu")
+    func modelUnavailable() {
+        let indicator = OverlayIndicator.modelUnavailable
+
+        #expect(indicator.message == "Speech model unavailable. Open the Susurro menu for details.")
+        #expect(indicator.tone == .warning)
+        #expect(indicator.progress == nil)
     }
 
     @Test(
