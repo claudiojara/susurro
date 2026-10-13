@@ -419,11 +419,12 @@ struct DictationCoordinatorTests {
         #expect(h.capture.stopCount == 1)
     }
 
-    @Test("a release after the cap fired stops and transcribes only once")
+    @Test("audio and a release after the cap fired stop and transcribe only once")
     func releaseAfterCap() async {
         var h = await Harness()
         await h.sut.handle(.down(at: Self.pressTime))
         h.capture.emit(AudioChunk(samples: [Float](repeating: 0.5, count: Self.capSamples)))
+        h.capture.emit(AudioChunk(samples: [0.5]))
         _ = await h.read(through: .notice(.capReached))
 
         #expect(await h.release(after: 61_000) == Self.transcribed)
