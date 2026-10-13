@@ -24,12 +24,28 @@ public nonisolated struct Theme: Codable, Sendable, Equatable {
     /// The theme that ships with the app. Every other theme inherits what it leaves out from this one.
     public static let `default`: Theme = {
         do {
+            return try JSONDecoder().decode(Theme.self, from: bundledData)
+        } catch {
+            preconditionFailure("DefaultTheme.json is not a valid theme: \(error)")
+        }
+    }()
+
+    /// The bundled theme as a JSON object, the base that a theme file is merged onto.
+    static var bundledObject: [String: Any] {
+        guard let object = try? JSONSerialization.jsonObject(with: bundledData) as? [String: Any] else {
+            preconditionFailure("DefaultTheme.json is not a JSON object")
+        }
+        return object
+    }
+
+    private static let bundledData: Data = {
+        do {
             guard let url = Bundle.module.url(forResource: "DefaultTheme", withExtension: "json") else {
                 preconditionFailure("DefaultTheme.json is not in the DesignSystem bundle")
             }
-            return try JSONDecoder().decode(Theme.self, from: Data(contentsOf: url))
+            return try Data(contentsOf: url)
         } catch {
-            preconditionFailure("DefaultTheme.json is not a valid theme: \(error)")
+            preconditionFailure("DefaultTheme.json cannot be read: \(error)")
         }
     }()
 
