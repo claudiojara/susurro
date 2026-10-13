@@ -1,6 +1,8 @@
 /// Why the text was left on the clipboard instead of being pasted.
 public enum ClipboardReason: Sendable, Equatable {
     case accessibilityMissing
+    /// The paste did not happen for another reason, such as a modifier key that stayed down.
+    case pasteFailed
 }
 
 public enum InsertionOutcome: Sendable, Equatable {
