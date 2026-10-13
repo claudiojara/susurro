@@ -22,8 +22,13 @@ public enum DictationLimits {
     public static let captureStopTimeout = Duration.seconds(5)
     public static let transcriptionTimeout = Duration.seconds(30)
     public static let insertionTimeout = Duration.seconds(10)
+    /// How long the text of a hold that ran into the recording cap waits for the key to come up. Pasting while the
+    /// hotkey's modifiers are down fails, and the text would end up on the clipboard instead. It is long enough for a
+    /// user to read the limit notice and let go, and apart from the other limits so that a test can run out one and not
+    /// the others.
+    public static let releaseWaitTimeout = Duration.seconds(12)
     /// The most one dictation takes after the key is released: the wait for the model, the transcription, and the
-    /// insertion together. It is shorter than the sum of their limits, so a dictation cannot hold the coordinator busy
+    /// insertion together, and for a hold that ran into the recording cap the wait for the key as well. It is shorter than the sum of their limits, so a dictation cannot hold the coordinator busy
     /// for all of them in a row, and no shorter than the wait for the model, which a first launch can use up.
     public static let processingCap = Duration.seconds(200)
     /// How long a shutdown waits for the inserter to finish what it has in hand, such as putting the clipboard back.

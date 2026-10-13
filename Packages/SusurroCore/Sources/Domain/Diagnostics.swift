@@ -9,6 +9,11 @@ public enum DiagnosticEvent: Sendable, Equatable {
     /// The total limit on processing one dictation ran out. It comes just before the `dictationFailed` event for the
     /// stage that was under way, which tells it apart from the limit of that stage alone running out.
     case processingCapReached
+    /// The recording reached its time limit and was finished by it, not by the release of the key.
+    case recordingCapReached
+    /// The key of a hold that ran into the recording cap was still down when the wait for its release ran out, so the
+    /// text was inserted anyway.
+    case releaseWaitExpired
     /// A capture did not stop within its limit and was left behind.
     case captureStopAbandoned
     /// The inserter did not finish its clean-up before the shutdown gave up on it.

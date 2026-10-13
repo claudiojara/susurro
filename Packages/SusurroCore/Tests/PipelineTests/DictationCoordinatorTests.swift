@@ -569,9 +569,12 @@ struct DictationCoordinatorTests {
         var h = await Harness()
         await h.sut.handle(.down(at: Self.pressTime))
         h.capture.emit(AudioChunk(samples: [Float](repeating: 0.5, count: Self.capSamples)))
-        let states = await h.read(through: .idle)
+        let capped = await h.read(through: .notice(.capReached))
+        // The key is still down, so the text waits for the release (see CapReleaseWaitTests).
+        let rest = await h.release(after: 61_000)
 
-        #expect(states == [.starting, .recording(.hold), .notice(.capReached)] + Self.transcribed)
+        #expect(capped == [.starting, .recording(.hold), .notice(.capReached)])
+        #expect(rest == Self.transcribed)
         #expect(h.recognizer.transcribedClips.map(\.samples.count) == [Self.capSamples])
         #expect(h.capture.stopCount == 1)
     }
@@ -596,5 +599,6 @@ struct DictationCoordinatorTests {
 
         #expect(await h.release(after: 61_000) == Self.transcribed)
         #expect(h.recognizer.transcribedClips.map(\.samples.count) == [Self.capSamples - 1])
+        #expect(h.diagnostics.events.isEmpty)  // the cap was not reached, so it is not logged
     }
 }

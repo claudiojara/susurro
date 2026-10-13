@@ -1,7 +1,8 @@
 import Domain
 
 /// Runs one hold-to-talk dictation at a time: key down records, key up transcribes the whole clip and inserts the
-/// text. A press while a dictation is recording or processing is ignored, and one that finds it processing says so
+/// text. A hold that runs into the recording cap is transcribed at once, and its text waits for the release before it
+/// goes in. A press while a dictation is recording or processing is ignored, and one that finds it processing says so
 /// with a busy notice. Every wait is bounded, and so is the whole of the processing, so the coordinator always returns
 /// to idle.
 public actor DictationCoordinator {
@@ -36,6 +37,11 @@ public actor DictationCoordinator {
     private var published = PipelineState.idle
     private let continuation: AsyncStream<PipelineState>.Continuation
     private var pressedAt = Duration.zero
+    /// Whether the key of the dictation that began last is still down.
+    private var keyIsDown = false
+    /// Ends when that key comes up, for the text that waits for it.
+    private var keyUps: AsyncStream<Void>
+    private var keyUp: AsyncStream<Void>.Continuation
     private var pendingRelease: Duration?
     private var samples: [Float] = []
     private var receivedAudio = false
@@ -69,6 +75,7 @@ public actor DictationCoordinator {
         self.diagnostics = diagnostics
         self.sleep = sleep
         (states, continuation) = AsyncStream.makeStream()
+        (keyUps, keyUp) = AsyncStream.makeStream()
         continuation.yield(.idle)
     }
 
@@ -131,6 +138,8 @@ public actor DictationCoordinator {
         phase = .starting
         pressedAt = time
         pendingRelease = nil
+        keyIsDown = true
+        (keyUps, keyUp) = AsyncStream.makeStream()
         do {
             try await checkStartPreconditions()
             guard phase == .starting else { return }  // shut down meanwhile
@@ -172,6 +181,8 @@ public actor DictationCoordinator {
     }
 
     private func released(at time: Duration) async {
+        keyIsDown = false
+        keyUp.finish()
         switch phase {
         case .starting:
             pendingRelease = time  // honored as soon as the capture has started
@@ -219,7 +230,9 @@ public actor DictationCoordinator {
             publish(.recording(.hold))
         }
         samples.append(contentsOf: chunk.samples)
-        if samples.count >= Self.capSampleCount { beginFinishing(reason: .capReached) }
+        if samples.count >= Self.capSampleCount, beginFinishing(reason: .capReached) != nil {
+            diagnostics.record(.recordingCapReached)
+        }
     }
 
     /// Claims the recording for finishing, so the release and the cap cannot both finish it.
@@ -311,6 +324,7 @@ public actor DictationCoordinator {
         }
         guard !transcript.text.allSatisfy(\.isWhitespace) else { return .notice(.noSpeech) }
         processingStage = .insertion
+        try await waitForKeyRelease()
         let outcome = try await withDeadline(DictationLimits.insertionTimeout, stage: .insertion, sleep: sleep) {
             [inserter] in
             await inserter.insert(transcript.text)
@@ -319,6 +333,21 @@ public actor DictationCoordinator {
         case .inserted: return .inserted
         case .copiedToClipboard(let reason): return .notice(.copiedToClipboard(reason))
         case .notInserted(let reason): return .error(.notInserted(reason))
+        }
+    }
+
+    /// Holds the text back while the key of a hold that ran into the recording cap is still down. The inserter would
+    /// otherwise find the hotkey's modifiers held, give up on the paste, and leave the text on the clipboard. The wait
+    /// ends at the release or at `releaseWaitTimeout`, and the text goes in either way. A hold that ended with the
+    /// release finds the key up and does not wait. Cancellation ends the wait with an error, so nothing is inserted.
+    private func waitForKeyRelease() async throws {
+        guard keyIsDown else { return }
+        do {
+            try await withDeadline(DictationLimits.releaseWaitTimeout, stage: .insertion, sleep: sleep) { [keyUps] in
+                for await _ in keyUps {}
+            }
+        } catch PipelineError.timedOut {
+            diagnostics.record(.releaseWaitExpired)
         }
     }
 

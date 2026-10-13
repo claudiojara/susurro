@@ -15,6 +15,8 @@ struct DiagnosticDescriptionTests {
             ),
             (.captureStreamFailed(errorType: "CaptureError"), .error, "capture stream failed: CaptureError"),
             (.processingCapReached, .error, "processing did not finish within its total time limit"),
+            (.recordingCapReached, .default, "recording reached its time limit"),
+            (.releaseWaitExpired, .default, "the key was not released in time, pasting anyway"),
             (.captureStopAbandoned, .error, "capture did not stop in time and was abandoned"),
             (.shutdownDrainAbandoned, .error, "shutdown stopped waiting for the paste to finish"),
             (.pasteNotCompleted(cause: "noRead"), .error, "paste not completed: noRead"),
