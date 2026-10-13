@@ -138,17 +138,26 @@ public final class SimplePasteInserter: TextInserter {
             case .wait:
                 break
             case .failed:
-                // A copy that the user made while the paste waited wins over the text.
-                guard pasteboard.changeCount == writtenChangeCount else { return .copiedToClipboard(.pasteFailed) }
-                return leaveOnClipboard(text, because: .pasteFailed)
+                return giveUp(on: text, writtenChangeCount: writtenChangeCount)
             case .restore:
                 // A newer write by anyone else wins over the old contents.
                 if pasteboard.changeCount == writtenChangeCount { saved.restore(to: pasteboard) }
                 return .inserted
             }
-            // Nobody cancels this task, so a pause that throws is an injected one and the loop still ends by time.
-            try? await sleep(PasteTiming.receiptPollInterval)
+            do {
+                try await sleep(PasteTiming.receiptPollInterval)
+            } catch {
+                // Nobody cancels this task, so this is a clock that cannot pause. Without a pause the loop could spin.
+                return giveUp(on: text, writtenChangeCount: writtenChangeCount)
+            }
         }
+    }
+
+    /// Ends a paste that did not land: the text stays on the pasteboard unless the user copied something meanwhile.
+    private func giveUp(on text: String, writtenChangeCount: Int) -> InsertionOutcome {
+        // A copy that the user made while the paste waited wins over the text.
+        guard pasteboard.changeCount == writtenChangeCount else { return .copiedToClipboard(.pasteFailed) }
+        return leaveOnClipboard(text, because: .pasteFailed)
     }
 
     /// Posts the paste chord. Returns why it could not be posted, or nil when it was.
