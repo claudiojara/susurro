@@ -10,7 +10,8 @@ struct PasteTimingTests {
         #expect(PasteTiming.insertBudget == .milliseconds(9_550))
     }
 
-    @Test("a queued insertion waits for the minimum dwell of the paste before it, and one poll more for its task to end")
+    @Test(
+        "a queued insertion waits for the minimum dwell of the paste before it, and one poll more for its task to end")
     func overlapWaitCoversTheDwell() {
         #expect(PasteTiming.overlapWait == PasteTiming.minimumDwell + PasteTiming.receiptPollInterval)
     }

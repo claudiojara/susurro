@@ -272,8 +272,10 @@ struct AVAudioEngineCaptureSourceTests {
         let sut = AVAudioEngineCaptureSource(engine: engine, diagnostics: log)
         let stream = try await sut.start()
         engine.deliver(makeBuffer(sampleRate: sampleRate, channels: 2, frames: 0) { _, _ in 0 })  // not counted
-        engine.deliver(makeBuffer(sampleRate: sampleRate, channels: 2, frames: frames, sample: tone(sampleRate: sampleRate)))
-        engine.deliver(makeBuffer(sampleRate: sampleRate, channels: 2, frames: 256, sample: tone(sampleRate: sampleRate)))
+        engine.deliver(
+            makeBuffer(sampleRate: sampleRate, channels: 2, frames: frames, sample: tone(sampleRate: sampleRate)))
+        engine.deliver(
+            makeBuffer(sampleRate: sampleRate, channels: 2, frames: 256, sample: tone(sampleRate: sampleRate)))
 
         await sut.stop()
         _ = try await Self.drain(stream)
@@ -300,7 +302,8 @@ struct AVAudioEngineCaptureSourceTests {
         let sut = AVAudioEngineCaptureSource(engine: engine, diagnostics: log)
         for frames in [512, 1_024] {
             let stream = try await sut.start()
-            engine.deliver(makeBuffer(sampleRate: 48_000, channels: 2, frames: frames, sample: tone(sampleRate: 48_000)))
+            engine.deliver(
+                makeBuffer(sampleRate: 48_000, channels: 2, frames: frames, sample: tone(sampleRate: 48_000)))
             await sut.stop()
             _ = try await Self.drain(stream)
         }

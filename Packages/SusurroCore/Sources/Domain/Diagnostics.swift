@@ -10,6 +10,15 @@ public enum DiagnosticEvent: Sendable, Equatable {
     case captureStopAbandoned
     /// The inserter did not finish its clean-up before the shutdown gave up on it.
     case shutdownDrainAbandoned
+    /// A paste did not land and the text was left on the clipboard, or is nowhere. `cause` is a fixed name such as
+    /// "noRead" or "modifiersHeld".
+    case pasteNotCompleted(cause: String)
+    /// The pasteboard refused a write of the dictation.
+    case pasteboardWriteRefused
+    /// The pasteboard refused to take the user's old contents back.
+    case clipboardRestoreFailed
+    /// The first buffer the microphone tap delivered in a capture. Its size sets how soon the first chunk arrives.
+    case captureFirstBuffer(frames: Int, sampleRate: Double)
 }
 
 /// Where the pipeline reports what it would otherwise swallow. The live log lives in the platform package.

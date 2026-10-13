@@ -17,9 +17,15 @@ struct PasteboardSnapshot {
         }
     }
 
-    /// Replaces the contents of the pasteboard with the snapshot. This is best effort: if the pasteboard refuses the
-    /// write there is nothing else to try.
-    func restore(to pasteboard: NSPasteboard) {
+    /// Replaces the contents of the pasteboard with the snapshot and says whether the pasteboard took it. This is best
+    /// effort: if the pasteboard refuses the write there is nothing else to try.
+    ///
+    /// - Parameter writeItems: Puts the items on the pasteboard. Tests pass one that refuses.
+    @discardableResult
+    func restore(
+        to pasteboard: NSPasteboard,
+        writing writeItems: (NSPasteboard, [NSPasteboardItem]) -> Bool = { $0.writeObjects($1) }
+    ) -> Bool {
         pasteboard.clearContents()
         let restored = items.map { entries in
             // A pasteboard item belongs to the pasteboard it was read from or written to and cannot be written again,
@@ -28,6 +34,7 @@ struct PasteboardSnapshot {
             for entry in entries { item.setData(entry.data, forType: entry.type) }
             return item
         }
-        _ = pasteboard.writeObjects(restored)
+        // An empty pasteboard is restored by clearing it, which is done.
+        return restored.isEmpty || writeItems(pasteboard, restored)
     }
 }
