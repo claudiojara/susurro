@@ -13,7 +13,7 @@ let package = Package(
         .package(url: "https://github.com/sindresorhus/KeyboardShortcuts.git", exact: "3.1.0"),
     ],
     targets: [
-        .target(name: "Permissions"),
+        .target(name: "Permissions", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .target(
             name: "Hotkeys",
             dependencies: [
@@ -22,7 +22,10 @@ let package = Package(
             ]
         ),
         .target(name: "AudioIO", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
-        .testTarget(name: "PermissionsTests", dependencies: ["Permissions"]),
+        .testTarget(
+            name: "PermissionsTests",
+            dependencies: ["Permissions", .product(name: "SusurroCore", package: "SusurroCore")]
+        ),
         .testTarget(
             name: "AudioIOTests",
             dependencies: [
