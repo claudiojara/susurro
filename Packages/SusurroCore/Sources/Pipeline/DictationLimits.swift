@@ -12,6 +12,8 @@ public enum DictationLimits {
     /// The most a finished recording waits for a loading model, however it progresses. A first launch downloads and
     /// compiles the model in about a minute on a fast connection.
     public static let readinessHardCap = Duration.seconds(180)
+    /// How long asking the recognizer to prepare may take. It only starts a load, so it returns at once.
+    public static let prepareTimeout = Duration.seconds(5)
     /// How long stopping the capture and delivering its last chunks may take.
     public static let captureStopTimeout = Duration.seconds(5)
     public static let transcriptionTimeout = Duration.seconds(30)

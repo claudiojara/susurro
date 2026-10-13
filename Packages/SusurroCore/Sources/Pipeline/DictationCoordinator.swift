@@ -129,15 +129,22 @@ public actor DictationCoordinator {
 
     private func checkStartPreconditions() async throws {
         guard await permissions.status(.microphone) == .granted else { throw PipelineError.microphoneNotGranted }
-        switch await recognizer.readiness() {
-        case .notInstalled:
-            throw PipelineError.recognizerNotInstalled
-        case .unavailable(let reason):
-            // Pressing again is the user's way to try again. The recognizer decides whether it is time.
-            await recognizer.prepare()
-            throw PipelineError.recognizerUnavailable(reason)
-        case .loading, .ready:
-            break
+        var readiness = await recognizer.readiness()
+        if readiness == .ready { return }
+        if readiness != .notInstalled {
+            // A press is the chance to start a load that never started, or to retry one that failed. Preparing is
+            // idempotent, so it is asked every time and the recognizer decides. What it says afterward counts, not
+            // what it said before.
+            try await withDeadline(DictationLimits.prepareTimeout, stage: .readiness, sleep: sleep) { [recognizer] in
+                await recognizer.prepare()
+            }
+            readiness = await recognizer.readiness()
+        }
+        switch readiness {
+        case .notInstalled: throw PipelineError.recognizerNotInstalled
+        case .unavailable(let reason, let retryable):
+            throw PipelineError.recognizerUnavailable(reason, retryable: retryable)
+        case .loading, .ready: break
         }
     }
 
@@ -247,8 +254,8 @@ public actor DictationCoordinator {
                 return
             case .notInstalled:
                 throw PipelineError.recognizerNotInstalled
-            case .unavailable(let reason):
-                throw PipelineError.recognizerUnavailable(reason)
+            case .unavailable(let reason, let retryable):
+                throw PipelineError.recognizerUnavailable(reason, retryable: retryable)
             case .loading(let progress):
                 if progress != lastProgress {
                     lastProgress = progress

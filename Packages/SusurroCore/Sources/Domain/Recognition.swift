@@ -5,8 +5,9 @@ public enum RecognizerReadiness: Sendable, Equatable {
     /// loaded yet reads as loading, not as missing.
     case loading(progress: Double)
     case ready
-    /// A load failed. The text says why. Dictating again is the way to try again.
-    case unavailable(String)
+    /// A load failed. The text says why. `retryable` is false when trying again cannot help: the failure is permanent,
+    /// or the recognizer gave up. Dictating again is then not the way out.
+    case unavailable(String, retryable: Bool)
 }
 
 public struct RawTranscript: Sendable, Equatable {
@@ -54,12 +55,10 @@ public struct ASRProviderID: Sendable, Hashable {
 
 public protocol SpeechRecognizer: Sendable {
     func readiness() async -> RecognizerReadiness
-    /// Starts loading the model, or tries again after a failure, and returns at once. The coordinator calls it when a
-    /// press finds the recognizer unavailable. A recognizer that needs no loading keeps the default, which does nothing.
+    /// Starts loading the model, or tries again after a failure, and returns at once. It does nothing while a load runs
+    /// or once the model is ready, so calling it again is harmless. The coordinator calls it on every press that does
+    /// not find the recognizer ready. A recognizer that needs no loading implements it as a function that does nothing;
+    /// there is no default, so a conformer cannot forget it.
     func prepare() async
     func transcribe(_ clip: AudioClip, options: RecognitionOptions) async throws -> RawTranscript
-}
-
-extension SpeechRecognizer {
-    public func prepare() async {}
 }

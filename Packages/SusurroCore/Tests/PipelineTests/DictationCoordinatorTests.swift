@@ -220,7 +220,8 @@ struct DictationCoordinatorTests {
     @Test("a model that fails to load while the clip waits ends in the retry error, and the press that follows works")
     func modelFailsWhileWaiting() async {
         let recognizer = FakeRecognizer(readiness: [
-            .loading(progress: 0.5), .loading(progress: 0.6), .unavailable("disk full", retryable: true),
+            .loading(progress: 0.5), .loading(progress: 0.6), .loading(progress: 0.7),
+            .unavailable("disk full", retryable: true),
         ])
         var h = await Harness(recognizer: recognizer)
         await h.startRecording()
@@ -229,7 +230,7 @@ struct DictationCoordinatorTests {
         await h.startRecording()
         let recovered = await h.release()
 
-        let progress: [PipelineState] = [.transcribing(progress: 0.6)]
+        let progress: [PipelineState] = [.transcribing(progress: 0.7)]
         let error: [PipelineState] = [.error(.recognizerUnavailable("disk full", retryable: true)), .idle]
         #expect(failed == [.transcribing(progress: nil)] + progress + error)
         #expect(recovered == Self.transcribed)
@@ -379,7 +380,7 @@ struct DictationCoordinatorTests {
         let states = await h.release()
 
         #expect(Array(states.suffix(3)) == Self.transcribed)
-        #expect(h.sleeper.pauseCount == Self.stallPolls + 99)
+        #expect(h.sleeper.pauseCount == Self.stallPolls + 98)
         #expect(recognizer.transcribedClips == [AudioClip(samples: Self.clip)])
         #expect(h.inserter.insertedTexts == ["hola"])
     }
@@ -405,7 +406,7 @@ struct DictationCoordinatorTests {
         let states = await h.release()
 
         #expect(Array(states.suffix(2)) == [.error(.timedOut(.readiness)), .idle])
-        #expect(h.sleeper.pauseCount == 9 + Self.stallPolls)
+        #expect(h.sleeper.pauseCount == 8 + Self.stallPolls)
         #expect(h.recognizer.transcribedClips.isEmpty)
     }
 
