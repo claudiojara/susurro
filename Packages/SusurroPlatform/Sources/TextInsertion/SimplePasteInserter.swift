@@ -11,8 +11,14 @@ enum PasteTiming {
     static let receiptPollInterval = Duration.milliseconds(50)
     /// How long an app may take to read the text after the chord before the paste counts as failed.
     static let receiptTimeout = Duration.seconds(8)
-    /// How long the text stays on the pasteboard after an app has read it, before the old contents come back.
-    static let restoreDelay = Duration.milliseconds(300)
+    /// The quiet period: how long the pasteboard must go without a new read before the old contents come back.
+    static let restoreDelay = Duration.milliseconds(200)
+    /// The old contents never come back sooner than this after the chord, however early the first read. An app that
+    /// reads the pasteboard a second time would otherwise find the old contents.
+    static let minimumDwell = Duration.seconds(1)
+    /// The longest a paste can take: the wait for modifiers, the wait for a read, and one last quiet period. The
+    /// minimum dwell runs inside the wait for a read, so it adds nothing.
+    static let worstCase = modifierTimeout + receiptTimeout + restoreDelay
 }
 
 /// Pastes by promising the text on the pasteboard, posting Command+V, and putting the old pasteboard contents back
@@ -88,6 +94,7 @@ public final class SimplePasteInserter: TextInserter {
             saved.restore(to: pasteboard)
             return .copiedToClipboard(.pasteFailed)
         }
+        let readsBeforeTheChord = promise.receipts
         if let reason = postChord() { return leaveOnClipboard(text, because: reason) }
         let chordPostedAt = now()
         // The chord is out, so the rest runs in a task of its own. A caller that is cancelled from here on cannot cut
@@ -98,31 +105,37 @@ public final class SimplePasteInserter: TextInserter {
                 promise: promise,
                 saved: saved,
                 writtenChangeCount: writtenChangeCount,
+                readsBeforeTheChord: readsBeforeTheChord,
                 chordPostedAt: chordPostedAt
             )
         }.value
     }
 
-    /// Waits for an app to read the text, then restores the old contents after a quiet period. When no app reads the
-    /// text in time, the paste has failed and the text stays.
+    /// Waits for an app to read the text and for the pasteboard to go quiet, then restores the old contents. When no
+    /// app reads the text in time, the paste has failed and the text stays.
     private func finishPaste(
         _ text: String,
         promise: PromisedText,
         saved: PasteboardSnapshot,
         writtenChangeCount: Int,
+        readsBeforeTheChord: Int,
         chordPostedAt: Duration
     ) async -> InsertionOutcome {
-        while promise.receipts == 0 {
-            guard now() - chordPostedAt < PasteTiming.receiptTimeout else {
+        var watch = ReceiptWatch(baseline: readsBeforeTheChord, chordPostedAt: chordPostedAt)
+        while true {
+            switch watch.observe(reads: promise.receipts, at: now()) {
+            case .wait:
+                break
+            case .failed:
                 return leaveOnClipboard(text, because: .pasteFailed)
+            case .restore:
+                // A newer write by anyone else wins over the old contents.
+                if pasteboard.changeCount == writtenChangeCount { saved.restore(to: pasteboard) }
+                return .inserted
             }
             // Nobody cancels this task, so a pause that throws is an injected one and the loop still ends by time.
             try? await sleep(PasteTiming.receiptPollInterval)
         }
-        try? await sleep(PasteTiming.restoreDelay)
-        // A newer write by anyone else wins over the old contents.
-        if pasteboard.changeCount == writtenChangeCount { saved.restore(to: pasteboard) }
-        return .inserted
     }
 
     /// Posts the paste chord. Returns why it could not be posted, or nil when it was.

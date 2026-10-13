@@ -381,8 +381,8 @@ final class SimplePasteInserterTests {
 
         #expect(outcome == .inserted)
         #expect(keys.calls == [.modifiersHeld, .modifiersHeld, .modifiersHeld, .modifiersHeld, .postPaste])
-        #expect(sleeps.prefix(3) == Array(repeating: Self.modifierPollInterval, count: 3))
-        #expect(clock.elapsed == 3 * Self.modifierPollInterval + Self.minimumDwell)
+        #expect(Array(sleeps.prefix(3)) == Array(repeating: Self.modifierPollInterval, count: 3))
+        #expect(clock.elapsed == Self.modifierPollInterval * 3 + Self.minimumDwell)
     }
 
     @Test("while a modifier is held the user's pasteboard is untouched, and it is back at the end")
