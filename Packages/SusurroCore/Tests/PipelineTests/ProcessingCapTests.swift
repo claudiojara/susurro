@@ -18,22 +18,24 @@ struct ProcessingCapTests {
 
     @Test("a transcription that has not finished when the cap runs out ends in an error naming that stage")
     func capEndsATranscription() async {
-        // Only the cap expires, not the transcription limit, so the error can only come from the cap.
-        let sleeper = FakeSleeper(expiring: [DictationLimits.processingCap])
-        var h = await Harness(recognizer: FakeRecognizer(gated: true), sleeper: sleeper)
-        await h.startRecording()
+        // The cap fires and the transcription limit does not, so the error can only come from the cap.
+        var h = await Harness(recognizer: FakeRecognizer(gated: true))
+        await h.startProcessing()
+        await h.recognizer.transcribeEntered.wait()
+        h.sleeper.fire(DictationLimits.processingCap)
 
-        #expect(await h.release() == [.transcribing(progress: nil), .error(.timedOut(.transcription)), .idle])
+        #expect(await h.read(through: .idle) == [.error(.timedOut(.transcription)), .idle])
         #expect(h.inserter.insertedTexts.isEmpty)
     }
 
     @Test("an insertion that has not finished when the cap runs out ends in an error naming that stage")
     func capEndsAnInsertion() async {
-        let sleeper = FakeSleeper(expiring: [DictationLimits.processingCap])
-        var h = await Harness(inserter: FakeTextInserter(gated: true), sleeper: sleeper)
-        await h.startRecording()
+        var h = await Harness(inserter: FakeTextInserter(gated: true))
+        await h.startProcessing()
+        await h.inserter.entered.wait()
+        h.sleeper.fire(DictationLimits.processingCap)
 
-        #expect(await h.release() == [.transcribing(progress: nil), .error(.timedOut(.insertion)), .idle])
+        #expect(await h.read(through: .idle) == [.error(.timedOut(.insertion)), .idle])
         #expect(h.inserter.insertedTexts == ["hello"])
     }
 
@@ -41,28 +43,34 @@ struct ProcessingCapTests {
     func capEndsTheWaitForTheModel() async {
         // Every pause blocks, so the wait cannot reach its own limits and only the cap can end it.
         let recognizer = FakeRecognizer(readiness: [.loading(progress: 0.5)])
-        var h = await Harness(
-            recognizer: recognizer,
-            sleeper: FakeSleeper(expiring: [DictationLimits.processingCap], blocksPauses: true))
+        var h = await Harness(recognizer: recognizer, sleeper: FakeSleeper(blocksPauses: true))
         await h.startRecording()
-        let states = await h.release()
+        await h.sut.handle(.up(at: DictationCoordinatorTests.pressTime + .milliseconds(1200)))
+        _ = await h.read(through: .transcribing(progress: 0.5))
+        h.sleeper.fire(DictationLimits.processingCap)
 
-        #expect(
-            states == [
-                .transcribing(progress: nil), .transcribing(progress: 0.5), .error(.timedOut(.readiness)), .idle,
-            ])
+        #expect(await h.read(through: .idle) == [.error(.timedOut(.readiness)), .idle])
         #expect(recognizer.transcribedClips.isEmpty)
+    }
+
+    @Test("a dictation that finishes inside the cap is untouched by it")
+    func capLeavesAFastDictationAlone() async {
+        var h = await Harness()
+        await h.startRecording()
+
+        #expect(await h.release() == DictationCoordinatorTests.transcribed)
     }
 
     @Test("a press after a capped dictation starts a new recording")
     func nextPressWorksAfterTheCap() async {
-        let sleeper = FakeSleeper(expiring: [DictationLimits.processingCap])
-        var h = await Harness(recognizer: FakeRecognizer(gated: true), sleeper: sleeper)
-        await h.startRecording()
-        let capped = await h.release()
+        var h = await Harness(recognizer: FakeRecognizer(gated: true))
+        await h.startProcessing()
+        await h.recognizer.transcribeEntered.wait()
+        h.sleeper.fire(DictationLimits.processingCap)
+        let capped = await h.read(through: .idle)
         await h.startRecording()  // reaches the recording state only if the coordinator is idle again
 
-        #expect(capped.suffix(2) == [.error(.timedOut(.transcription)), .idle])
+        #expect(capped == [.error(.timedOut(.transcription)), .idle])
         #expect(h.capture.startCount == 2)
     }
 }

@@ -139,7 +139,7 @@ public final class SimplePasteInserter: TextInserter {
 
     /// Waits for every paste that has posted its chord to finish. `insert` returns at the first read of the text,
     /// before the old pasteboard is back, so a caller that needs the final pasteboard waits here.
-    func drain() async {
+    public func drain() async {
         await finishing?.value
     }
 

@@ -14,6 +14,8 @@ public final class FakeRecognizer: SpeechRecognizer {
         var calls: [Call] = []
     }
 
+    /// Opened when `transcribe` is entered.
+    public let transcribeEntered = Gate()
     private let state: Mutex<State>
     private let result: Result<String, any Error>
     private let gate: Gate?
@@ -70,6 +72,7 @@ public final class FakeRecognizer: SpeechRecognizer {
 
     public func transcribe(_ clip: AudioClip, options: RecognitionOptions) async throws -> RawTranscript {
         state.withLock { $0.calls.append(.transcribe(clip)) }
+        transcribeEntered.open()
         await gate?.wait()
         return RawTranscript(text: try result.get())
     }

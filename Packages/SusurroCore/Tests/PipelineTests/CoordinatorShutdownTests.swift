@@ -58,6 +58,7 @@ struct CoordinatorShutdownTests {
     func drainHasALimit() async {
         let inserter = FakeTextInserter(gatedDrain: true)
         var h = await Harness(inserter: inserter, sleeper: FakeSleeper(expiring: [DictationLimits.drainTimeout]))
+        await h.startRecording()
         await h.sut.shutdown()
 
         #expect(inserter.drainCount == 1)

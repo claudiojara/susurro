@@ -6,6 +6,9 @@ public enum NoticeKind: Sendable, Equatable {
     case noSpeech
     case capReached
     case copiedToClipboard(ClipboardReason)
+    /// A press arrived while the last dictation was still being transcribed or inserted, so it was ignored. The
+    /// pipeline state that was showing comes right back after this notice.
+    case busy
 }
 
 /// Where the user goes to recover from an error.
@@ -39,6 +42,20 @@ public enum PipelineError: Error, Sendable, Equatable {
         case insertion
     }
 
+    /// The name of the case, without the text it carries, which can come from the system or from what was said. Logs
+    /// use this and never the error itself.
+    public var kind: String {
+        switch self {
+        case .microphoneNotGranted: "microphoneNotGranted"
+        case .recognizerNotInstalled: "recognizerNotInstalled"
+        case .recognizerUnavailable: "recognizerUnavailable"
+        case .captureFailed: "captureFailed"
+        case .recognitionFailed: "recognitionFailed"
+        case .timedOut(let stage): "timedOut.\(stage)"
+        case .notInserted(let reason): "notInserted.\(reason)"
+        }
+    }
+
     public var remedy: Remedy {
         switch self {
         case .microphoneNotGranted: .permissions
@@ -65,4 +82,8 @@ public enum PipelineState: Sendable, Equatable {
 /// Where the coordinator hands the final text.
 public protocol TextInserter: Sendable {
     func insert(_ text: String) async -> InsertionOutcome
+    /// Returns once every insertion that has already returned has also finished its own clean-up, such as putting the
+    /// user's clipboard back. The coordinator waits for this when it shuts down, so quitting does not leave a
+    /// dictation on the clipboard. An inserter with nothing to clean up returns at once.
+    func drain() async
 }

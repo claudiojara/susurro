@@ -18,4 +18,11 @@ public enum DictationLimits {
     public static let captureStopTimeout = Duration.seconds(5)
     public static let transcriptionTimeout = Duration.seconds(30)
     public static let insertionTimeout = Duration.seconds(10)
+    /// The most one dictation takes after the key is released: the wait for the model, the transcription, and the
+    /// insertion together. It is shorter than the sum of their limits, so a dictation cannot hold the coordinator busy
+    /// for all of them in a row, and no shorter than the wait for the model, which a first launch can use up.
+    public static let processingCap = Duration.seconds(200)
+    /// How long a shutdown waits for the inserter to finish what it has in hand, such as putting the clipboard back.
+    /// What is left after that is put back by the app as it terminates.
+    public static let drainTimeout = Duration.seconds(2)
 }

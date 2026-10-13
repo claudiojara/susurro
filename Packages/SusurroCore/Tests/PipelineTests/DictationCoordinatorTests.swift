@@ -512,7 +512,8 @@ struct DictationCoordinatorTests {
         await h.sut.handle(.down(at: Self.pressTime + .milliseconds(1300)))
         inserter.releaseInsertion()
 
-        #expect(await h.read(through: .idle) == [.notice(.busy)] + Self.transcribed)
+        let busy: [PipelineState] = [.notice(.busy), .transcribing(progress: nil)]
+        #expect(await h.read(through: .idle) == [.transcribing(progress: nil)] + busy + [.inserted, .idle])
         #expect(h.capture.startCount == 1)
     }
 

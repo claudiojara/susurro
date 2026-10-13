@@ -9,6 +9,17 @@ func withDeadline<T: Sendable>(
     sleep: @escaping @Sendable (Duration) async throws -> Void,
     operation: @escaping @Sendable () async throws -> T
 ) async throws -> T {
+    try await withDeadline(limit, stageAtExpiry: { stage }, sleep: sleep, operation: operation)
+}
+
+/// Like the deadline above, for a limit that covers several stages in turn: the error names the stage that
+/// `stageAtExpiry` reports at the moment the limit runs out.
+func withDeadline<T: Sendable>(
+    _ limit: Duration,
+    stageAtExpiry: @escaping @Sendable () async -> PipelineError.Stage,
+    sleep: @escaping @Sendable (Duration) async throws -> Void,
+    operation: @escaping @Sendable () async throws -> T
+) async throws -> T {
     try Task.checkCancellation()
     let (outcomes, results) = AsyncStream.makeStream(of: Result<T, any Error>.self)
     let work = Task {
@@ -16,7 +27,7 @@ func withDeadline<T: Sendable>(
     }
     let timer = Task {
         guard (try? await sleep(limit)) != nil else { return }
-        results.yield(.failure(PipelineError.timedOut(stage)))
+        results.yield(.failure(PipelineError.timedOut(await stageAtExpiry())))
     }
     defer {
         work.cancel()
