@@ -8,7 +8,7 @@ public struct FakePermissionsChecker: PermissionsChecker {
     private let release: Gate?
 
     public init(
-        _ statuses: [Permission: PermissionStatus] = [.microphone: .granted, .accessibility: .granted],
+        _ statuses: [Permission: PermissionStatus] = [.microphone: .granted],
         gated: Bool = false
     ) {
         self.statuses = statuses
@@ -22,6 +22,4 @@ public struct FakePermissionsChecker: PermissionsChecker {
         await release?.wait()
         return statuses[permission] ?? .notDetermined
     }
-
-    public func request(_ permission: Permission) async {}
 }

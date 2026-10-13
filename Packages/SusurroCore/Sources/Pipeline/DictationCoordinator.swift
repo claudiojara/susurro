@@ -1,21 +1,5 @@
 import Domain
 
-/// Limits of the walking skeleton. Later changes replace each one.
-public enum SkeletonLimits {
-    /// A shorter hold is discarded.
-    public static let minimumHold = Duration.milliseconds(300)
-    /// Reaching this much audio finishes the recording.
-    public static let maxClipDuration = Duration.seconds(60)
-    /// The pause between readiness checks while the speech model loads.
-    public static let readinessPollInterval = Duration.milliseconds(200)
-    /// How long a loading model may keep a finished recording waiting.
-    public static let readinessTimeout = Duration.seconds(60)
-    /// How long stopping the capture and delivering its last chunks may take.
-    public static let captureStopTimeout = Duration.seconds(5)
-    public static let transcriptionTimeout = Duration.seconds(30)
-    public static let insertionTimeout = Duration.seconds(10)
-}
-
 /// Runs one hold-to-talk dictation at a time: key down records, key up transcribes the whole clip and inserts the
 /// text. A press while a dictation is recording or processing is ignored. Every wait is bounded, so the coordinator
 /// always returns to idle.
@@ -34,7 +18,7 @@ public actor DictationCoordinator {
         case capReached
     }
 
-    private static let capSampleCount = Int(SkeletonLimits.maxClipDuration / .seconds(1)) * AudioClip.sampleRate
+    private static let capSampleCount = Int(DictationLimits.recordingCap / .seconds(1)) * AudioClip.sampleRate
 
     private let hotkeys: any HotkeySource
     private let capture: any AudioCaptureSource
@@ -53,6 +37,7 @@ public actor DictationCoordinator {
     private var pendingRelease: Duration?
     private var samples: [Float] = []
     private var receivedAudio = false
+    private var captureFailure: String?
     private var captureTask: Task<Void, Never>?
     private var processTask: Task<Void, Never>?
 
@@ -122,11 +107,12 @@ public actor DictationCoordinator {
             guard phase == .starting else { return await abandonCapture() }  // shut down meanwhile
             samples = []
             receivedAudio = false
+            captureFailure = nil
             phase = .capturing
             captureTask = Task { await self.consume(stream) }
             if let release = pendingRelease { await released(at: release) }
         } catch {
-            settle(.error(error as? PipelineError ?? .captureFailed))
+            settle(.error(Self.pipelineError(from: error, otherwise: PipelineError.captureFailed)))
         }
     }
 
@@ -135,8 +121,7 @@ public actor DictationCoordinator {
         case .starting:
             pendingRelease = time  // honored as soon as the capture has started
         case .capturing:
-            phase = .finishing
-            await finishRecording(.released(heldFor: time - pressedAt))
+            await beginFinishing(reason: .released(heldFor: time - pressedAt))?.value
         default:
             return
         }
@@ -149,35 +134,41 @@ public actor DictationCoordinator {
 
     private func consume(_ stream: AsyncThrowingStream<AudioChunk, Error>) async {
         do {
-            for try await chunk in stream { record(chunk) }
+            for try await chunk in stream { receive(chunk) }
         } catch {
-            // The samples captured so far stay in the clip. Device loss gets its own handling later.
+            // The samples captured so far stay in the clip. If none arrived, the release reports this failure.
+            captureFailure = String(describing: error)
         }
     }
 
-    private func record(_ chunk: AudioChunk) {
+    private func receive(_ chunk: AudioChunk) {
         if !receivedAudio, phase == .capturing {
             receivedAudio = true
             publish(.recording(.hold))
         }
         samples.append(contentsOf: chunk.samples)
-        if phase == .capturing, samples.count >= Self.capSampleCount {
-            phase = .finishing
-            Task { await self.finishRecording(.capReached) }
-        }
+        if samples.count >= Self.capSampleCount { beginFinishing(reason: .capReached) }
+    }
+
+    /// Claims the recording for finishing, so the release and the cap cannot both finish it.
+    @discardableResult
+    private func beginFinishing(reason: FinishReason) -> Task<Void, Never>? {
+        guard phase == .capturing else { return nil }
+        phase = .finishing
+        return Task { await self.finishRecording(reason) }
     }
 
     /// Stops capture, waits for the buffered chunks, then discards the clip or starts processing it.
     private func finishRecording(_ reason: FinishReason) async {
         do {
-            try await withDeadline(SkeletonLimits.captureStopTimeout, stage: .capture, sleep: sleep) {
+            try await withDeadline(DictationLimits.captureStopTimeout, stage: .capture, sleep: sleep) {
                 [capture, captureTask] in
                 await capture.stop()
                 await captureTask?.value
             }
         } catch {
             captureTask?.cancel()
-            return settle(.error(error as? PipelineError ?? .captureFailed))
+            return settle(.error(Self.pipelineError(from: error, otherwise: PipelineError.captureFailed)))
         }
         guard phase == .finishing else { return }  // shut down meanwhile
         captureTask = nil
@@ -186,8 +177,10 @@ public actor DictationCoordinator {
 
         switch reason {
         case .released(let heldFor):
-            guard heldFor >= SkeletonLimits.minimumHold else { return settle() }
-            guard !clip.samples.isEmpty else { return settle(.error(.captureFailed)) }
+            guard heldFor >= DictationLimits.minimumHold else { return settle() }
+            guard !clip.samples.isEmpty else {
+                return settle(.error(.captureFailed(captureFailure ?? "no audio was captured")))
+            }
         case .capReached:
             publish(.notice(.capReached))
         }
@@ -200,7 +193,7 @@ public actor DictationCoordinator {
     /// that is already cancelled still stops the capture.
     private func abandonCapture() async {
         await Task {
-            try? await withDeadline(SkeletonLimits.captureStopTimeout, stage: .capture, sleep: sleep) { [capture] in
+            try? await withDeadline(DictationLimits.captureStopTimeout, stage: .capture, sleep: sleep) { [capture] in
                 await capture.stop()
             }
         }.value
@@ -210,12 +203,12 @@ public actor DictationCoordinator {
         do {
             try await waitUntilRecognizerIsReady()
             let transcript = try await withDeadline(
-                SkeletonLimits.transcriptionTimeout, stage: .transcription, sleep: sleep
+                DictationLimits.transcriptionTimeout, stage: .transcription, sleep: sleep
             ) { [recognizer] in
                 try await recognizer.transcribe(clip, options: RecognitionOptions())
             }
             guard !transcript.text.allSatisfy(\.isWhitespace) else { return settle(.notice(.noSpeech)) }
-            let outcome = try await withDeadline(SkeletonLimits.insertionTimeout, stage: .insertion, sleep: sleep) {
+            let outcome = try await withDeadline(DictationLimits.insertionTimeout, stage: .insertion, sleep: sleep) {
                 [inserter] in
                 await inserter.insert(transcript.text)
             }
@@ -224,12 +217,12 @@ public actor DictationCoordinator {
             case .copiedToClipboard(let reason): settle(.notice(.copiedToClipboard(reason)))
             }
         } catch {
-            settle(.error(error as? PipelineError ?? .recognitionFailed))
+            settle(.error(Self.pipelineError(from: error, otherwise: PipelineError.recognitionFailed)))
         }
     }
 
     private func waitUntilRecognizerIsReady() async throws {
-        var pausesLeft = Int(SkeletonLimits.readinessTimeout / SkeletonLimits.readinessPollInterval)
+        var pausesLeft = Int(DictationLimits.readinessTimeout / DictationLimits.readinessPollInterval)
         while true {
             switch await recognizer.readiness() {
             case .ready:
@@ -241,9 +234,15 @@ public actor DictationCoordinator {
                 guard pausesLeft > 0 else { throw PipelineError.timedOut(.readiness) }
                 pausesLeft -= 1
                 publish(.transcribing(progress: progress))
-                try await sleep(SkeletonLimits.readinessPollInterval)
+                try await sleep(DictationLimits.readinessPollInterval)
             }
         }
+    }
+
+    private static func pipelineError(
+        from error: any Error, otherwise make: (String) -> PipelineError
+    ) -> PipelineError {
+        error as? PipelineError ?? make(String(describing: error))
     }
 
     /// Ends a cycle: shows the outcome, if any, and returns to idle.
