@@ -56,4 +56,30 @@ struct LiveParakeetEngineTests {
         #expect(target.deletingLastPathComponent() != theirs.deletingLastPathComponent())
         #expect(target.path.contains("/Susurro/Models/"))
     }
+
+    @Test(
+        "errors that trying again cannot fix are permanent",
+        arguments: [
+            DownloadError.modelNotFound(path: "Encoder.mlmodelc"),
+            .invalidArtifact(path: "Encoder.mlmodelc", reason: "checksum"),
+        ] as [any Error]
+            + [ASRError.modelCompilationFailed, ASRError.unsupportedPlatform("needs a newer macOS")] as [any Error]
+            + [AsrModelsError.modelCompilationFailed("Encoder")] as [any Error]
+    )
+    func permanentErrors(error: any Error) {
+        #expect(LiveParakeetEngine.isPermanent(error))
+    }
+
+    @Test(
+        "network and server errors are worth another try",
+        arguments: [
+            DownloadError.stalled(path: "Encoder.mlmodelc", window: 120),
+            .rateLimited(statusCode: 429, message: "slow down"),
+            .invalidResponse,
+        ] as [any Error]
+            + [URLError(.notConnectedToInternet), AsrModelsError.downloadFailed("timeout")] as [any Error]
+    )
+    func transientErrors(error: any Error) {
+        #expect(!LiveParakeetEngine.isPermanent(error))
+    }
 }

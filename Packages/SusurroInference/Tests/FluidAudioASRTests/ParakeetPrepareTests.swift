@@ -5,8 +5,6 @@ import Testing
 
 @Suite("Parakeet model readiness", .timeLimit(.minutes(1)))
 struct ParakeetPrepareTests {
-    private struct Failure: Error {}
-
     /// Reads published readiness values up to and including the first one that satisfies `isLast`.
     private static func read(
         _ changes: inout AsyncStream<RecognizerReadiness>.Iterator,
@@ -20,11 +18,11 @@ struct ParakeetPrepareTests {
         return seen
     }
 
-    @Test("readiness is not installed until a load starts")
-    func notInstalledBeforePrepare() async {
+    @Test("a model that has not started loading reads as loading, not as missing")
+    func loadingBeforePrepare() async {
         let recognizer = ParakeetRecognizer(engine: FakeParakeetEngine())
 
-        #expect(await recognizer.readiness() == .notInstalled)
+        #expect(await recognizer.readiness() == .loading(progress: 0))
     }
 
     @Test("transcribing is refused until the model is loaded")
@@ -76,7 +74,7 @@ struct ParakeetPrepareTests {
         let finished = await Self.read(&changes) { $0 == .ready }
 
         #expect(
-            whileLoading == [.notInstalled, .loading(progress: 0), .loading(progress: 0.25), .loading(progress: 0.5)]
+            whileLoading == [.loading(progress: 0), .loading(progress: 0.25), .loading(progress: 0.5)]
         )
         #expect(finished == [.ready])
     }
@@ -104,29 +102,10 @@ struct ParakeetPrepareTests {
 
         #expect(
             seen == [
-                .notInstalled, .loading(progress: 0), .loading(progress: 0.2), .loading(progress: 0.9),
-                .loading(progress: 0.99), .ready,
+                .loading(progress: 0), .loading(progress: 0.2), .loading(progress: 0.9), .loading(progress: 0.99),
+                .ready,
             ]
         )
-    }
-
-    @Test("a failed load reads as not installed, and prepare tries again")
-    func failedLoadCanBeRetried() async {
-        let engine = FakeParakeetEngine(loads: [.init(failure: Failure()), .init()])
-        let recognizer = ParakeetRecognizer(engine: engine)
-        var changes = await recognizer.readinessChanges().makeAsyncIterator()
-
-        await recognizer.prepare()
-        let started = await Self.read(&changes) { $0 == .loading(progress: 0) }
-        let failed = await Self.read(&changes) { $0 == .notInstalled }
-        #expect(await recognizer.readiness() == .notInstalled)
-        await recognizer.prepare()
-        let retried = await Self.read(&changes) { $0 == .ready }
-
-        #expect(started == [.notInstalled, .loading(progress: 0)])
-        #expect(failed == [.notInstalled])
-        #expect(retried == [.loading(progress: 0), .ready])
-        #expect(engine.loadCount == 2)
     }
 
     @Test(
