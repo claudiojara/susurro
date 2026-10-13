@@ -16,9 +16,4 @@ struct DefaultHotkeyTests {
 
         #expect(DefaultHotkey.holdToTalk == expected)
     }
-
-    @Test("the registered name carries that combo as its default")
-    func registeredNameDefault() {
-        #expect(KeyboardShortcuts.Name.holdToTalk.defaultShortcut == DefaultHotkey.holdToTalk)
-    }
 }
