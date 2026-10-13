@@ -107,7 +107,7 @@ public final class SimplePasteInserter: TextInserter {
         let promise = PromisedText(text)
         guard let writtenChangeCount = write(promise) else {
             saved.restore(to: pasteboard)
-            return .copiedToClipboard(.pasteFailed)
+            return .notInserted(.clipboardWriteFailed)
         }
         guard !Task.isCancelled else {
             if pasteboard.changeCount == writtenChangeCount { saved.restore(to: pasteboard) }
@@ -184,8 +184,8 @@ public final class SimplePasteInserter: TextInserter {
 
     /// Ends a paste that did not land: the text stays on the pasteboard unless the user copied something meanwhile.
     private func giveUp(on text: String, writtenChangeCount: Int) -> InsertionOutcome {
-        // A copy that the user made while the paste waited wins over the text.
-        guard pasteboard.changeCount == writtenChangeCount else { return .copiedToClipboard(.pasteFailed) }
+        // A copy that the user made while the paste waited wins over the text, which is then nowhere.
+        guard pasteboard.changeCount == writtenChangeCount else { return .notInserted(.clipboardChanged) }
         return leaveOnClipboard(text, because: .pasteFailed)
     }
 
@@ -249,8 +249,9 @@ public final class SimplePasteInserter: TextInserter {
 
     /// Replaces the pasteboard contents with the text itself, as plain marked text with nothing promised.
     private func leaveOnClipboard(_ text: String, because reason: ClipboardReason) -> InsertionOutcome {
-        // If even this write is refused there is nothing left to try, and the outcome stays the same.
-        _ = replaceContents(with: .marked(source: sourceBundleID) { $0.setString(text, forType: .string) })
+        let item = NSPasteboardItem.marked(source: sourceBundleID) { $0.setString(text, forType: .string) }
+        // If even this write is refused there is nothing left to try, and the text is nowhere.
+        guard replaceContents(with: item) != nil else { return .notInserted(.clipboardWriteFailed) }
         return .copiedToClipboard(reason)
     }
 
