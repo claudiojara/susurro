@@ -8,6 +8,8 @@ public nonisolated enum ThemeError: Error, Sendable, Equatable, CustomStringConv
     /// A file defines a token the catalog does not list, most likely a typo. `String` is `group.name`, or the key.
     case unknownToken(String)
     case unreadable(file: String, reason: String)
+    /// The theme in use is a file that is no longer there.
+    case themeNotFound(String)
     /// A token of the catalog has no value. `String` is the token as `group.name`.
     case missingToken(String)
     /// A color points at a palette entry that does not exist.
@@ -25,6 +27,8 @@ public nonisolated enum ThemeError: Error, Sendable, Equatable, CustomStringConv
             "\(key) is not a token of the theme."
         case .unreadable(let file, let reason):
             "Cannot read \(file): \(reason)"
+        case .themeNotFound(let id):
+            "There is no theme named \(id)."
         case .missingToken(let key):
             "The theme does not define \(key)."
         case .missingPaletteKey(let token, let paletteKey):
