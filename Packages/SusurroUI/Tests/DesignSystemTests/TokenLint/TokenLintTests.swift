@@ -10,4 +10,17 @@ struct TokenLintTests {
         #expect(found.map(\.rule) == [.colorInitializer, .cornerRadius])
         #expect(found.map(\.line) == [6, 7])
     }
+
+    /// `Tokens/` is where a theme value becomes a SwiftUI one, so it is the one place that may write `Color(` and
+    /// `.system(size:`.
+    private let tokens = PackageLayout.sources("DesignSystem").appendingPathComponent("Tokens")
+
+    @Test("the design system and UI sources hold no visual literal outside Tokens")
+    func sourcesAreClean() throws {
+        for target in ["DesignSystem", "SusurroUI"] {
+            let report = try LiteralScanner.scan(PackageLayout.sources(target), allowing: [tokens])
+            #expect(!report.files.isEmpty, "No Swift file was found in Sources/\(target).")
+            #expect(report.violations.map(\.description) == [], "Sources/\(target) writes a visual literal.")
+        }
+    }
 }
