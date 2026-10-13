@@ -8,9 +8,22 @@ let package = Package(
     products: [
         .library(name: "SusurroInference", targets: ["FluidAudioASR"])
     ],
+    dependencies: [
+        .package(path: "../SusurroCore")
+    ],
     targets: [
-        .target(name: "FluidAudioASR"),
-        .testTarget(name: "FluidAudioASRTests", dependencies: ["FluidAudioASR"]),
+        .target(
+            name: "FluidAudioASR",
+            dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]
+        ),
+        .testTarget(
+            name: "FluidAudioASRTests",
+            dependencies: [
+                "FluidAudioASR",
+                .product(name: "SusurroCore", package: "SusurroCore"),
+                .product(name: "CoreTestSupport", package: "SusurroCore"),
+            ]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )
