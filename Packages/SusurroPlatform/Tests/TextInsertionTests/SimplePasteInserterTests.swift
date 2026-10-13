@@ -493,7 +493,11 @@ final class SimplePasteInserterTests {
         let before = contents()
         let keys = FakeKeystrokePoster()
         var textsWhenPosted: [String?] = []
-        keys.onPost = { [pasteboard] in textsWhenPosted.append(pasteboard.string(forType: .string)) }
+        var postedAt: [Duration] = []
+        keys.onPost = { [pasteboard, clock] in
+            textsWhenPosted.append(pasteboard.string(forType: .string))
+            postedAt.append(clock.elapsed)
+        }
         let sut = makeInserter(keys)
         var second: Task<InsertionOutcome, Never>?
         onSleep = { _ in
@@ -505,6 +509,7 @@ final class SimplePasteInserterTests {
 
         #expect([first, secondOutcome] == [.inserted, .inserted])
         #expect(textsWhenPosted == ["one", "two"])
+        #expect(postedAt.last.map { $0 < .seconds(2) } == true)  // the second goes ahead as soon as the first is done
         #expect(contents() == before)
     }
 
