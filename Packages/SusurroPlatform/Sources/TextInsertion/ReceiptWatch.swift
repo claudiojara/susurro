@@ -14,6 +14,10 @@ struct ReceiptWatch {
     private var knownReads: Int
     private var lastReadAt: Duration?
 
+    /// Whether an app has read the text since the chord. The paste has landed then, even though the old pasteboard
+    /// stays out for a while longer.
+    var hasRead: Bool { lastReadAt != nil }
+
     /// - Parameter baseline: The number of reads before the chord, which do not count.
     init(baseline: Int, chordPostedAt: Duration) {
         self.chordPostedAt = chordPostedAt

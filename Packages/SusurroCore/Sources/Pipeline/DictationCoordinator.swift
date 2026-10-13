@@ -215,6 +215,7 @@ public actor DictationCoordinator {
             switch outcome {
             case .inserted: settle(.inserted)
             case .copiedToClipboard(let reason): settle(.notice(.copiedToClipboard(reason)))
+            case .notInserted(let reason): settle(.error(.notInserted(reason)))
             }
         } catch {
             settle(.error(Self.pipelineError(from: error, otherwise: PipelineError.recognitionFailed)))
