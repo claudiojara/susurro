@@ -39,3 +39,5 @@ on macOS 26.6.2:
   VoiceOver is off by default, and the configurable hotkey is the way out for those users.
 
 Re-run this check before changing the default.
+
+KeyboardShortcuts is pinned exactly at 3.1.0 (the latest release; it needs Swift tools 6.2 and macOS 10.15, so macOS 26 and Swift 6.4 are fine). Its 3.x API registers a combo defined in code by value, which is how the fixed default is registered: nothing is written to UserDefaults, so an earlier run cannot override the constant and no write can re-register the key while it is held. The configurable hotkey in 2c moves to a stored name.
