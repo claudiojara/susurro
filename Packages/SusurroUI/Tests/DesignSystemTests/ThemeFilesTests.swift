@@ -3,39 +3,6 @@ import Testing
 
 @testable import DesignSystem
 
-/// A folder in the temporary directory with helpers to put odd kinds of entries in it.
-struct ScratchFolder {
-    let url = FileManager.default.temporaryDirectory.appendingPathComponent("scratch-\(UUID().uuidString)")
-
-    init() throws {
-        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-    }
-
-    func file(_ name: String) -> URL { url.appendingPathComponent(name) }
-
-    func write(_ name: String, _ text: String) throws {
-        try Data(text.utf8).write(to: file(name))
-    }
-
-    func makeFIFO(_ name: String) throws {
-        try #require(mkfifo(file(name).path, 0o600) == 0, "mkfifo failed: errno \(errno)")
-    }
-
-    func makeSymlink(_ name: String, to target: URL) throws {
-        try FileManager.default.createSymbolicLink(at: file(name), withDestinationURL: target)
-    }
-
-    func delete() {
-        try? FileManager.default.removeItem(at: url)
-    }
-}
-
-/// `{"schemaVersion": 1}` followed by spaces up to `size` bytes, so it is valid and exactly that big.
-func themeText(ofSize size: Int) -> String {
-    let base = #"{"schemaVersion": 1}"#
-    return base + String(repeating: " ", count: size - base.utf8.count)
-}
-
 @Suite("Theme files")
 struct ThemeFilesTests {
     private let notRegular = "It is not a regular file."
@@ -64,8 +31,7 @@ struct ThemeFilesTests {
     func notRegularFiles() throws {
         try withFolder { folder in
             try folder.makeFIFO("pipe.json")
-            try FileManager.default.createDirectory(
-                at: folder.file("folder.json"), withIntermediateDirectories: false)
+            try folder.makeFolder("folder.json")
             try folder.makeSymlink("alias-of-pipe.json", to: folder.file("pipe.json"))
             try folder.makeSymlink("alias-of-folder.json", to: folder.file("folder.json"))
             try folder.makeSymlink("dangling.json", to: folder.file("missing.json"))
@@ -111,8 +77,7 @@ struct ThemeFilesTests {
             try folder.write("notes.txt", "not a theme")
             try folder.write(".hidden.json", themeText(ofSize: 40))
             try folder.makeFIFO("pipe.json")
-            try FileManager.default.createDirectory(
-                at: folder.file("folder.json"), withIntermediateDirectories: false)
+            try folder.makeFolder("folder.json")
             try folder.makeSymlink("alias.json", to: folder.file("night.json"))
             try folder.makeSymlink("alias-of-pipe.json", to: folder.file("pipe.json"))
             try folder.makeSymlink("dangling.json", to: folder.file("missing.json"))

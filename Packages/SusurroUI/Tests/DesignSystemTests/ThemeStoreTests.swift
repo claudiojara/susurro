@@ -3,34 +3,8 @@ import Testing
 
 @testable import DesignSystem
 
-/// A folder of theme files in the temporary directory, standing in for `Application Support/Susurro/Themes`.
-private struct ThemesFolder {
-    let url = FileManager.default.temporaryDirectory.appendingPathComponent("themes-\(UUID().uuidString)")
-
-    init(create: Bool = true) throws {
-        if create { try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true) }
-    }
-
-    func write(_ name: String, _ text: String) throws {
-        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        try Data(text.utf8).write(to: url.appendingPathComponent(name))
-    }
-
-    func writeTheme(_ id: String, spacingMD: Int) throws {
-        try write("\(id).json", #"{"schemaVersion": 1, "spacing": {"md": \#(spacingMD)}}"#)
-    }
-
-    func remove(_ name: String) throws {
-        try FileManager.default.removeItem(at: url.appendingPathComponent(name))
-    }
-
-    func delete() {
-        try? FileManager.default.removeItem(at: url)
-    }
-}
-
-private func withThemes(_ body: (ThemesFolder) async throws -> Void) async throws {
-    let folder = try ThemesFolder()
+private func withThemes(_ body: (ScratchFolder) async throws -> Void) async throws {
+    let folder = try ScratchFolder()
     defer { folder.delete() }
     try await body(folder)
 }
@@ -146,9 +120,51 @@ struct ThemeStoreTests {
         }
     }
 
+    @Test("an observer that falls behind is told only the latest theme")
+    func stalledObserver() async throws {
+        try await withThemes { folder in
+            try folder.writeTheme("night", spacingMD: 14)
+            let store = ThemeStore(directory: folder.url, activeID: "night")
+            var stalled = await store.updates().makeAsyncIterator()
+            for md in [15, 16, 17] {
+                try folder.writeTheme("night", spacingMD: md)
+                await store.reload()
+            }
+            #expect(await stalled.next()?.theme.spacing["md"] == 17)
+
+            // Had older results been kept, this would still be 15 or 16.
+            try folder.writeTheme("night", spacingMD: 18)
+            await store.reload()
+            #expect(await stalled.next()?.theme.spacing["md"] == 18)
+        }
+    }
+
+    @Test("it lists regular files and links to them, not pipes or folders, and reports a file over the size cap")
+    func listsOnlyRegularFiles() async throws {
+        try await withThemes { folder in
+            try folder.writeTheme("night", spacingMD: 14)
+            try folder.makeSymlink("alias.json", to: folder.file("night.json"))
+            try folder.makeFIFO("pipe.json")
+            try folder.makeFolder("folder.json")
+            try folder.makeSymlink("alias-of-pipe.json", to: folder.file("pipe.json"))
+            try folder.write("huge.json", themeText(ofSize: ThemeFiles.sizeLimit + 1))
+
+            let store = ThemeStore(directory: folder.url, activeID: "alias")
+            #expect(await store.themeIDs() == ["default", "alias", "huge", "night"])
+            #expect(await store.current.theme.spacing["md"] == 14)
+            #expect(await store.current.errors == [])
+
+            await store.select("huge")
+            #expect(
+                await store.current
+                    == ThemeLoadResult(
+                        theme: .default, errors: [.unreadable(file: "huge.json", reason: "It is larger than 256 KB.")]))
+        }
+    }
+
     @Test("a folder that does not exist yet has only the bundled theme, and files added later are found")
     func folderCreatedLater() async throws {
-        let folder = try ThemesFolder(create: false)
+        let folder = try ScratchFolder(create: false)
         defer { folder.delete() }
         let store = ThemeStore(directory: folder.url)
         #expect(await store.themeIDs() == ["default"])
