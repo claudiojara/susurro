@@ -1,0 +1,28 @@
+# 0005. Hotkey strategy and Esc semantics
+
+- Status: accepted
+- Date: 2026-10-13
+
+## Context and Problem Statement
+
+Dictation is driven by a global hotkey. Each extra permission raises onboarding friction, and a global Esc handler can break
+other apps if it always swallows the key.
+
+## Considered Options
+
+- A broad event tap for every key.
+- Carbon hotkeys through KeyboardShortcuts for keyed combos, plus a listen-only monitor for modifier-only keys.
+
+## Decision Outcome
+
+Keyed combos use KeyboardShortcuts (Carbon). They need no permission and work during Secure Event Input. A listen-only
+`flagsChanged` monitor is added only for modifier-only or fn hotkeys, and only after Input Monitoring is granted. Until then
+the hotkey stays unarmed and settings report the missing permission.
+
+Esc is registered only while a recording or processing job is in flight, so it passes through to other apps when idle.
+Esc cancels: the recording is kept as `cancelled` with its audio retained for retry, and nothing is inserted.
+
+### Consequences
+
+- Good: the default setup needs only Microphone and Accessibility.
+- Bad: modifier-only hotkeys carry an extra permission and cannot work while Secure Event Input is active.
