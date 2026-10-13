@@ -6,9 +6,19 @@ import Testing
 @Suite("Format converter")
 struct FormatConverterTests {
     private static let targetRate = 16_000
+    /// Samples skipped at each end when a test looks at the steady middle of a conversion, away from filter edges.
+    private static let settle = 200
 
     private func converter(for buffer: AVAudioPCMBuffer) throws -> FormatConverter {
         try FormatConverter(from: buffer.format)
+    }
+
+    /// Everything a capture delivers for these buffers: each conversion, then the tail left in the resampler.
+    private func convertAll(_ buffers: [AVAudioPCMBuffer]) throws -> [Float] {
+        let sut = try converter(for: try #require(buffers.first))
+        var samples: [Float] = []
+        for buffer in buffers { samples += try sut.convert(buffer) }
+        return samples + (try sut.finish())
     }
 
     @Test(
@@ -17,6 +27,10 @@ struct FormatConverterTests {
             (sampleRate: 48_000.0, channels: 2 as AVAudioChannelCount),
             (sampleRate: 44_100.0, channels: 1),
             (sampleRate: 24_000.0, channels: 3),
+            (sampleRate: 96_000.0, channels: 2),
+            (sampleRate: 44_100.0, channels: 2),
+            (sampleRate: 16_000.0, channels: 2),
+            (sampleRate: 48_000.0, channels: 1),
         ]
     )
     func oneSecondBecomes16kMono(device: (sampleRate: Double, channels: AVAudioChannelCount)) throws {
@@ -27,18 +41,35 @@ struct FormatConverterTests {
             sample: tone(sampleRate: device.sampleRate)
         )
 
-        let samples = try converter(for: buffer).convert(buffer)
+        let samples = try convertAll([buffer])
 
         #expect(abs(samples.count - Self.targetRate) <= 1)
+    }
+
+    @Test("a burst keeps both edges in place, including the very end of the stream")
+    func edgesStayInPlace() throws {
+        // 100 ms at 48 kHz in four pieces: silence, then a burst from 10 ms to the end.
+        let burstStart = 480
+        let buffers = tapBuffers(sampleRate: 48_000, count: 4, frames: 1_200) { _, frame in
+            frame >= burstStart ? 0.5 : 0
+        }
+
+        let samples = try convertAll(buffers)
+        let rise = try #require(samples.firstIndex { $0 > 0.25 })
+        let fall = try #require(samples.lastIndex { $0 > 0.25 }) + 1
+
+        #expect(abs(samples.count - 1_600) <= 1)
+        #expect(abs(rise - 160) <= 1)
+        #expect(abs(fall - 1_600) <= 1)
     }
 
     @Test("the signal survives conversion: amplitude and pitch are kept")
     func signalSurvives() throws {
         let buffer = makeBuffer(sampleRate: 48_000, channels: 2, frames: 48_000, sample: tone(sampleRate: 48_000))
 
-        let samples = try converter(for: buffer).convert(buffer)
-        let settled = samples[200..<(samples.count - 200)]
-        let peak = settled.map { abs($0) }.max() ?? 0
+        let samples = try convertAll([buffer])
+        let settled = samples.dropFirst(Self.settle).dropLast(Self.settle)
+        let peak = try #require(settled.map { abs($0) }.max())
         let risingCrossings = zip(samples, samples.dropFirst()).filter { $0 < 0 && $1 >= 0 }.count
 
         #expect(abs(peak - 0.5) < 0.01)
@@ -49,24 +80,13 @@ struct FormatConverterTests {
     func streamingKeepsState() throws {
         let rate = 48_000.0
         let whole = makeBuffer(sampleRate: rate, channels: 2, frames: 48_000, sample: tone(sampleRate: rate))
-        let expected = try converter(for: whole).convert(whole)
-
-        let first = makeBuffer(sampleRate: rate, channels: 2, frames: 4_800, sample: tone(sampleRate: rate))
-        let streaming = try converter(for: first)
-        var streamed: [Float] = []
-        for index in 0..<10 {
-            let piece = makeBuffer(
-                sampleRate: rate,
-                channels: 2,
-                frames: 4_800,
-                startingAt: index * 4_800,
-                sample: tone(sampleRate: rate)
-            )
-            streamed += try streaming.convert(piece)
-        }
+        let expected = try convertAll([whole])
+        let streamed = try convertAll(
+            tapBuffers(sampleRate: rate, count: 10, frames: 4_800, sample: tone(sampleRate: rate)))
 
         #expect(abs(streamed.count - Self.targetRate) <= 1)
-        let difference = zip(streamed, expected).map { abs($0 - $1) }.max() ?? 1
+        #expect(streamed.count == expected.count)
+        let difference = try #require(zip(streamed, expected).map { abs($0 - $1) }.max())
         #expect(difference < 0.001)
     }
 
@@ -83,9 +103,10 @@ struct FormatConverterTests {
             channel == 0 ? levels.left : levels.right
         }
 
-        let samples = try converter(for: buffer).convert(buffer)
-        let settled = samples[200..<(samples.count - 200)]
+        let samples = try convertAll([buffer])
+        let settled = samples.dropFirst(Self.settle).dropLast(Self.settle)
 
+        #expect(!settled.isEmpty)
         #expect(settled.allSatisfy { abs($0 - levels.mixed) < 0.01 })
     }
 
@@ -98,8 +119,8 @@ struct FormatConverterTests {
             channel, frame in tone(sampleRate: 48_000)(channel, frame) * (channel == 0 ? 1 : 0.5)
         }
 
-        let fromPlanar = try converter(for: planar).convert(planar)
-        let fromInterleaved = try converter(for: interleaved).convert(interleaved)
+        let fromPlanar = try convertAll([planar])
+        let fromInterleaved = try convertAll([interleaved])
 
         #expect(fromPlanar.count == 1_600)
         #expect(fromInterleaved == fromPlanar)
@@ -139,7 +160,7 @@ struct FormatConverterTests {
         // The fixture labels its channels as discrete, where the standard format labels them left and right.
         let buffer = makeBuffer(sampleRate: 48_000, channels: 2, frames: 4_800) { _, _ in 0.5 }
 
-        #expect(try sut.convert(buffer).count == 1_600)
+        #expect(try sut.convert(buffer).count + sut.finish().count == 1_600)
     }
 
     @Test("input that is not Float32 PCM is unsupported")

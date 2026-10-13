@@ -32,3 +32,15 @@ func makeBuffer(
 func tone(sampleRate: Double) -> (Int, Int) -> Float {
     { _, frame in 0.5 * sin(Float(frame) * 2 * .pi * 440 / Float(sampleRate)) }
 }
+
+/// Consecutive stereo pieces of one signal, as a tap would deliver them.
+func tapBuffers(
+    sampleRate: Double,
+    count: Int,
+    frames: Int,
+    sample: @escaping (Int, Int) -> Float
+) -> [AVAudioPCMBuffer] {
+    (0..<count).map {
+        makeBuffer(sampleRate: sampleRate, channels: 2, frames: frames, startingAt: $0 * frames, sample: sample)
+    }
+}

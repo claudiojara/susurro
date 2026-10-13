@@ -21,10 +21,7 @@ let package = Package(
                 .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
             ]
         ),
-        .target(
-            name: "AudioIO",
-            dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]
-        ),
+        .target(name: "AudioIO", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .testTarget(name: "PermissionsTests", dependencies: ["Permissions"]),
         .testTarget(
             name: "AudioIOTests",
