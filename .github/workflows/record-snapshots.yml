@@ -1,0 +1,58 @@
+name: Record snapshots
+
+# Records the snapshot references on the CI image and commits them to the branch, so they are made by the machine that
+# will compare against them. Start it with `gh workflow run record-snapshots.yml --ref <branch>`, or from the Actions
+# tab. GitHub only runs a dispatch of a workflow that is on main, so on a branch that adds or changes this file, label
+# the pull request `record-snapshots` instead. See docs/snapshots.md.
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [labeled]
+
+concurrency:
+  group: record-snapshots-${{ github.head_ref || github.ref_name }}
+
+permissions: {}
+
+jobs:
+  record:
+    name: Record snapshots
+    permissions:
+      contents: write
+      actions: write
+    # A pull request from a fork gets a read-only token, so it can not push.
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || (github.event.label.name == 'record-snapshots'
+      && github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: xcode-27
+    timeout-minutes: 30
+    env:
+      BRANCH: ${{ github.head_ref || github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      # Recording makes the tests fail on purpose, so this step may fail. The next one is the check.
+      - name: Record
+        continue-on-error: true
+        run: make snapshots RECORD=1
+
+      - name: Check against the new references
+        run: make snapshots
+
+      - name: Commit the references
+        run: |
+          git add -A -- ':(glob)Packages/**/__Snapshots__/**'
+          if git diff --cached --quiet; then
+            echo "The references are up to date."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "test(ui): record snapshot references"
+          git push origin "HEAD:${BRANCH}"
+          # A push made with the workflow token starts no workflow, so start CI for the new commit by hand.
+          gh workflow run ci.yml --ref "${BRANCH}"
