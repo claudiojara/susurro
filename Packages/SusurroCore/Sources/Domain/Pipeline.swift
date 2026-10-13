@@ -21,8 +21,10 @@ public enum Remedy: Sendable, Equatable {
 public enum PipelineError: Error, Sendable, Equatable {
     case microphoneNotGranted
     case recognizerNotInstalled
-    case captureFailed
-    case recognitionFailed
+    /// The capture failed. The text is the underlying error.
+    case captureFailed(String)
+    /// The recognizer failed. The text is the underlying error.
+    case recognitionFailed(String)
     /// A step did not finish in time and was abandoned.
     case timedOut(Stage)
 

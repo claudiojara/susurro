@@ -209,7 +209,7 @@ struct DictationCoordinatorTests {
         await h.sut.handle(.down(at: Self.pressTime))
         h.capture.fail(CaptureError.noInputDevice)
 
-        #expect(await h.release() == [.error(.captureFailed(Self.noInputDevice)), .idle])
+        #expect(await h.release() == [.starting, .error(.captureFailed(Self.noInputDevice)), .idle])
     }
 
     @Test("a blank transcript inserts nothing and reports no speech", arguments: ["", "   ", " \n\t "])
