@@ -1,8 +1,8 @@
 import AppKit
 
 /// What was on a pasteboard: every item, and every type of each item that offered data.
-struct PasteboardSnapshot: Equatable {
-    private struct Entry: Equatable {
+struct PasteboardSnapshot {
+    private struct Entry {
         let type: NSPasteboard.PasteboardType
         let data: Data
     }
@@ -17,10 +17,13 @@ struct PasteboardSnapshot: Equatable {
         }
     }
 
-    /// Replaces the contents of the pasteboard with the snapshot.
+    /// Replaces the contents of the pasteboard with the snapshot. This is best effort: if the pasteboard refuses the
+    /// write there is nothing else to try.
     func restore(to pasteboard: NSPasteboard) {
         pasteboard.clearContents()
         let restored = items.map { entries in
+            // A pasteboard item belongs to the pasteboard it was read from or written to and cannot be written again,
+            // so the snapshot keeps the data and every restore builds new items.
             let item = NSPasteboardItem()
             for entry in entries { item.setData(entry.data, forType: entry.type) }
             return item

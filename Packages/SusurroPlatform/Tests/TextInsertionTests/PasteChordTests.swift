@@ -33,7 +33,9 @@ struct PasteChordTests {
         let events = try PasteChord.events()
 
         #expect(events.map(\.type) == [.keyDown, .keyUp])
-        #expect(events.map { $0.getIntegerValueField(.keyboardEventKeycode) } == [9, 9])
+        #expect(
+            events.map { $0.getIntegerValueField(.keyboardEventKeycode) }
+                == Array(repeating: Int64(PasteChord.ansiVKeyCode), count: 2))
     }
 
     @Test("the key code is the one given", arguments: [0, 9, 40])
@@ -99,7 +101,7 @@ struct PasteChordTests {
             // Caps Lock stays set while it is on, and Fn and the numeric pad flag arrow keys.
             CGEventFlags.maskAlphaShift, .maskSecondaryFn, .maskNumericPad,
             // The state at rest on macOS 26 already carries this bit.
-            CGEventFlags(rawValue: 0x2000_0000),
+            PasteChord.alwaysSetFlag,
             [],
         ]
     )
@@ -109,7 +111,7 @@ struct PasteChordTests {
 
     @Test("a held modifier is found among bits that are not held keys")
     func heldAmongOtherBits() {
-        let flags = CGEventFlags(rawValue: 0x2000_0000).union(Self.hotkeyModifiers)
+        let flags = PasteChord.alwaysSetFlag.union(Self.hotkeyModifiers)
 
         #expect(PasteChord.isModifierHeld(in: flags))
     }
