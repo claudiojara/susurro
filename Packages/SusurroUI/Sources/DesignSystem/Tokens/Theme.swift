@@ -54,6 +54,11 @@ public nonisolated struct PaletteColor: Codable, Sendable, Equatable {
     public var light: RGBAColor
     public var dark: RGBAColor
 
+    /// Spelled out so the loader can tell a typo in a field name from a field.
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case light, dark
+    }
+
     func value(for appearance: Appearance) -> RGBAColor {
         appearance == .light ? light : dark
     }
@@ -64,6 +69,10 @@ public nonisolated struct TypeStyle: Codable, Sendable, Equatable {
     public var size: Double
     public var weight: TypeWeight
     public var design: TypeDesign
+
+    enum CodingKeys: String, CodingKey, CaseIterable {
+        case size, weight, design
+    }
 }
 
 public nonisolated enum TypeWeight: String, Codable, Sendable {

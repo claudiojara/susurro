@@ -3,9 +3,11 @@ public nonisolated enum ThemeError: Error, Sendable, Equatable, CustomStringConv
     /// The text is not JSON, or not a JSON object.
     case malformedJSON(String)
     case unsupportedSchemaVersion(found: Int, supported: Int)
-    /// A value has the wrong type or form. `path` locates it, such as `palette.ocean.light`.
+    /// A value has the wrong type or form, or a number is out of range. `path` locates it, such as
+    /// `palette.ocean.light`.
     case invalidValue(path: String, reason: String)
-    /// A file defines a token the catalog does not list, most likely a typo. `String` is `group.name`, or the key.
+    /// A file has a key the theme does not use, most likely a typo. `String` is its path, such as `spacing.huge` or
+    /// `typography.body.sizee`.
     case unknownToken(String)
     case unreadable(file: String, reason: String)
     /// The theme in use is a file that is no longer there.
@@ -24,7 +26,7 @@ public nonisolated enum ThemeError: Error, Sendable, Equatable, CustomStringConv
         case .invalidValue(let path, let reason):
             "\(path) is not valid: \(reason)"
         case .unknownToken(let key):
-            "\(key) is not a token of the theme."
+            "\(key) is not a key of the theme."
         case .unreadable(let file, let reason):
             "Cannot read \(file): \(reason)"
         case .themeNotFound(let id):

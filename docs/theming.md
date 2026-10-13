@@ -30,10 +30,32 @@ down to a single field of a token. This file changes the accent in light and dar
 | `motion` | Durations in seconds, and `springResponse` and `springDamping`. |
 | `overlay` | `width`, `cornerRadius`, `offset` (points from the screen edge), `edge` (`top` or `bottom`). |
 
-A file is used whole or not at all. If it is not JSON, has another `schemaVersion`, holds a value of the wrong form (a
-bad hex color, a number where a word belongs), names a token that does not exist (a typo), or points a color at a palette
-entry that does not exist, the loader returns the default theme together with every error found. A new token added by a
-later version of the app counts as unknown to an older one.
+A file is used whole or not at all. If anything in it cannot be used, the loader returns the default theme together
+with the errors, and a mistake in a file being edited shows up instead of leaving the old look. The loader reports
+every problem it finds in one pass, in this order:
+
+1. **Unknown keys**, at any depth: a misspelled group (`colours`), token (`spacing.huge`), or field
+   (`typography.body.sizee`, `palette.blue.ligth`). A key the loader does not know would otherwise be skipped without a
+   word. A new token added by a later version of the app counts as unknown to an older one.
+2. **Bad values**, each with its path: not a number where a number belongs, a word that is not one of the choices
+   (`weight`, `design`, `edge`), a color that is not `#RRGGBB` or `#RRGGBBAA`, a palette color with a part missing, or a
+   number that JSON text can only spell as infinity (`-1e999`). The two colors of a palette entry are checked
+   separately, so both are reported if both are bad; an entry that is not an object at all (`"ocean": "#0077B6"`) is
+   reported once, for the entry.
+3. **Colors that point at a palette entry that does not exist.** A color that points at an entry the file wrote but got
+   wrong is not reported again: the error for the entry says what to fix.
+4. **Numbers that are negative or not finite**: sizes, spaces, radii, durations, and the overlay geometry. Zero is
+   allowed.
+
+Some things stop the report early, because nothing after them can be read:
+
+- Text that is not a JSON object is reported alone.
+- A file that cannot be read is reported alone. Only regular files are read, or symlinks that lead to one: a pipe, a
+  device, or a folder named `x.json` is never read. A file over 256 KB is refused with an error instead of being
+  read.
+- A missing or unsupported `schemaVersion` is reported alone, because a file of another version may have another shape.
+- A file with more than 50 bad values is reported for the first 50, since the loader reads the whole file again for each
+  one it finds.
 
 ## Token naming rules
 
