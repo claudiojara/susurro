@@ -22,4 +22,6 @@ public struct FakePermissionsChecker: PermissionsChecker {
         await release?.wait()
         return statuses[permission] ?? .notDetermined
     }
+
+    public func request(_ permission: Permission) async {}
 }
