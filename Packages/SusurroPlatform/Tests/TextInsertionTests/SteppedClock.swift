@@ -1,3 +1,4 @@
+import CoreTestSupport
 import Synchronization
 
 /// A clock for tests. It moves only when the code under test sleeps, by the time it sleeps, or when a test advances it.
@@ -19,6 +20,13 @@ final class SteppedClock: Clock, Sendable {
         var requested: [Duration] = []
         var completed: [Duration] = []
         var hook: SleepHook?
+        var suspension: Suspension?
+    }
+
+    /// Holds the next sleep until `release` is opened, and opens `entered` when that sleep has begun.
+    struct Suspension: Sendable {
+        let entered = Gate()
+        let release = Gate()
     }
 
     private let state = Mutex(State())
@@ -34,6 +42,13 @@ final class SteppedClock: Clock, Sendable {
     var completedSleeps: [Duration] { state.withLock { $0.completed } }
 
     func setHook(_ hook: SleepHook?) { state.withLock { $0.hook = hook } }
+
+    /// Makes the next sleep wait for the returned suspension to be released. A sleep that waits does not move the time.
+    func suspendNextSleep() -> Suspension {
+        let suspension = Suspension()
+        state.withLock { $0.suspension = suspension }
+        return suspension
+    }
     func advance(by duration: Duration) { state.withLock { $0.offset += duration } }
 
     func sleep(until deadline: Instant, tolerance: Duration?) async throws {
@@ -41,6 +56,13 @@ final class SteppedClock: Clock, Sendable {
             let requested = deadline.offset - state.offset
             state.requested.append(requested)
             return requested
+        }
+        if let suspension = state.withLock({ state -> Suspension? in
+            defer { state.suspension = nil }
+            return state.suspension
+        }) {
+            suspension.entered.open()
+            await suspension.release.wait()
         }
         try Task.checkCancellation()
         let hook = state.withLock { state -> SleepHook? in

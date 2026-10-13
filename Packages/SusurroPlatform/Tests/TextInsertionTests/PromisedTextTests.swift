@@ -28,6 +28,42 @@ struct PromisedTextTests {
         #expect(promise.receipts == 0)
     }
 
+    // The next two pin what the paste depends on. They describe how the pasteboard behaves today, so a change in a later
+    // macOS shows up here. Another process reading the text behaves the same way (checked by hand).
+
+    @Test("a read of the promised text does not change the pasteboard's change count")
+    func readKeepsTheChangeCount() {
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("susurro-test-\(UUID().uuidString)"))
+        defer { pasteboard.releaseGlobally() }
+        let promise = PromisedText("hello")
+        let item = NSPasteboardItem()
+        item.setDataProvider(promise, forTypes: [.string])
+        pasteboard.clearContents()
+        _ = pasteboard.writeObjects([item])
+        let written = pasteboard.changeCount
+
+        #expect(pasteboard.string(forType: .string) == "hello")
+
+        #expect(promise.receipts == 1)
+        #expect(pasteboard.changeCount == written)
+    }
+
+    @Test("only the first read reaches the provider, because the pasteboard serves later reads from its cache")
+    func laterReadsAreNotCounted() {
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("susurro-test-\(UUID().uuidString)"))
+        defer { pasteboard.releaseGlobally() }
+        let promise = PromisedText("hello")
+        let item = NSPasteboardItem()
+        item.setDataProvider(promise, forTypes: [.string])
+        pasteboard.clearContents()
+        _ = pasteboard.writeObjects([item])
+
+        #expect(pasteboard.string(forType: .string) == "hello")
+        #expect(pasteboard.string(forType: .string) == "hello")
+
+        #expect(promise.receipts == 1)
+    }
+
     @Test("requests from several threads are all counted")
     func readsFromSeveralThreads() {
         let promise = PromisedText("hello")
