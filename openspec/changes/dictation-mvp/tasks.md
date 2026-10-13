@@ -254,6 +254,17 @@ Found by the WS5.8 manual check: a hold that ran into the 60 s cap fell back to 
 ### Queued after WS5: evaluate Parakeet Ultra
 
 - [ ] UL.1 VERIFY (separate PR, after WS5): Evaluate Parakeet Ultra (`FluidInference/parakeet-ultra-coreml` at commit `95eaa59a`, 2026-09-24, CC BY 4.0), which FluidAudio recommends over v3 for new work (same languages and API, more accurate, same speed, a single int8 encoder). Moving to it means: amending the line of the speech-recognition spec that names v3 as the default provider and the design; adding the notice of its authors (moondream) to `THIRD_PARTY_NOTICES`; pinning that commit; switching `AsrModelVersion` to `.ultra` in `LiveParakeetEngine` (the encoder precision then does not apply); and re-running `RealModelTests` (Spanish sentence, long clips, the issue 760 case, load times, models folder size). Keep v3 if Ultra is not clearly better in those checks.
+
+### Queued: keep Spanish dictation in Spanish
+
+Found in the WS5.8 manual check: Parakeet v3 sometimes returns an English transcript for Spanish speech. Raycast's dictation shows the same behaviour. Parakeet v3 and Ultra detect the language themselves. They take no language token or prompt. FluidAudio's `language:` hint only filters by script (`TokenLanguageFilter`), and Spanish and English are both Latin, so the pinned "es" of `speech-recognition` (4a.3, 9c) has no effect on Parakeet. The likely cause is a detection misfire on short or mixed clips, not a translation.
+
+- [ ] LANG.1 DESIGN (separate PR, schedule with 4a and 9c): Let the user choose, in Settings, between speed and a guaranteed language, with a radio group or a toggle. Options to compare before the spec and design change:
+  - (a) Parakeet only: fastest, but the language can drift.
+  - (b) Parakeet plus a guard: run `NLLanguageRecognizer` on the output; when it is clearly not the pinned language, transcribe the clip again with a provider that honours the locale. Leave Spanish sentences with a few English words alone. This adds latency only on those clips.
+  - (c) A pinned-language provider only: Apple `SpeechAnalyzer`/`SpeechTranscriber` with the `es` locale (on device, free, and possibly weaker on technical words); Cohere or Canary-1B-v2 through FluidAudio with the `<|es|>` prompt token (larger, Canary in beta); or Whisper with `language="es"` (heavier, can hallucinate).
+
+  Amend `speech-recognition` so that a pinned language is not reported as passed to a provider that ignores it. Measure accuracy and latency on the `RealModelTests` Spanish clips for each option.
 ---
 
 ## Slice 1, deferred past the first usable build: design system and full onboarding
