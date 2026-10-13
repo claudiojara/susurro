@@ -82,4 +82,21 @@ struct LiveParakeetEngineTests {
     func transientErrors(error: any Error) {
         #expect(!LiveParakeetEngine.isPermanent(error))
     }
+
+    @Test("a permanent error reaches the recognizer as one, with FluidAudio's description as the reason")
+    func permanentErrorIsMarked() {
+        let failure = LiveParakeetEngine.loadFailure(AsrModelsError.modelCompilationFailed("Encoder"))
+
+        #expect(
+            failure as? PermanentLoadFailure
+                == PermanentLoadFailure(reason: AsrModelsError.modelCompilationFailed("Encoder").localizedDescription)
+        )
+    }
+
+    @Test("a transient error reaches the recognizer unchanged")
+    func transientErrorIsPassedOn() {
+        let failure = LiveParakeetEngine.loadFailure(URLError(.notConnectedToInternet))
+
+        #expect((failure as? URLError)?.code == .notConnectedToInternet)
+    }
 }
