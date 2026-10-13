@@ -61,6 +61,12 @@ actor LiveParakeetEngine: ParakeetEngine {
         }
     }
 
+    /// What `load` throws for an error from FluidAudio: a permanent one is marked so the recognizer stops retrying, and
+    /// any other is passed on as it is.
+    static func loadFailure(_ error: any Error) -> any Error {
+        isPermanent(error) ? PermanentLoadFailure(reason: error.localizedDescription) : error
+    }
+
     func load(progress: @escaping @Sendable (Double) -> Void) async throws {
         Self.pinWeights()
         do {
@@ -70,8 +76,8 @@ actor LiveParakeetEngine: ParakeetEngine {
             let manager = AsrManager()
             try await manager.loadModels(models)
             self.manager = manager
-        } catch  where Self.isPermanent(error) {
-            throw PermanentLoadFailure(reason: error.localizedDescription)
+        } catch {
+            throw Self.loadFailure(error)
         }
     }
 
