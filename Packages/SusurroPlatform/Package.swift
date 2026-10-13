@@ -24,7 +24,12 @@ let package = Package(
         .testTarget(name: "PermissionsTests", dependencies: ["Permissions"]),
         .testTarget(
             name: "HotkeysTests",
-            dependencies: ["Hotkeys", .product(name: "SusurroCore", package: "SusurroCore")]
+            dependencies: [
+                "Hotkeys",
+                .product(name: "SusurroCore", package: "SusurroCore"),
+                .product(name: "CoreTestSupport", package: "SusurroCore"),
+                .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
+            ]
         ),
     ],
     swiftLanguageModes: [.v6]
