@@ -1,8 +1,10 @@
 import AppKit
+import Composition
 import OSLog
-import Presentation
 
+/// Starts the app's work when it launches and winds it down when it quits. What it does is in `AppEnvironment`.
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    let environment = AppEnvironment.live
     private let logger = Logger(subsystem: "dev.claudiojara.susurro", category: "app")
 
     func applicationWillFinishLaunching(_ notification: Notification) {
@@ -10,6 +12,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        logger.info("launched; features module: \(SusurroFeaturesModule.name, privacy: .public)")
+        environment.start()
+    }
+
+    /// Quitting waits for the dictation to wind down: the capture stops and a paste has a moment to put the clipboard
+    /// back. Every wait in the shutdown is bounded.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        Task {
+            await environment.shutdown()
+            sender.reply(toApplicationShouldTerminate: true)
+        }
+        return .terminateLater
+    }
+
+    /// Whatever the shutdown could not finish: a paste that is still under way gets the user's clipboard back now.
+    func applicationWillTerminate(_ notification: Notification) {
+        environment.restoreClipboardForTermination()
+        logger.info("terminating")
     }
 }
