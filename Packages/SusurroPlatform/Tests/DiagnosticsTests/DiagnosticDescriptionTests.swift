@@ -23,6 +23,14 @@ struct DiagnosticDescriptionTests {
                 .captureFirstBuffer(frames: 1_024, sampleRate: 48_000), .info,
                 "first tap buffer: 1024 frames at 48000 Hz"
             ),
+            (.appLaunched, .info, "app launched"),
+            (.modelPrepareRequested, .info, "speech model: prepare requested"),
+            (.modelReadiness("loading"), .info, "speech model: loading"),
+            (.modelReadiness("ready"), .info, "speech model: ready"),
+            (
+                .launchPermissions(microphone: "granted", accessibility: "denied"), .info,
+                "permissions at launch: microphone granted, accessibility denied"
+            ),
         ])
     func descriptions(event: DiagnosticEvent, level: OSLogType, line: String) {
         let description = OSLogDiagnostics.describe(event)
