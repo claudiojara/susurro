@@ -21,9 +21,12 @@ hosting view are not used: the first picture of a view that `cgImage` made diffe
 from the first picture on, in any order and in any process.
 
 What stays outside our control is the macOS version: the fonts and the way text is drawn change a little between
-versions. So the references are made on the CI image, which is the only machine that compares against them. A pixel
-matches when it is within 2 % of the reference (`perceptualPrecision` 0.98), and every pixel has to match
-(`precision` 1), so a small view in a large picture cannot hide a wrong color.
+versions. So the references are made on the CI image, which is the machine that compares against them. A picture
+matches when 99.9 % of its pixels do (`precision` 0.999), and a pixel matches when it is within 2 % of the reference
+(`perceptualPrecision` 0.98). Both numbers were measured: the same code drawn on macOS 26.6.2 and on the CI image
+(27.0.1) differed in a few hundredths to a tenth of a percent of the pixels, all at the edges of letters, and at 99.99 %
+five of the six pictures failed. A view smaller than 0.1 % of its canvas could hide in that, so the gallery of status
+dots uses a small canvas, and `AtomTests` checks the colors of the atoms on their own by reading pixels.
 
 ## Recording
 
