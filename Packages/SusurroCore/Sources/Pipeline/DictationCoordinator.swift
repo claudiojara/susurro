@@ -29,6 +29,10 @@ public actor DictationCoordinator {
     private let permissions: any PermissionsChecker
     private let diagnostics: any DiagnosticsLog
     private let sleep: @Sendable (Duration) async throws -> Void
+    /// Cleans the transcript before it is inserted. Nil inserts the raw transcript.
+    private let cleanup: CleanupStage?
+    /// Where the style, the vocabulary, and the text around the cursor come from. Nil means nothing is known.
+    private let surroundings: (any SurroundingsSource)?
 
     /// The current state first, then every change. It has a single consumer, which sees every state since creation.
     public nonisolated let states: AsyncStream<PipelineState>
@@ -58,6 +62,8 @@ public actor DictationCoordinator {
     /// - Parameters:
     ///   - diagnostics: Where failures that would otherwise be swallowed are reported. They carry no text.
     ///   - sleep: Paces readiness checks and times out the waits. Tests pass a fake.
+    ///   - cleanup: The stage that cleans the transcript. Without one the raw transcript is inserted.
+    ///   - surroundings: Where the vocabulary, the style, and the text around the cursor come from.
     public init(
         hotkeys: any HotkeySource,
         capture: any AudioCaptureSource,
@@ -65,7 +71,9 @@ public actor DictationCoordinator {
         inserter: any TextInserter,
         permissions: any PermissionsChecker,
         diagnostics: any DiagnosticsLog = NoDiagnostics(),
-        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        cleanup: CleanupStage? = nil,
+        surroundings: (any SurroundingsSource)? = nil
     ) {
         self.hotkeys = hotkeys
         self.capture = capture
@@ -74,6 +82,8 @@ public actor DictationCoordinator {
         self.permissions = permissions
         self.diagnostics = diagnostics
         self.sleep = sleep
+        self.cleanup = cleanup
+        self.surroundings = surroundings
         (states, continuation) = AsyncStream.makeStream()
         (keyUps, keyUp) = AsyncStream.makeStream()
         continuation.yield(.idle)
@@ -316,24 +326,40 @@ public actor DictationCoordinator {
 
     private func transcribeAndInsert(_ clip: AudioClip) async throws -> PipelineState {
         try await waitUntilRecognizerIsReady()
+        let around = await surroundings?.surroundings() ?? .unknown
         processingStage = .transcription
         let transcript = try await withDeadline(
             DictationLimits.transcriptionTimeout, stage: .transcription, sleep: sleep
         ) { [recognizer] in
-            try await recognizer.transcribe(clip, options: RecognitionOptions())
+            try await recognizer.transcribe(clip, options: RecognitionOptions(vocabulary: around.vocabulary))
         }
         guard !transcript.text.allSatisfy(\.isWhitespace) else { return .notice(.noSpeech) }
+        let text = try await polished(transcript.text, around: around)
         processingStage = .insertion
         try await waitForKeyRelease()
         let outcome = try await withDeadline(DictationLimits.insertionTimeout, stage: .insertion, sleep: sleep) {
             [inserter] in
-            await inserter.insert(transcript.text)
+            await inserter.insert(text)
         }
         switch outcome {
         case .inserted: return .inserted
         case .copiedToClipboard(let reason): return .notice(.copiedToClipboard(reason))
         case .notInserted(let reason): return .error(.notInserted(reason))
         }
+    }
+
+    /// The text to insert: the transcript after cleanup, shaped for the cursor, or the transcript itself when there is no
+    /// cleanup stage. The stage never fails except to say the dictation was cancelled.
+    private func polished(_ raw: String, around: DictationSurroundings) async throws -> String {
+        guard let cleanup else { return raw }
+        processingStage = .cleanup
+        let input = CleanupInput(
+            transcript: raw, style: around.style, vocabulary: around.vocabulary, cursor: around.cursor)
+        return try await cleanup.run(input, willClean: { await self.showPolishing() }).finalText
+    }
+
+    private func showPolishing() {
+        publish(.polishing)
     }
 
     /// Holds the text back while the key of a hold that ran into the recording cap is still down. The inserter would

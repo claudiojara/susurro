@@ -12,6 +12,7 @@ public final class FakeRecognizer: SpeechRecognizer {
     private struct State {
         var script: [RecognizerReadiness]
         var calls: [Call] = []
+        var options: [RecognitionOptions] = []
     }
 
     /// Opened when `transcribe` is entered.
@@ -42,6 +43,9 @@ public final class FakeRecognizer: SpeechRecognizer {
 
     public var calls: [Call] { state.withLock { $0.calls } }
 
+    /// The options of every `transcribe` call, in order.
+    public var transcribedOptions: [RecognitionOptions] { state.withLock { $0.options } }
+
     public var transcribedClips: [AudioClip] {
         calls.compactMap { call in
             if case .transcribe(let clip) = call { clip } else { nil }
@@ -71,7 +75,10 @@ public final class FakeRecognizer: SpeechRecognizer {
     }
 
     public func transcribe(_ clip: AudioClip, options: RecognitionOptions) async throws -> RawTranscript {
-        state.withLock { $0.calls.append(.transcribe(clip)) }
+        state.withLock { state in
+            state.calls.append(.transcribe(clip))
+            state.options.append(options)
+        }
         transcribeEntered.open()
         await gate?.wait()
         return RawTranscript(text: try result.get())
