@@ -35,14 +35,14 @@ struct AppEnvironmentTests {
         await f.eventually("the first read") { f.environment.monitor.hasReadStatuses }
         await f.eventually("the model to be prepared") { f.recognizer.calls.contains(.prepare) }
         await f.eventually("the window") { f.window.shown >= 1 }
-        await f.clock.waitForSleeps(1)
+        await f.clock.waitForSleeps(2)
         for _ in 0..<50 { await Task.yield() }
 
         let launches = f.diagnostics.events.filter { $0 == .appLaunched }.count
         let prepares = f.recognizer.calls.filter { $0 == .prepare }.count
         #expect(launches == 1)
         #expect(prepares == 1)
-        #expect(f.clock.pendingSleeps == 1)  // one permission poll
+        #expect(f.clock.pendingSleeps == 2)  // one permission poll and one wait of the retention job
         #expect(f.permissions.statusReads == 2)  // the two required permissions, once
         #expect(f.themePreparations.value == 1)
         #expect(f.window.shown == 1)  // one presenter

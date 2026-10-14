@@ -1,5 +1,6 @@
 import DesignSystem
 import Domain
+import Foundation
 import Pipeline
 import Presentation
 
@@ -66,6 +67,8 @@ public final class AppEnvironment {
         /// troubleshooting steps, the pauses and limits of a dictation, the time an overlay indicator stays, and the
         /// delay before the model's progress shows. Tests pass a `ManualClock`.
         public var clock: any Clock<Duration>
+        /// The dictation history: where the records live, and what its screen, its retention job, and its retry use.
+        public var history: HistoryDependencies
 
         public init(
             hotkeys: any HotkeySource,
@@ -81,7 +84,8 @@ public final class AppEnvironment {
             settings: any SettingsStore,
             onboarding: Onboarding,
             theming: Theming,
-            clock: any Clock<Duration> = ContinuousClock()
+            clock: any Clock<Duration> = ContinuousClock(),
+            history: HistoryDependencies = .preview()
         ) {
             self.hotkeys = hotkeys
             self.capture = capture
@@ -97,6 +101,7 @@ public final class AppEnvironment {
             self.onboarding = onboarding
             self.theming = theming
             self.clock = clock
+            self.history = history
         }
     }
 
@@ -109,12 +114,15 @@ public final class AppEnvironment {
     let onboardingModel: OnboardingViewModel
     /// The theme the app's windows are drawn in, which follows the theme store.
     let themeModel: ThemeModel
+    /// The history screen's view model, over the repository.
+    let historyModel: HistoryViewModel
 
     private let dependencies: Dependencies
     private let coordinator: DictationCoordinator
     private let presenter: SkeletonOverlayPresenter
     private let watcher: ModelLoadWatcher
     private let onboardingPresenter: OnboardingPresenter
+    private let retention: RetentionSweeper
     private var tasks: [Task<Void, Never>] = []
     private var hasStarted = false
 
@@ -146,7 +154,19 @@ public final class AppEnvironment {
         let onboardingPresenter = OnboardingPresenter(
             monitor: monitor, surface: dependencies.onboarding.window(onboardingModel, themeModel))
         self.onboardingPresenter = onboardingPresenter
-        menu = MenuModel(monitor: monitor, showOnboarding: { onboardingPresenter.show() })
+        let history = dependencies.history
+        historyModel = HistoryViewModel(
+            repository: history.repository,
+            actions: HistoryActions(
+                repository: history.repository, deleter: history.deleter, clipboard: history.clipboard),
+            retries: RetryService(
+                repository: history.repository, loader: history.loader, reprocessor: history.reprocessor),
+            dates: history.dates)
+        retention = RetentionSweeper(
+            repository: history.repository, deleter: history.deleter, dates: history.dates, clock: clock)
+        let historyWindow = history.window(historyModel, themeModel)
+        menu = MenuModel(
+            monitor: monitor, showOnboarding: { onboardingPresenter.show() }, showHistory: { historyWindow.show() })
     }
 
     /// Starts the app's work: the overlay, the hotkey, the model, the permission monitor and the onboarding, and the
@@ -154,6 +174,7 @@ public final class AppEnvironment {
     public func start() {
         guard !hasStarted else { return }
         hasStarted = true
+        let launchedAt = dependencies.history.dates.now()
         dependencies.diagnostics.record(.appLaunched)
         monitor.start()
         // The overlay listens before the coordinator can publish, and the coordinator registers the hotkey when it runs.
@@ -163,6 +184,8 @@ public final class AppEnvironment {
         run { await $0.menu.observe(await $0.dependencies.readinessChanges()) }
         run { await $0.logModelReadiness() }
         run { await $0.launch() }
+        run { await $0.historyModel.run() }
+        run { await $0.launchHistory(at: launchedAt) }
         run { await $0.onboardingPresenter.run() }
         run { await $0.monitor.run(activations: $0.dependencies.onboarding.activations()) }
         run { await $0.themeModel.follow(await $0.dependencies.theming.store.updates()) }
@@ -195,6 +218,14 @@ public final class AppEnvironment {
     private func launch() async {
         dependencies.diagnostics.record(.modelPrepareRequested)
         await dependencies.recognizer.prepare()
+    }
+
+    /// The attempts that a quit left processing are marked failed, with their audio kept so they can be retried, and then
+    /// the retention job runs: at once, and every 6 hours. Only attempts created before the launch are touched, so a
+    /// dictation that begins as the app starts is left alone.
+    private func launchHistory(at launch: Date) async {
+        _ = try? await dependencies.history.repository.failInterrupted(createdBefore: launch)
+        await retention.run()
     }
 
     private func logModelReadiness() async {

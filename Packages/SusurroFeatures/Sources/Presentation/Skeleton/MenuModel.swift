@@ -9,12 +9,19 @@ import Observation
 public final class MenuModel {
     @ObservationIgnored private let monitor: PermissionsMonitor
     @ObservationIgnored private let showOnboarding: @MainActor () -> Void
+    @ObservationIgnored private let showHistory: @MainActor () -> Void
     private var readiness = RecognizerReadiness.loading(progress: 0)
 
-    /// - Parameter showOnboarding: Opens the onboarding window, for the item that sets Susurro up.
-    public init(monitor: PermissionsMonitor, showOnboarding: @escaping @MainActor () -> Void = {}) {
+    /// - Parameters:
+    ///   - showOnboarding: Opens the onboarding window, for the item that sets Susurro up.
+    ///   - showHistory: Opens the history window, for the item that shows the past dictations.
+    public init(
+        monitor: PermissionsMonitor, showOnboarding: @escaping @MainActor () -> Void = {},
+        showHistory: @escaping @MainActor () -> Void = {}
+    ) {
         self.monitor = monitor
         self.showOnboarding = showOnboarding
+        self.showHistory = showHistory
     }
 
     /// What the menu shows now. It reads the monitor's statuses, which are observable, so a view that reads it is drawn
@@ -48,5 +55,10 @@ public final class MenuModel {
     /// Opens the onboarding, where the missing permissions are asked for.
     public func setUp() {
         showOnboarding()
+    }
+
+    /// Opens the history of the dictations.
+    public func openHistory() {
+        showHistory()
     }
 }
