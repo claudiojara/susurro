@@ -5,15 +5,27 @@ import Testing
 
 @Suite("Setting key", .timeLimit(.minutes(1)))
 struct SettingKeyTests {
+    /// The raw values differ from the case names, so a key that stored the case name instead would be caught.
     private enum Edge: String, Sendable {
-        case top
-        case bottom
+        case top = "screen-top"
+        case bottom = "screen-bottom"
     }
 
     private struct Combo: Codable, Sendable, Equatable {
         var keyCode: Int
         var modifiers: [String]
     }
+
+    private struct Unencodable: Codable, Sendable {
+        init() {}
+        init(from decoder: any Decoder) throws {}
+        func encode(to encoder: any Encoder) throws {
+            throw EncodingError.invalidValue(self, .init(codingPath: [], debugDescription: "never stored"))
+        }
+    }
+
+    /// The stored form as `Any?`, which reads without the coercion warning that a cast from `(any Sendable)?` gives.
+    private func encoded<Value>(_ key: SettingKey<Value>, _ value: Value) -> Any? { key.encode(value) }
 
     @Test("a key is stored under its name and carries its default")
     func nameAndDefault() {
@@ -24,20 +36,25 @@ struct SettingKeyTests {
     }
 
     @Test("a basic value is stored as itself and read back as the same value")
-    func basicValuesRoundTrip() {
+    func basicValuesRoundTrip() throws {
         let flag = SettingKey<Bool>("general.launchAtLogin", default: false)
         let count = SettingKey<Int>("history.retentionDays", default: 7)
         let seconds = SettingKey<Double>("hotkey.holdThreshold", default: 0.3)
         let text = SettingKey<String>("speech.language", default: "auto")
 
-        #expect(flag.encode(true) as? Bool == true)
-        #expect(flag.decode(flag.encode(true)) == true)
-        #expect(count.encode(30) as? Int == 30)
-        #expect(count.decode(count.encode(30)) == 30)
-        #expect(seconds.encode(0.45) as? Double == 0.45)
-        #expect(seconds.decode(seconds.encode(0.45)) == 0.45)
-        #expect(text.encode("es") as? String == "es")
-        #expect(text.decode(text.encode("es")) == "es")
+        let storedFlag = try #require(encoded(flag, true))
+        let storedCount = try #require(encoded(count, 30))
+        let storedSeconds = try #require(encoded(seconds, 0.45))
+        let storedText = try #require(encoded(text, "es"))
+
+        #expect(storedFlag as? Bool == true)
+        #expect(flag.decode(storedFlag) == true)
+        #expect(storedCount as? Int == 30)
+        #expect(count.decode(storedCount) == 30)
+        #expect(storedSeconds as? Double == 0.45)
+        #expect(seconds.decode(storedSeconds) == 0.45)
+        #expect(storedText as? String == "es")
+        #expect(text.decode(storedText) == "es")
     }
 
     @Test("a stored value of another type is not read, and is not turned into the wanted type")
@@ -55,13 +72,14 @@ struct SettingKeyTests {
     }
 
     @Test("an enum is stored as its raw value, and a raw value that is not one of its cases is not read")
-    func rawRepresentableValues() {
+    func rawRepresentableValues() throws {
         let key = SettingKey<Edge>("overlay.edge", default: .bottom)
 
-        #expect(key.encode(.top) as? String == "top")
-        #expect(key.decode("top") == .top)
-        #expect(key.decode("bottom") == .bottom)
+        #expect(try #require(encoded(key, .top)) as? String == "screen-top")
+        #expect(key.decode("screen-top") == .top)
+        #expect(key.decode("screen-bottom") == .bottom)
         #expect(key.decode("diagonal") == nil)
+        #expect(key.decode("top") == nil)
         #expect(key.decode(3) == nil)
     }
 
@@ -70,11 +88,18 @@ struct SettingKeyTests {
         let key = SettingKey<Combo>.json("hotkey.combo", default: Combo(keyCode: 2, modifiers: ["control"]))
         let combo = Combo(keyCode: 40, modifiers: ["control", "option"])
 
-        let stored = try #require(key.encode(combo) as? Data)
+        let stored = try #require(encoded(key, combo) as? Data)
 
         #expect(key.decode(stored) == combo)
         #expect(key.decode(Data("not json".utf8)) == nil)
         #expect(key.decode(Data(#"{"keyCode":"forty"}"#.utf8)) == nil)
         #expect(key.decode("{\"keyCode\":40,\"modifiers\":[]}") == nil)
+    }
+
+    @Test("a value that cannot be encoded has no stored form")
+    func unencodableValue() {
+        let key = SettingKey<Unencodable>.json("hotkey.combo", default: Unencodable())
+
+        #expect(encoded(key, Unencodable()) == nil)
     }
 }

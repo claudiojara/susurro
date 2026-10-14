@@ -10,7 +10,8 @@ struct UserDefaultsSettingsStoreTests {
     func storedForms() throws {
         let scratch = ScratchDefaults()
         defer { scratch.remove() }
-        let store = UserDefaultsSettingsStore(defaults: scratch.defaults)
+        let raw = scratch.makeDefaults()
+        let store = UserDefaultsSettingsStore(defaults: scratch.makeDefaults())
         let combo = SampleCombo(keyCode: 40, modifiers: ["command"])
 
         store.set(false, for: SampleKeys.launchAtLogin)
@@ -20,12 +21,12 @@ struct UserDefaultsSettingsStoreTests {
         store.set(.top, for: SampleKeys.overlayEdge)
         store.set(combo, for: SampleKeys.combo)
 
-        #expect(scratch.defaults.object(forKey: "general.launchAtLogin") as? Bool == false)
-        #expect(scratch.defaults.object(forKey: "history.retentionDays") as? Int == 30)
-        #expect(scratch.defaults.object(forKey: "hotkey.holdThreshold") as? Double == 0.45)
-        #expect(scratch.defaults.string(forKey: "speech.language") == "es")
-        #expect(scratch.defaults.string(forKey: "overlay.edge") == "top")
-        let json = try #require(scratch.defaults.data(forKey: "hotkey.combo"))
+        #expect(raw.object(forKey: "general.launchAtLogin") as? Bool == false)
+        #expect(raw.object(forKey: "history.retentionDays") as? Int == 30)
+        #expect(raw.object(forKey: "hotkey.holdThreshold") as? Double == 0.45)
+        #expect(raw.string(forKey: "speech.language") == "es")
+        #expect(raw.string(forKey: "overlay.edge") == "screen-top")
+        let json = try #require(raw.data(forKey: "hotkey.combo"))
         #expect(try JSONDecoder().decode(SampleCombo.self, from: json) == combo)
     }
 
@@ -34,12 +35,12 @@ struct UserDefaultsSettingsStoreTests {
         let scratch = ScratchDefaults()
         defer { scratch.remove() }
         let combo = SampleCombo(keyCode: 40, modifiers: ["command"])
-        let before = UserDefaultsSettingsStore(defaults: scratch.defaults)
+        let before = UserDefaultsSettingsStore(defaults: scratch.makeDefaults())
         before.set(false, for: SampleKeys.launchAtLogin)
         before.set(.top, for: SampleKeys.overlayEdge)
         before.set(combo, for: SampleKeys.combo)
 
-        let after = UserDefaultsSettingsStore(defaults: scratch.reopened())
+        let after = UserDefaultsSettingsStore(defaults: scratch.makeDefaults())
 
         #expect(after.value(for: SampleKeys.launchAtLogin) == false)
         #expect(after.value(for: SampleKeys.overlayEdge) == .top)
@@ -51,13 +52,14 @@ struct UserDefaultsSettingsStoreTests {
     func corruptKeyIsIsolated() {
         let scratch = ScratchDefaults()
         defer { scratch.remove() }
-        let store = UserDefaultsSettingsStore(defaults: scratch.defaults)
+        let raw = scratch.makeDefaults()
+        let store = UserDefaultsSettingsStore(defaults: scratch.makeDefaults())
         store.set(30, for: SampleKeys.retentionDays)
         store.set("es", for: SampleKeys.language)
-        scratch.defaults.set("maybe", forKey: "general.launchAtLogin")
-        scratch.defaults.set("diagonal", forKey: "overlay.edge")
-        scratch.defaults.set(Data("{".utf8), forKey: "hotkey.combo")
-        scratch.defaults.set("fast", forKey: "hotkey.holdThreshold")
+        raw.set("maybe", forKey: "general.launchAtLogin")
+        raw.set("diagonal", forKey: "overlay.edge")
+        raw.set(Data("{".utf8), forKey: "hotkey.combo")
+        raw.set("fast", forKey: "hotkey.holdThreshold")
 
         #expect(store.value(for: SampleKeys.launchAtLogin) == true)
         #expect(store.value(for: SampleKeys.overlayEdge) == .bottom)
@@ -74,10 +76,11 @@ struct UserDefaultsSettingsStoreTests {
     func readingWritesNothing() {
         let scratch = ScratchDefaults()
         defer { scratch.remove() }
-        let store = UserDefaultsSettingsStore(defaults: scratch.defaults)
+        let raw = scratch.makeDefaults()
+        let store = UserDefaultsSettingsStore(defaults: scratch.makeDefaults())
 
         _ = store.value(for: SampleKeys.launchAtLogin)
 
-        #expect(scratch.defaults.object(forKey: "general.launchAtLogin") == nil)
+        #expect(raw.object(forKey: "general.launchAtLogin") == nil)
     }
 }

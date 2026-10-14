@@ -93,4 +93,19 @@ struct SettingsStoreTests {
             #expect(await second.next() == SettingChange(name: "speech.language"))
         }
     }
+
+    @Test("a value with no stored form changes nothing and emits nothing", arguments: StoreKind.allCases)
+    func unstorableValueIsLeftOut(kind: StoreKind) async {
+        let kept = SamplePicky(storable: true, label: "first")
+        await kind.withStore { store in
+            store.set(kept, for: SampleKeys.picky)
+            var changes = store.changes().makeAsyncIterator()
+
+            store.set(SamplePicky(storable: false, label: "second"), for: SampleKeys.picky)
+            store.set("es", for: SampleKeys.language)
+
+            #expect(await changes.next() == SettingChange(name: "speech.language"))
+            #expect(store.value(for: SampleKeys.picky) == kept)
+        }
+    }
 }
