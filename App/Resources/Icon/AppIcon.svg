@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!--
+    Susurro app icon source. A soft breath of sound flows in from the left, swells, settles, and becomes the text
+    caret: a whisper turning into text. Follows the macOS grid: an 824 pt tile centered in the 1024 canvas, with
+    the standard drop shadow. Rendered into App/Resources/Assets.xcassets/AppIcon.appiconset by
+    `make icon` (scripts/render-app-icon.sh).
+  -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="100" x2="0" y2="924" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8A7BFF"/>
+      <stop offset="0.55" stop-color="#5440E0"/>
+      <stop offset="1" stop-color="#2E2096"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="560" cy="500" r="380" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#C9C0FF" stop-opacity="0.38"/>
+      <stop offset="1" stop-color="#C9C0FF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rim" x1="0" y1="100" x2="0" y2="924" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.45"/>
+      <stop offset="0.4" stop-color="#FFFFFF" stop-opacity="0.06"/>
+      <stop offset="1" stop-color="#000000" stop-opacity="0.18"/>
+    </linearGradient>
+    <linearGradient id="breath" x1="214" y1="0" x2="700" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="0.32"/>
+      <stop offset="0.55" stop-color="#FFFFFF" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="1"/>
+    </linearGradient>
+    <filter id="shadow" x="0" y="0" width="1024" height="1024" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="12" stdDeviation="14" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+    <filter id="lift" x="0" y="0" width="1024" height="1024" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-color="#1A0F66" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#tile)" filter="url(#shadow)"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#glow)"/>
+  <rect x="102" y="102" width="820" height="820" rx="183" fill="none" stroke="url(#rim)" stroke-width="4"/>
+
+  <g filter="url(#lift)" transform="translate(14 0)" stroke-linecap="round" stroke-linejoin="round" fill="none">
+    <path stroke="url(#breath)" stroke-width="42"
+          d="M 220.0 512.0 C 222.2 512.7 228.7 514.3 233.0 516.3 C 237.3 518.3 241.7 521.1 246.0 524.0 C 250.3 526.9 254.7
+          530.5 259.0 533.9 C 263.3 537.3 267.7 541.0 272.0 544.4 C 276.3 547.7 280.7 551.1 285.0 553.9 C 289.3 556.6
+          293.7 559.1 298.0 560.7 C 302.3 562.3 306.7 563.4 311.0 563.5 C 315.3 563.5 319.7 562.8 324.0 561.1 C 328.3
+          559.4 332.7 556.7 337.0 553.1 C 341.3 549.6 345.7 545.0 350.0 539.7 C 354.3 534.5 358.7 528.2 363.0 521.6 C
+          367.3 515.0 371.7 507.5 376.0 500.1 C 380.3 492.7 384.7 484.6 389.0 477.0 C 393.3 469.3 397.7 461.4 402.0
+          454.2 C 406.3 447.1 410.7 440.0 415.0 433.9 C 419.3 427.8 423.7 422.2 428.0 417.8 C 432.3 413.4 436.7 409.8
+          441.0 407.5 C 445.3 405.2 449.7 404.0 454.0 404.0 C 458.3 404.0 462.7 405.2 467.0 407.5 C 471.3 409.8 475.7
+          413.4 480.0 417.8 C 484.3 422.2 488.7 427.8 493.0 433.9 C 497.3 440.0 501.7 447.1 506.0 454.2 C 510.3 461.4
+          514.7 469.3 519.0 477.0 C 523.3 484.6 527.7 492.7 532.0 500.1 C 536.3 507.5 540.7 515.0 545.0 521.6 C 549.3
+          528.2 553.7 534.5 558.0 539.7 C 562.3 545.0 566.7 549.6 571.0 553.1 C 575.3 556.7 579.7 559.4 584.0 561.1 C
+          588.3 562.8 592.7 563.5 597.0 563.5 C 601.3 563.4 605.7 562.3 610.0 560.7 C 614.3 559.1 618.7 556.6 623.0
+          553.9 C 627.3 551.1 631.7 547.7 636.0 544.4 C 640.3 541.0 644.7 537.3 649.0 533.9 C 653.3 530.5 657.7 526.9
+          662.0 524.0 C 666.3 521.1 670.7 518.3 675.0 516.3 C 679.3 514.3 685.8 512.7 688.0 512.0"/>
+    <path stroke="#FFFFFF" stroke-width="62" d="M 764 336 L 764 688"/>
+  </g>
+</svg>

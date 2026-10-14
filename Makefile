@@ -18,7 +18,7 @@ XCODEBUILD_PACKAGE_FLAGS := -clonedSourcePackagesDirPath $(SOURCE_PACKAGES) -dis
 # ever written: a missing reference fails the test and creates no file.
 SNAPSHOT_ENV := SNAPSHOT_TESTING_RECORD=$(if $(RECORD),all,never)
 
-.PHONY: bootstrap resolve format lint test snapshots build run clean
+.PHONY: bootstrap resolve format lint test snapshots build run icon clean
 
 bootstrap:
 	@command -v xcodegen >/dev/null || { echo "xcodegen is required: brew install xcodegen" >&2; exit 1; }
@@ -61,6 +61,11 @@ run: build
 		if pgrep -x Susurro >/dev/null; then echo "Susurro did not quit; stopping it."; pkill -x Susurro || true; fi; \
 	fi
 	open $(APP)
+
+# Renders App/Resources/Icon/AppIcon.svg into the AppIcon set (WebKit through swift, then sips). The PNGs are committed,
+# so only an edit of the SVG needs it.
+icon:
+	./scripts/render-app-icon.sh
 
 clean:
 	rm -rf $(DERIVED_DATA) $(PROJECT) Packages/*/.build
