@@ -19,12 +19,12 @@ public nonisolated enum SettingsTab: String, CaseIterable, Hashable, Sendable {
 
     public var title: String {
         switch self {
-        case .general: "General"
-        case .providers: "Providers"
-        case .hotkey: "Hotkey"
-        case .style: "Style"
-        case .dictionary: "Dictionary"
-        case .appearance: "Appearance"
+        case .general: L10n.string("settings.tab.general", "General")
+        case .providers: L10n.string("settings.tab.providers", "Providers")
+        case .hotkey: L10n.string("settings.tab.hotkey", "Hotkey")
+        case .style: L10n.string("settings.tab.style", "Style")
+        case .dictionary: L10n.string("settings.tab.dictionary", "Dictionary")
+        case .appearance: L10n.string("settings.tab.appearance", "Appearance")
         }
     }
 }
@@ -44,12 +44,18 @@ public nonisolated struct GeneralSettingsState: Equatable, Sendable {
     public let selectedVariant: String
     /// Why the stored overlay variant is not the one in use, or nil when it is.
     public let variantError: String?
+    /// The language of the app's own words: the system's, or one of the languages the app has.
+    public let interfaceLanguages: [SettingsChoice]
+    public let selectedInterfaceLanguage: String
 
     public init(
         languages: [SettingsChoice], selectedLanguage: String, appContextEnabled: Bool, ocrEnabled: Bool,
         cleanupEnabled: Bool, overlayEdges: [SettingsChoice], selectedEdge: String,
-        overlayVariants: [SettingsChoice], selectedVariant: String, variantError: String?
+        overlayVariants: [SettingsChoice], selectedVariant: String, variantError: String?,
+        interfaceLanguages: [SettingsChoice], selectedInterfaceLanguage: String
     ) {
+        self.interfaceLanguages = interfaceLanguages
+        self.selectedInterfaceLanguage = selectedInterfaceLanguage
         self.languages = languages
         self.selectedLanguage = selectedLanguage
         self.appContextEnabled = appContextEnabled
@@ -309,6 +315,7 @@ public protocol SettingsViewModeling: AnyObject {
 
     // General
     func setLanguage(_ id: String)
+    func setInterfaceLanguage(_ id: String)
     func setAppContext(_ isOn: Bool)
     func setOCR(_ isOn: Bool)
     func setCleanup(_ isOn: Bool)

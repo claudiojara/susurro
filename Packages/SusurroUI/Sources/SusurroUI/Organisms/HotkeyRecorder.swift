@@ -69,10 +69,10 @@ struct HotkeyRecorder: View {
 }
 
 private enum Copy {
-    static let change = "Change shortcut"
-    static let restore = "Restore default"
-    static let cancel = "Cancel"
-    static let prompt = "Press the new shortcut, or Esc to cancel."
+    static var change: String { L10n.string("recorder.change", "Change shortcut") }
+    static var restore: String { L10n.string("recorder.restore", "Restore default") }
+    static var cancel: String { L10n.string("recorder.cancel", "Cancel") }
+    static var prompt: String { L10n.string("recorder.prompt", "Press the new shortcut, or Esc to cancel.") }
 }
 
 #Preview("HotkeyRecorder") { PreviewMatrix { HotkeyRecorder.Gallery() } }

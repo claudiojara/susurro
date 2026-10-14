@@ -189,6 +189,7 @@ import SwiftUI
         }
 
         func setLanguage(_ id: String) {}
+        func setInterfaceLanguage(_ id: String) {}
         func setAppContext(_ isOn: Bool) {}
         func setOCR(_ isOn: Bool) {}
         func setCleanup(_ isOn: Bool) {}

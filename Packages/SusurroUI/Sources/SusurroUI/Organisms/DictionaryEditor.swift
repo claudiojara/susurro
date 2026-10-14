@@ -15,12 +15,12 @@ struct DictionaryEditor: View {
     }
 
     var body: some View {
-        SettingsCard("Your words", footer: Copy.footer) {
+        SettingsCard(Copy.title, footer: Copy.footer) {
             HStack(spacing: theme.spacing(.sm)) {
-                TextInput("New term", value: newTerm, placeholder: "A name or a word", commitsWhileTyping: true) {
+                TextInput(Copy.newTerm, value: newTerm, placeholder: Copy.placeholder, commitsWhileTyping: true) {
                     newTerm = $0
                 }
-                ActionButton("Add", kind: .primary, action: add)
+                ActionButton(Copy.add, kind: .primary, action: add)
             }
             if let error = state.error { TextLabel(error, style: .caption, tint: .error) }
             if state.terms.isEmpty {
@@ -28,11 +28,11 @@ struct DictionaryEditor: View {
             }
             ForEach(state.terms, id: \.self) { term in
                 HStack(spacing: theme.spacing(.sm)) {
-                    TextInput("Term", value: term) { actions.edit(term, $0) }
+                    TextInput(Copy.term, value: term) { actions.edit(term, $0) }
                     Button {
                         actions.remove(term)
                     } label: {
-                        Icon("trash", tint: .error, label: "Remove \(term)")
+                        Icon("trash", tint: .error, label: Copy.remove(term))
                     }
                     .buttonStyle(.plain)
                 }
@@ -46,9 +46,20 @@ struct DictionaryEditor: View {
     }
 
     private enum Copy {
-        static let footer =
-            "The speech model and the cleanup are asked to spell these terms as written. Nothing here is sent anywhere except to a cloud provider you turned on."
-        static let empty = "No words yet."
+        static var title: String { L10n.string("dictionary.title", "Your words") }
+        static var newTerm: String { L10n.string("dictionary.newTerm", "New term") }
+        static var placeholder: String { L10n.string("dictionary.placeholder", "A name or a word") }
+        static var add: String { L10n.string("dictionary.add", "Add") }
+        static var term: String { L10n.string("dictionary.term", "Term") }
+        static var footer: String {
+            L10n.string(
+                "dictionary.footer",
+                "The speech model and the cleanup are asked to spell these terms as written. Nothing here is sent anywhere except to a cloud provider you turned on."
+            )
+        }
+        static var empty: String { L10n.string("dictionary.empty", "No words yet.") }
+
+        static func remove(_ term: String) -> String { L10n.string("dictionary.remove", "Remove \(term)") }
     }
 }
 

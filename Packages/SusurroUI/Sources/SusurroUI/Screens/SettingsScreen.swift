@@ -26,7 +26,7 @@ struct SettingsScreen<Recorder: View>: View {
         VStack(alignment: .leading, spacing: theme.spacing(.lg)) {
             ChoiceChips(
                 SettingsTab.allCases.map { SettingsChoice(id: $0.rawValue, title: $0.title) }, selected: tab.rawValue,
-                label: "Settings sections"
+                label: L10n.string("settings.sections", "Settings sections")
             ) { tab = SettingsTab(rawValue: $0) ?? .general }
             if isStatic {
                 // A snapshot cannot draw the inside of a scroll view, so it shows the top of the tab as it is.

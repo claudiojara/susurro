@@ -29,7 +29,8 @@ public final class OCRPreferenceController {
     /// Why OCR is not reading although the user chose it, or nil when it is, or was not chosen.
     public var explanation: String? {
         guard isEnabled, !isActive else { return nil }
-        return "Screen text is off until Screen Recording is allowed for Susurro."
+        return L10n.string(
+            "menu.preference.screenTextOff", "Screen text is off until Screen Recording is allowed for Susurro.")
     }
 
     /// Tells the permissions monitor whether the saved preference needs Screen Recording. The app calls it at launch, so a

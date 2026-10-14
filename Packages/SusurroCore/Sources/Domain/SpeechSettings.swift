@@ -90,9 +90,38 @@ public enum GeneralSettings {
     public static let overlayEdge = SettingKey<OverlayEdge>(area: "overlay", name: "edge", default: .bottom)
     /// The id of the overlay variant. An id nobody registered falls back to the default variant.
     public static let overlayVariant = SettingKey<String>(area: "overlay", name: "variant", default: "default")
+    /// The language of the app's own words. It is not the language of the dictation, which `languageMode` sets.
+    public static let interfaceLanguage = SettingKey<InterfaceLanguage>(
+        area: "interface", name: "language", default: .system)
 
     public static var all: [any AnySettingKey] {
-        [appContextEnabled, ocrEnabled, overlayEdge, overlayVariant]
+        [appContextEnabled, ocrEnabled, overlayEdge, overlayVariant, interfaceLanguage]
+    }
+}
+
+/// The language the app shows its own words in: the system's, or one the user picked. Only the menu, the windows and the
+/// overlay follow it; what is dictated keeps the language of `SpeechLanguageMode`.
+public enum InterfaceLanguage: String, Sendable, Equatable, CaseIterable {
+    case system
+    case english = "en"
+    case spanish = "es"
+
+    /// The languages the app has words for, by their code. English is the source and the fallback.
+    public static let available = ["en", "es"]
+
+    /// The code of the language to show: the chosen one, or for `system` the first of the user's preferred languages
+    /// (as `Locale.preferredLanguages` lists them, such as `es-CL`) that the app has, and English when none is.
+    public func resolved(preferredLanguages: [String]) -> String {
+        switch self {
+        case .english, .spanish: return rawValue
+        case .system:
+            for identifier in preferredLanguages {
+                let code = identifier.lowercased().split(whereSeparator: { $0 == "-" || $0 == "_" }).first.map(
+                    String.init)
+                if let code, Self.available.contains(code) { return code }
+            }
+            return "en"
+        }
     }
 }
 

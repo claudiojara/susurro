@@ -56,7 +56,8 @@ public final class HistoryWindowController: HistorySurface {
         // The window is as big as the user makes it, not as big as its content.
         host.sizingOptions = []
         window = NSWindow(contentViewController: host)
-        window.title = HistoryCopy.title
+        let window = window
+        followLanguage { window.title = HistoryCopy.title }
         window.styleMask = [.titled, .closable, .resizable, .miniaturizable]
         window.isReleasedWhenClosed = false
         window.contentMinSize = Self.smallestSize

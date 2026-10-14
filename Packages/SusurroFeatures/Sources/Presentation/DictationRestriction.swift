@@ -34,10 +34,10 @@ extension Permission {
     /// The name the user knows the permission by, as System Settings shows it.
     var displayName: String {
         switch self {
-        case .microphone: "Microphone"
-        case .accessibility: "Accessibility"
-        case .inputMonitoring: "Input Monitoring"
-        case .screenRecording: "Screen Recording"
+        case .microphone: L10n.string("permission.microphone", "Microphone")
+        case .accessibility: L10n.string("permission.accessibility", "Accessibility")
+        case .inputMonitoring: L10n.string("permission.inputMonitoring", "Input Monitoring")
+        case .screenRecording: L10n.string("permission.screenRecording", "Screen Recording")
         }
     }
 }

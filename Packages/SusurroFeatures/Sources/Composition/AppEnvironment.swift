@@ -136,6 +136,9 @@ public final class AppEnvironment {
         public var vocabulary: VocabularyPipeline?
         /// The settings window, or nil for a graph that has none.
         public var settingsScreen: SettingsScreen?
+        /// Shows the app's words in a language: the one stored at launch, and each one picked in the settings. The live
+        /// app sets `InterfaceLocale.shared`; the default does nothing, so a test never changes the language of another.
+        public var interfaceLanguage: @MainActor (InterfaceLanguage) -> Void
 
         public init(
             hotkeys: any HotkeySource,
@@ -162,8 +165,10 @@ public final class AppEnvironment {
             credentials: any ProviderCredentials = NoProviderCredentials(),
             cleanup: CleanupStage? = nil,
             vocabulary: VocabularyPipeline? = nil,
-            settingsScreen: SettingsScreen? = nil
+            settingsScreen: SettingsScreen? = nil,
+            interfaceLanguage: @escaping @MainActor (InterfaceLanguage) -> Void = { _ in }
         ) {
+            self.interfaceLanguage = interfaceLanguage
             self.hotkeys = hotkeys
             self.capture = capture
             self.recordings = recordings
@@ -353,7 +358,8 @@ public final class AppEnvironment {
                     overlayVariants: screen.overlayVariants, style: screen.style, dictionary: screen.dictionary,
                     speechReadiness: screen.speechReadiness,
                     appleIntelligenceAvailable: screen.appleIntelligenceAvailable,
-                    themes: dependencies.theming.store, themeModel: themeModel, clock: clock))
+                    themes: dependencies.theming.store, themeModel: themeModel,
+                    interfaceLanguage: dependencies.interfaceLanguage, clock: clock))
             let surface = screen.window(model, themeModel)
             settingsModel = model
             showSettings = { surface.show() }
@@ -373,6 +379,7 @@ public final class AppEnvironment {
         let launchedAt = dependencies.history.dates.now()
         dependencies.diagnostics.record(.appLaunched)
         themeModel.appearance = dependencies.settings.value(for: AppearanceSettings.mode).override
+        dependencies.interfaceLanguage(dependencies.settings.value(for: GeneralSettings.interfaceLanguage))
         monitor.start()
         // The overlay listens before the coordinator can publish, and the coordinator registers the hotkey when it runs.
         run { await $0.overlayModel.run(states: $0.coordinator.states) }

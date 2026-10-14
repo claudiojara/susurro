@@ -16,6 +16,7 @@ private final class SpySettingsModel: SettingsViewModeling {
     }
 
     func setLanguage(_ id: String) { calls.append("language \(id)") }
+    func setInterfaceLanguage(_ id: String) { calls.append("interfaceLanguage \(id)") }
     func setAppContext(_ isOn: Bool) { calls.append("appContext \(isOn)") }
     func setOCR(_ isOn: Bool) { calls.append("ocr \(isOn)") }
     func setCleanup(_ isOn: Bool) { calls.append("cleanup \(isOn)") }

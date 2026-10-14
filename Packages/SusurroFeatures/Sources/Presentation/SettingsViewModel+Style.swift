@@ -28,11 +28,11 @@ extension SettingsViewModel {
         let identifier: String
         switch entry.target {
         case .bundle(let bundleID):
-            kind = "App"
+            kind = SettingsCopy.appKind
             id = "app:\(bundleID)"
             identifier = bundleID
         case .host(let host):
-            kind = "Site"
+            kind = SettingsCopy.siteKind
             id = "site:\(host)"
             identifier = host
         }

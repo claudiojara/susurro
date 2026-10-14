@@ -63,6 +63,7 @@ struct SettingsRig {
     let knobs = SettingsKnobs()
     let themes = FakeThemes()
     let themeModel = ThemeModel()
+    let appliedLanguages = AppliedLanguages()
     let variants = [
         OverlayVariantOption(id: OverlayVariantOption.defaultID, title: "Default"),
         OverlayVariantOption(id: "compact", title: "Compact"),
@@ -85,8 +86,15 @@ struct SettingsRig {
                 appleIntelligenceAvailable: { knobs.appleIntelligence },
                 executableProblem: { _ in knobs.problem },
                 themes: themes,
-                themeModel: themeModel))
+                themeModel: themeModel,
+                interfaceLanguage: { [appliedLanguages] in appliedLanguages.values.append($0) }))
     }
+}
+
+/// The interface languages the view model asked the app to show, in order.
+@MainActor
+final class AppliedLanguages {
+    var values: [InterfaceLanguage] = []
 }
 
 extension SettingsViewState {

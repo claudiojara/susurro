@@ -15,8 +15,8 @@ struct ProvidersSection: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: theme.spacing(.lg)) {
-            group("Speech recognition", rows: state.speech, footer: Copy.speechFooter)
-            group("Text cleanup", rows: state.cleanup, footer: Copy.cleanupFooter)
+            group(Copy.speech, rows: state.speech, footer: Copy.speechFooter)
+            group(Copy.cleanup, rows: state.cleanup, footer: Copy.cleanupFooter)
         }
     }
 
@@ -34,10 +34,20 @@ struct ProvidersSection: View {
     }
 
     private enum Copy {
-        static let speechFooter =
-            "Audio stays on this Mac unless you turn on a cloud provider and choose it. Keys are read from your Keychain, service app.tuminuta, and never stored by Susurro."
-        static let cleanupFooter =
-            "A cloud cleanup provider receives the transcript, your dictionary words, the category, and the tone. It never receives the text around the cursor, the selection, or the screen."
+        static var speech: String { L10n.string("providers.speech", "Speech recognition") }
+        static var cleanup: String { L10n.string("providers.cleanup", "Text cleanup") }
+        static var speechFooter: String {
+            L10n.string(
+                "providers.speechFooter",
+                "Audio stays on this Mac unless you turn on a cloud provider and choose it. Keys are read from your Keychain, service app.tuminuta, and never stored by Susurro."
+            )
+        }
+        static var cleanupFooter: String {
+            L10n.string(
+                "providers.cleanupFooter",
+                "A cloud cleanup provider receives the transcript, your dictionary words, the category, and the tone. It never receives the text around the cursor, the selection, or the screen."
+            )
+        }
     }
 }
 

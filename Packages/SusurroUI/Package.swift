@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "SusurroUI",
+    defaultLocalization: "en",
     platforms: [.macOS(.v26)],
     products: [
         .library(name: "SusurroUI", targets: ["SusurroUI"]),
@@ -21,6 +22,7 @@ let package = Package(
         .target(
             name: "SusurroUI",
             dependencies: ["DesignSystem"],
+            resources: [.process("Resources")],
             swiftSettings: [.defaultIsolation(MainActor.self)]
         ),
         // Renders views the same way on every machine and asserts snapshots of them. Only test targets use it.

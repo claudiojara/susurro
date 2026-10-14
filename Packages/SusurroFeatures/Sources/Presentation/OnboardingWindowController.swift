@@ -49,7 +49,8 @@ public final class OnboardingWindowController: OnboardingSurface {
             rootView: OnboardingWindowContent(model: model, themes: themes, maxHeight: nil, onDone: {}))
         host.sizingOptions = [.preferredContentSize]
         window = NSWindow(contentViewController: host)
-        window.title = model.state.title
+        let window = window
+        followLanguage { window.title = OnboardingCopy.title }
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         host.rootView = OnboardingWindowContent(

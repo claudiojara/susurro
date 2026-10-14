@@ -27,16 +27,23 @@
 
         // MARK: General
 
+        static let interfaceLanguages = [
+            SettingsChoice(id: "system", title: "System"), SettingsChoice(id: "en", title: "English"),
+            SettingsChoice(id: "es", title: "Español"),
+        ]
+
         static let general = GeneralSettingsState(
             languages: languages, selectedLanguage: "auto", appContextEnabled: true, ocrEnabled: false,
             cleanupEnabled: true, overlayEdges: edges, selectedEdge: "bottom", overlayVariants: variants,
-            selectedVariant: "default", variantError: nil)
+            selectedVariant: "default", variantError: nil, interfaceLanguages: interfaceLanguages,
+            selectedInterfaceLanguage: "system")
 
         static let generalPinned = GeneralSettingsState(
             languages: languages, selectedLanguage: "es", appContextEnabled: false, ocrEnabled: true,
             cleanupEnabled: false, overlayEdges: edges, selectedEdge: "top", overlayVariants: variants,
             selectedVariant: "default",
-            variantError: "The overlay style \"gone\" is not available, so the default one is used.")
+            variantError: "The overlay style \"gone\" is not available, so the default one is used.",
+            interfaceLanguages: interfaceLanguages, selectedInterfaceLanguage: "es")
 
         // MARK: Providers
 

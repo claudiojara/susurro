@@ -30,7 +30,8 @@ struct ProviderRow: View {
             }
             .accessibilityElement(children: .combine)
             if let isEnabled = row.isEnabled {
-                SettingsToggle("Turn on \(row.title)", isOn: isEnabled, onChange: onEnable)
+                SettingsToggle(
+                    L10n.string("providers.turnOn", "Turn on \(row.title)"), isOn: isEnabled, onChange: onEnable)
             }
             if let key = row.key {
                 TextLabel(key.note, style: .caption, tint: key.isPresent ? .success : .neutral)
@@ -57,7 +58,7 @@ struct ProviderRow: View {
             .buttonStyle(.plain)
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(row.isSelected ? .isSelected : [])
-            .accessibilityHint("Use this provider")
+            .accessibilityHint(L10n.string("providers.useHint", "Use this provider"))
             Spacer(minLength: theme.spacing(.sm))
             Pill(row.locality, tint: row.isCloud ? .warning : .neutral)
         }

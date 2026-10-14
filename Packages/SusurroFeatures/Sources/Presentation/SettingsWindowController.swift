@@ -39,7 +39,8 @@ public final class SettingsWindowController: SettingsSurface {
         host = NSHostingController(rootView: SettingsWindowContent(model: model, themes: themes, recorder: recorder))
         host.sizingOptions = [.preferredContentSize]
         window = NSWindow(contentViewController: host)
-        window.title = "Susurro Settings"
+        let window = window
+        followLanguage { window.title = SettingsCopy.windowTitle }
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
     }

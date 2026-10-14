@@ -24,10 +24,14 @@ public final class MenuPreferences {
     public var items: [MenuContent.Preference] {
         [
             MenuContent.Preference(
-                kind: .cleanup, title: "Clean up text (adds a few seconds)", isOn: cleanupEnabled, note: nil),
-            MenuContent.Preference(kind: .appContext, title: "Use app context", isOn: useAppContext, note: nil),
+                kind: .cleanup, title: L10n.string("menu.preference.cleanup", "Clean up text (adds a few seconds)"),
+                isOn: cleanupEnabled, note: nil),
             MenuContent.Preference(
-                kind: .screenText, title: "Use screen text (OCR)", isOn: ocr.isEnabled, note: ocr.explanation),
+                kind: .appContext, title: L10n.string("menu.preference.appContext", "Use app context"),
+                isOn: useAppContext, note: nil),
+            MenuContent.Preference(
+                kind: .screenText, title: L10n.string("menu.preference.screenText", "Use screen text (OCR)"),
+                isOn: ocr.isEnabled, note: ocr.explanation),
         ]
     }
 
