@@ -1,3 +1,0 @@
-import Domain
-
-enum LocalWhisperPlaceholder {}

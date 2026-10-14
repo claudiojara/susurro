@@ -24,6 +24,8 @@ public enum StubReply: Sendable {
     case failure(URLError.Code)
     /// The request never gets an answer, until it is cancelled.
     case hang
+    /// The answer is a redirect to another address.
+    case redirect(URL)
 }
 
 /// A web server that lives in the test process: a `URLSession` whose requests to one made-up host are answered by the
@@ -114,6 +116,13 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
         case .body(let data, let status): respond(url: url, status: status, data: data)
         case .failure(let code): client?.urlProtocol(self, didFailWithError: URLError(code))
         case .hang: break
+        case .redirect(let target):
+            let response = HTTPURLResponse(
+                url: url, statusCode: 302, httpVersion: "HTTP/1.1", headerFields: ["Location": target.absoluteString])!
+            client?.urlProtocol(self, wasRedirectedTo: URLRequest(url: target), redirectResponse: response)
+            // A redirect that the session refuses leaves the redirect response as the answer.
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocolDidFinishLoading(self)
         }
     }
 

@@ -42,8 +42,7 @@ let package = Package(
                 "InferenceTestSupport",
                 .product(name: "SusurroCore", package: "SusurroCore"),
                 .product(name: "CoreTestSupport", package: "SusurroCore"),
-            ],
-            resources: [.copy("Fixtures")]
+            ]
         ),
         .testTarget(
             name: "FluidAudioASRTests",
