@@ -12,11 +12,15 @@ let package = Package(
         .package(path: "../SusurroCore"),
         .package(path: "../SusurroPlatform"),
         .package(path: "../SusurroInference"),
+        .package(path: "../SusurroUI"),
     ],
     targets: [
         .target(
             name: "Presentation",
-            dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]
+            dependencies: [
+                .product(name: "SusurroCore", package: "SusurroCore"),
+                .product(name: "SusurroUI", package: "SusurroUI"),
+            ]
         ),
         .target(
             name: "Composition",
@@ -35,6 +39,7 @@ let package = Package(
                 "Presentation",
                 .product(name: "SusurroCore", package: "SusurroCore"),
                 .product(name: "CoreTestSupport", package: "SusurroCore"),
+                .product(name: "SusurroUI", package: "SusurroUI"),
             ]
         ),
         .testTarget(
