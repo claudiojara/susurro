@@ -30,6 +30,9 @@ private func render(_ text: String) throws -> CGImage {
     return try #require(context.makeImage())
 }
 
+/// The CI image has no on-device Vision text models, so the real-model checks run on a Mac only.
+let onDeviceModelsPresent = ProcessInfo.processInfo.environment["CI"] == nil
+
 @Suite("Vision screen text recognizer")
 struct VisionOCRTests {
     private let target = ScreenTarget(app: AppIdentity(processID: 1, name: "Mail", bundleID: "com.apple.mail"))
@@ -39,13 +42,17 @@ struct VisionOCRTests {
         return try await recognizer.recognize(windowOf: target)
     }
 
-    @Test("a picture with Acme Corp is read on this Mac")
+    @Test(
+        "a picture with Acme Corp is read on this Mac",
+        .enabled(if: onDeviceModelsPresent, "needs Vision's text recognition, which the CI image lacks"))
     func english() async throws {
         let lines = try await recognize("Acme Corp")
         #expect(lines.contains { $0.localizedCaseInsensitiveContains("Acme Corp") })
     }
 
-    @Test("Spanish text with accents is read")
+    @Test(
+        "Spanish text with accents is read",
+        .enabled(if: onDeviceModelsPresent, "needs Vision's text recognition, which the CI image lacks"))
     func spanish() async throws {
         let lines = try await recognize("Reunión con María González")
         let joined = lines.joined(separator: " ")
@@ -59,7 +66,9 @@ struct VisionOCRTests {
         #expect(try await recognizer.recognize(windowOf: target).isEmpty)
     }
 
-    @Test("a blank picture gives no text")
+    @Test(
+        "a blank picture gives no text",
+        .enabled(if: onDeviceModelsPresent, "needs Vision's text recognition, which the CI image lacks"))
     func blank() async throws {
         #expect(try await recognize("").isEmpty)
     }

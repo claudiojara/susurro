@@ -1,4 +1,5 @@
 import EntityTagging
+import Foundation
 import Testing
 
 @Suite("NLTagger entity tagger")
@@ -20,7 +21,9 @@ struct NLTaggerEntityTaggerTests {
         #expect(nouns.contains("Acme"))
     }
 
-    @Test("a Spanish sentence gives its people, organizations, and places")
+    @Test(
+        "a Spanish sentence gives its people, organizations, and places",
+        .enabled(if: ProcessInfo.processInfo.environment["CI"] == nil, "the CI image lacks the Spanish NLTagger model"))
     func spanish() {
         let nouns = tagger.properNouns(in: "Ayer hablé con Juan Pérez en Barcelona sobre Google.")
         #expect(nouns.contains("Juan Pérez"))
