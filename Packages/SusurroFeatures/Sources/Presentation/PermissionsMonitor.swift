@@ -17,22 +17,6 @@ import Observation
 @MainActor
 @Observable
 public final class PermissionsMonitor {
-    /// Why dictation is off: the required permissions that are not granted.
-    public struct DisabledReason: Equatable, Sendable {
-        /// The missing required permissions, in the order of the onboarding. Never empty.
-        public let permissions: [Permission]
-
-        init?(blocking permissions: [Permission]) {
-            guard !permissions.isEmpty else { return nil }
-            self.permissions = permissions
-        }
-
-        public var message: String {
-            let names = permissions.map(\.displayName).joined(separator: " and ")
-            return "Dictation is off until \(names) \(permissions.count == 1 ? "is" : "are") allowed."
-        }
-    }
-
     /// The last status read of each permission. A permission that has not been read is missing.
     public private(set) var statuses: [Permission: PermissionStatus] = [:]
     /// Which of the optional permissions the setup uses.
@@ -87,7 +71,7 @@ public final class PermissionsMonitor {
     /// Whether the onboarding must be shown: a required permission is missing, once the statuses are known.
     public var needsOnboarding: Bool { hasReadStatuses && !isOnboardingComplete }
     /// Why dictation is off, from `blocking` only, or nil when nothing blocks it.
-    public var disabledReason: DisabledReason? { DisabledReason(blocking: blocking) }
+    public var disabledReason: DictationDisabledReason? { DictationDisabledReason(blocking: blocking) }
     /// The permissions the user was asked to act on whose status has not changed since.
     public var waiting: Set<Permission> { Set(waitingFrom.keys) }
 
@@ -195,17 +179,5 @@ public final class PermissionsMonitor {
     private func staleTimeElapsed(for permission: Permission) async {
         await refresh()
         if statuses[permission] == .denied { staleGuidance.insert(permission) }
-    }
-}
-
-extension Permission {
-    /// The name the user knows the permission by, as System Settings shows it.
-    var displayName: String {
-        switch self {
-        case .microphone: "Microphone"
-        case .accessibility: "Accessibility"
-        case .inputMonitoring: "Input Monitoring"
-        case .screenRecording: "Screen Recording"
-        }
     }
 }
