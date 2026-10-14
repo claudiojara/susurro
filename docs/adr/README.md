@@ -12,3 +12,4 @@ number, and add a row below. An accepted ADR is not edited; a later ADR supersed
 | [0005](0005-hotkeys-and-escape-semantics.md) | Hotkey strategy and Esc semantics | accepted |
 | [0006](0006-cloud-data-boundary.md) | Cloud requests cannot carry context | accepted |
 | [0007](0007-tooling-format-token-lint-snapshots.md) | swift-format, token lint test, snapshot tests | accepted |
+| [0030](0030-busy-presses-use-a-fifo-processing-queue.md) | Busy presses use a FIFO ProcessingQueue | accepted |
