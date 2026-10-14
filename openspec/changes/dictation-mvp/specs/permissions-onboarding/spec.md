@@ -67,3 +67,9 @@ Onboarding MUST complete when all required permissions are granted and MUST NOT 
 - GIVEN all required permissions are granted at launch
 - WHEN the app starts
 - THEN onboarding is not shown
+
+#### Scenario: Conditional denied
+
+- GIVEN Microphone and Accessibility are granted, OCR is on, and Screen Recording is denied
+- WHEN the app starts
+- THEN onboarding is not shown, dictation works, and OCR reports inactive

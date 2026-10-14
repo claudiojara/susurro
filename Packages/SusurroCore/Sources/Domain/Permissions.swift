@@ -34,36 +34,52 @@ public struct PermissionNeeds: Sendable, Equatable {
     }
 }
 
-/// Which permissions a setup needs and whether they are all granted. It is pure, so the onboarding, the menu and the
-/// monitor read one rule. A permission the setup does not need is never asked for and never held against it.
+/// Which permissions a setup asks for and which of them hold dictation back. It is pure, so the onboarding, the menu and
+/// the monitor read one rule.
+///
+/// Only Microphone and Accessibility are required: while one is missing dictation is disabled and the onboarding stays
+/// open. Input Monitoring and Screen Recording are conditional: the setup asks for one only when it uses the feature
+/// that needs it (a modifier-only hotkey, OCR), and a conditional permission that is missing never gates dictation or
+/// the end of the onboarding. It leaves that one feature inactive, with an explanation.
 public enum PermissionPolicy {
-    /// What a setup needs, in the order of `Permission.allCases`. Microphone and Accessibility are always needed, Input
-    /// Monitoring only for a modifier-only or fn hotkey, and Screen Recording only when OCR is on.
-    public static func required(for needs: PermissionNeeds) -> [Permission] {
-        Permission.allCases.filter { permission in
-            switch permission {
-            case .microphone, .accessibility: true
-            case .inputMonitoring: needs.modifierOnlyHotkey
-            case .screenRecording: needs.ocrEnabled
-            }
-        }
+    /// Needed for dictation in every setup, in the order of `Permission.allCases`.
+    public static let required: [Permission] = [.microphone, .accessibility]
+
+    /// What the setup's features need beyond `required`: Input Monitoring for a modifier-only or fn hotkey, and Screen
+    /// Recording when OCR is on.
+    public static func conditional(for needs: PermissionNeeds) -> [Permission] {
+        var permissions: [Permission] = []
+        if needs.modifierOnlyHotkey { permissions.append(.inputMonitoring) }
+        if needs.ocrEnabled { permissions.append(.screenRecording) }
+        return permissions
     }
 
-    /// The needed permissions that are not granted, in the order of `required(for:)`. One that has not been read is
+    /// What the setup asks the user for, the onboarding rows: `required` and `conditional(for:)`, in the order of
+    /// `Permission.allCases`. A permission the setup does not use is never asked for.
+    public static func requested(for needs: PermissionNeeds) -> [Permission] {
+        let wanted = required + conditional(for: needs)
+        return Permission.allCases.filter { wanted.contains($0) }
+    }
+
+    /// The requested permissions that are not granted, in the order of `requested(for:)`. One that has not been read is
     /// missing, so a Mac is not taken for ready before its statuses are known.
     public static func missing(
         for needs: PermissionNeeds,
         statuses: [Permission: PermissionStatus]
     ) -> [Permission] {
-        required(for: needs).filter { statuses[$0] != .granted }
+        requested(for: needs).filter { statuses[$0] != .granted }
     }
 
-    /// Whether every needed permission is granted. The onboarding is shown exactly while this is false, so it does not
-    /// come back at launch when everything is granted and does come back as soon as one is revoked or newly needed.
-    public static func isOnboardingComplete(
-        for needs: PermissionNeeds,
-        statuses: [Permission: PermissionStatus]
-    ) -> Bool {
-        missing(for: needs, statuses: statuses).isEmpty
+    /// The required permissions that are not granted. Dictation stays disabled, with the reason, until this is empty.
+    /// A conditional permission is never in it.
+    public static func blocking(statuses: [Permission: PermissionStatus]) -> [Permission] {
+        required.filter { statuses[$0] != .granted }
+    }
+
+    /// Whether no required permission is missing. The onboarding is shown exactly while this is false, so it does not
+    /// come back at launch when Microphone and Accessibility are granted, and does come back as soon as one is revoked.
+    /// A conditional permission, denied or never read, does not change it.
+    public static func isOnboardingComplete(statuses: [Permission: PermissionStatus]) -> Bool {
+        blocking(statuses: statuses).isEmpty
     }
 }
