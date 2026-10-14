@@ -416,18 +416,21 @@ struct OnboardingViewModelTests {
         #expect(model.state.isDoneEnabled)
     }
 
-    @Test("the poll runs while the onboarding is on screen and stops when it goes")
-    func pollFollowsTheScreen() async {
+    @Test("a revocation the monitor finds on its own shows in the state, with no intent from the screen")
+    func revocationShowsWithoutTheScreen() async {
         let rig = Rig([.microphone: .granted, .accessibility: .granted])
         let model = OnboardingViewModel(monitor: rig.monitor)
-
-        model.onboardingDidAppear()
+        rig.monitor.start()
         await rig.clock.waitForSleeps(1)
-        let whileShown = rig.clock.pendingSleeps
-        model.onboardingDidDisappear()
+        let before = (model.state.isDoneEnabled, model.state.dictationDisabledMessage)
 
-        #expect(whileShown == 1)
-        #expect(rig.clock.pendingSleeps == 0)
-        #expect(model.state.isDoneEnabled)
+        rig.board.set(.microphone, to: .denied)
+        rig.clock.advance(by: .seconds(1))
+        await rig.clock.waitForSleeps(2)
+
+        #expect(before.0)
+        #expect(before.1 == nil)
+        #expect(!model.state.isDoneEnabled)
+        #expect(model.state.dictationDisabledMessage == "Dictation is off until Microphone is allowed.")
     }
 }

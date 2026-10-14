@@ -100,11 +100,11 @@ struct PermissionsMonitorTests {
 
     // MARK: Polling
 
-    @Test("while the onboarding is visible the statuses are read at once and then every second")
-    func pollsEverySecondWhileVisible() async {
+    @Test("once started, the statuses are read at once and then every second")
+    func pollsEverySecond() async {
         let rig = Rig([.microphone: .granted, .accessibility: .denied])
 
-        rig.monitor.setOnboardingVisible(true)
+        rig.monitor.start()
         await rig.clock.waitForSleeps(1)
         let afterTheFirstRead = rig.board.statusReads
         rig.board.set(.accessibility, to: .granted)
@@ -125,8 +125,8 @@ struct PermissionsMonitorTests {
         #expect(rig.board.statusReads == 6)
     }
 
-    @Test("nothing is read on a timer while the onboarding is hidden")
-    func silentWhileHidden() async {
+    @Test("a monitor that was not started reads nothing on a timer")
+    func silentUntilStarted() async {
         let rig = Rig([.microphone: .granted])
 
         rig.clock.advance(by: .seconds(30))
@@ -136,32 +136,53 @@ struct PermissionsMonitorTests {
         #expect(rig.clock.suspendedSleeps == 0)
     }
 
-    @Test("hiding the onboarding stops the poll, and showing it again starts it again")
-    func pollFollowsTheVisibility() async {
-        let rig = Rig([.microphone: .granted])
-        rig.monitor.setOnboardingVisible(true)
+    @Test("a permission revoked while the app idles is found within the second, with no activation and no screen open")
+    func revocationWithoutActivation() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .granted])
+        rig.monitor.start()
         await rig.clock.waitForSleeps(1)
+        let beforeTheRevoke = (rig.monitor.disabledReason, rig.monitor.needsOnboarding)
 
-        rig.monitor.setOnboardingVisible(false)
-        let pendingWhenHidden = rig.clock.pendingSleeps
-        rig.clock.advance(by: .seconds(10))
+        rig.board.set(.accessibility, to: .denied)
+        rig.clock.advance(by: .milliseconds(999))
         await rig.settle()
-        let readsWhenHidden = rig.board.statusReads
-        rig.monitor.setOnboardingVisible(true)
+        let justBeforeTheSecond = rig.monitor.disabledReason
+        rig.clock.advance(by: .milliseconds(1))
         await rig.clock.waitForSleeps(2)
 
-        #expect(pendingWhenHidden == 0)
-        #expect(readsWhenHidden == 2)
+        #expect(beforeTheRevoke.0 == nil)
+        #expect(beforeTheRevoke.1 == false)
+        #expect(justBeforeTheSecond == nil)
+        #expect(rig.monitor.disabledReason?.permissions == [.accessibility])
+        #expect(rig.monitor.needsOnboarding)
+    }
+
+    @Test("stopping the monitor ends the poll, and starting it again resumes it")
+    func pollFollowsStartAndStop() async {
+        let rig = Rig([.microphone: .granted])
+        rig.monitor.start()
+        await rig.clock.waitForSleeps(1)
+
+        rig.monitor.stop()
+        let pendingWhenStopped = rig.clock.pendingSleeps
+        rig.clock.advance(by: .seconds(10))
+        await rig.settle()
+        let readsWhenStopped = rig.board.statusReads
+        rig.monitor.start()
+        await rig.clock.waitForSleeps(2)
+
+        #expect(pendingWhenStopped == 0)
+        #expect(readsWhenStopped == 2)
         #expect(rig.board.statusReads == 4)
         #expect(rig.clock.pendingSleeps == 1)
     }
 
-    @Test("showing the onboarding twice does not start a second poll")
+    @Test("starting the monitor twice does not start a second poll")
     func onePollAtATime() async {
         let rig = Rig([.microphone: .granted])
 
-        rig.monitor.setOnboardingVisible(true)
-        rig.monitor.setOnboardingVisible(true)
+        rig.monitor.start()
+        rig.monitor.start()
         await rig.clock.waitForSleeps(1)
         await rig.settle()
 
@@ -217,19 +238,6 @@ struct PermissionsMonitorTests {
         #expect(rig.monitor.blocking == [.accessibility])
         #expect(rig.monitor.disabledReason?.permissions == [.accessibility])
         #expect(rig.monitor.needsOnboarding)
-    }
-
-    @Test("a revocation found by the poll shows within the second")
-    func revocationFoundByThePoll() async {
-        let rig = Rig([.microphone: .granted, .accessibility: .granted])
-        rig.monitor.setOnboardingVisible(true)
-        await rig.clock.waitForSleeps(1)
-
-        rig.board.set(.microphone, to: .denied)
-        rig.clock.advance(by: .seconds(1))
-        await rig.clock.waitForSleeps(2)
-
-        #expect(rig.monitor.disabledReason?.permissions == [.microphone])
     }
 
     @Test(
@@ -343,7 +351,7 @@ struct PermissionsMonitorTests {
         let clock = ManualClock()
         var monitor: PermissionsMonitor? = PermissionsMonitor(
             checker: MutablePermissionsChecker([.microphone: .granted]), openSettings: { _ in }, clock: clock)
-        monitor?.setOnboardingVisible(true)
+        monitor?.start()
         await clock.waitForSleeps(1)
 
         monitor = nil
