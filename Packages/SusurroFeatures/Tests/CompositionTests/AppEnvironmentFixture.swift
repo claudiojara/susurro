@@ -2,6 +2,7 @@ import CoreTestSupport
 import DesignSystem
 import Domain
 import Foundation
+import Pipeline
 import Presentation
 import SusurroUI
 import Synchronization
@@ -117,7 +118,8 @@ final class AppEnvironmentFixture {
         capture: FakeAudioCaptureSource = FakeAudioCaptureSource(),
         themeFiles: [String: String] = [:],
         history: HistoryDependencies = .preview(),
-        settingsScreen: AppEnvironment.Dependencies.SettingsScreen? = nil
+        settingsScreen: AppEnvironment.Dependencies.SettingsScreen? = nil,
+        cleanup: CleanupStage? = nil
     ) {
         self.permissions = MutablePermissionsChecker(permissions)
         self.recognizer = recognizer
@@ -155,6 +157,7 @@ final class AppEnvironmentFixture {
                     store: themes, prepare: { themePreparations.increment() }),
                 clock: clock,
                 history: history,
+                cleanup: cleanup,
                 settingsScreen: settingsScreen
             )
         )

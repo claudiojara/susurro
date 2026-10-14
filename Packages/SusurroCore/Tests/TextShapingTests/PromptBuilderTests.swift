@@ -28,6 +28,13 @@ struct PromptBuilderTests {
         }
     }
 
+    @Test("the system prompt shows a dictated question coming back as a question")
+    func systemPromptExample() {
+        for system in [PromptBuilder.build(local()).system, PromptBuilder.build(cloud()).system] {
+            #expect(system.contains(#""qué es la capital de francia" is returned as "¿Qué es la capital de Francia?""#))
+        }
+    }
+
     @Test("the user message carries the style, the vocabulary, the context, and the transcript in tags")
     func userMessageTags() {
         let prompt = PromptBuilder.build(

@@ -141,6 +141,19 @@ struct AppEnvironmentTests {
         await f.environment.shutdown()
     }
 
+    @Test("the key going down gets the cleaner of the graph ready")
+    func keyDownWarmsTheCleaner() async {
+        let cleaner = FakeCleaner()
+        let clock = ManualClock()
+        let stage = CleanupStage(
+            isEnabled: { true }, cleaner: { cleaner }, sleep: { try await clock.sleep(for: $0) })
+        let f = AppEnvironmentFixture(cleanup: stage)
+        f.environment.start()
+        f.hotkeys.send(.down(at: Self.pressTime))
+        await f.eventually("the cleaner to be warmed") { cleaner.prewarmCount == 1 }
+        await f.environment.shutdown()
+    }
+
     @Test("a press while a dictation is processed starts the next recording, and the overlay follows it")
     func pressWhileProcessing() async {
         let f = AppEnvironmentFixture(recognizer: FakeRecognizer(transcript: "uno", gated: true))

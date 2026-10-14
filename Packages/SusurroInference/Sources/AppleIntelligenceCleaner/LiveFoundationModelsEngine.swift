@@ -6,7 +6,13 @@ import FoundationModels
 /// The reply is plain text, not a `@Generable` structure. Measured on this model with the same instructions and the same
 /// Spanish transcript, a structured reply came back without accents, capitals, or punctuation ("queria", "reunion"),
 /// and the plain reply was correct ("Hola equipo, quería comentarles que la reunión ...").
-struct LiveFoundationModelsEngine: FoundationModelsEngine {
+///
+/// A call uses a new session, so a dictation never sees the one before it. `prewarm` makes that session ahead of the
+/// call, as the key goes down, and asks the system to load the model for it; the next `generate` with the same
+/// instructions takes it, once.
+final class LiveFoundationModelsEngine: FoundationModelsEngine {
+    private let warm = WarmSlot<LanguageModelSession>()
+
     func availability() -> EngineAvailability {
         switch SystemLanguageModel.default.availability {
         case .available:
@@ -22,9 +28,16 @@ struct LiveFoundationModelsEngine: FoundationModelsEngine {
         }
     }
 
+    func prewarm(instructions: String) async {
+        let session = LanguageModelSession(instructions: instructions)
+        session.prewarm()
+        warm.store(session, instructions: instructions)
+    }
+
     func generate(_ request: EngineRequest) async throws -> String {
-        // A new session for each call: a dictation must not see the one before it.
-        let session = LanguageModelSession(instructions: request.instructions)
+        // A new session for each call: a dictation must not see the one before it. A warm one has seen no request.
+        let session =
+            warm.take(instructions: request.instructions) ?? LanguageModelSession(instructions: request.instructions)
         let sampling: GenerationOptions.SamplingMode =
             switch request.sampling {
             case .greedy: .greedy

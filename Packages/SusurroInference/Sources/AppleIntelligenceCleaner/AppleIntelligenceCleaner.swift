@@ -54,6 +54,13 @@ public actor AppleIntelligenceCleaner: TranscriptCleaner {
         }
     }
 
+    /// Gets the model ready for the dictation that has just begun. It does not wait for its turn: it prepares a session
+    /// that the next call takes, and does nothing when the model is not available.
+    public func prewarm() async {
+        guard engine.availability() == .available else { return }
+        await engine.prewarm(instructions: PromptBuilder.systemPrompt)
+    }
+
     public func clean(_ payload: CleanupPayload) async throws -> String {
         let request = try payload.requireLocal()
         let prompt = PromptBuilder.build(request)

@@ -21,6 +21,7 @@ public final class FakeCleaner: TranscriptCleaner {
         var answer: Answer
         var payloads: [CleanupPayload] = []
         var availabilityChecks = 0
+        var prewarms = 0
     }
     private let state: Mutex<State>
     private let gate: Gate?
@@ -44,6 +45,8 @@ public final class FakeCleaner: TranscriptCleaner {
     public var payloads: [CleanupPayload] { state.withLock { $0.payloads } }
     public var callCount: Int { payloads.count }
     public var availabilityChecks: Int { state.withLock { $0.availabilityChecks } }
+    /// How many times the cleaner was asked to get ready.
+    public var prewarmCount: Int { state.withLock { $0.prewarms } }
 
     public func setAvailability(_ availability: CleanerAvailability) {
         state.withLock { $0.availability = availability }
@@ -60,6 +63,10 @@ public final class FakeCleaner: TranscriptCleaner {
             state.availabilityChecks += 1
             return state.availability
         }
+    }
+
+    public func prewarm() async {
+        state.withLock { $0.prewarms += 1 }
     }
 
     public func clean(_ payload: CleanupPayload) async throws -> String {

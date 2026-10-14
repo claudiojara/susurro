@@ -92,23 +92,51 @@ public struct ProviderBudget: Sendable, Equatable {
     public let maxTranscriptCharacters: Int
     /// The most characters of transcript and text before the cursor together. A cleaner that takes no context ignores it.
     public let maxInputCharacters: Int
-    /// How long a call may take before the raw transcript is used.
-    public let timeout: Duration
+    /// What every call gets, whatever the length of the transcript: the time to start the model.
+    public let baseTimeout: Duration
+    /// What a call gets on top of `baseTimeout` for each character of transcript: the time to write a faithful reply.
+    public let timeoutPerCharacter: Duration
+    /// The most a call may take, however long the transcript is.
+    public let maxTimeout: Duration
 
-    public init(maxTranscriptCharacters: Int, maxInputCharacters: Int, timeout: Duration) {
+    public init(
+        maxTranscriptCharacters: Int, maxInputCharacters: Int, baseTimeout: Duration, timeoutPerCharacter: Duration,
+        maxTimeout: Duration
+    ) {
         self.maxTranscriptCharacters = maxTranscriptCharacters
         self.maxInputCharacters = maxInputCharacters
-        self.timeout = timeout
+        self.baseTimeout = baseTimeout
+        self.timeoutPerCharacter = timeoutPerCharacter
+        self.maxTimeout = maxTimeout
+    }
+
+    /// A budget with one limit for every length of transcript.
+    public init(maxTranscriptCharacters: Int, maxInputCharacters: Int, timeout: Duration) {
+        self.init(
+            maxTranscriptCharacters: maxTranscriptCharacters, maxInputCharacters: maxInputCharacters,
+            baseTimeout: timeout, timeoutPerCharacter: .zero, maxTimeout: timeout)
+    }
+
+    /// How long a call may take for a transcript of this many characters before the raw transcript is used.
+    public func timeout(forTranscriptCharacters count: Int) -> Duration {
+        min(baseTimeout + timeoutPerCharacter * max(count, 0), maxTimeout)
     }
 
     /// Apple's on-device model: a context window of about 4,000 tokens shared by the instructions, the context, and the
     /// output, which is about as long as the input. The transcript cap is 2,500 characters, and the text before the
     /// cursor shrinks so that the two together stay within 2,800. The numbers were measured with the model's own token
     /// count on Spanish text (ADR 0008): the cap is conservative, not tight.
+    ///
+    /// The time follows the paste promise (ADR 0015): 1.2 s, and 8 ms for each character of transcript, which is the time
+    /// the model takes to write a faithful reply (0.23 tokens a character at about 30 tokens a second), up to 6 s. A
+    /// short question gets under 1.5 s, the sentence of the real-model checks 1.8 s, and a long text waits in proportion
+    /// to what was said.
     public static let foundationModels = ProviderBudget(
-        maxTranscriptCharacters: 2_500, maxInputCharacters: 2_800, timeout: .seconds(4))
+        maxTranscriptCharacters: 2_500, maxInputCharacters: 2_800, baseTimeout: .milliseconds(1_200),
+        timeoutPerCharacter: .milliseconds(8), maxTimeout: .seconds(6))
 
-    /// A cloud cleaner takes no context, so only the transcript counts.
+    /// A cloud cleaner takes no context, so only the transcript counts. A network call has no length to follow, so its
+    /// limit is flat.
     public static let cloud = ProviderBudget(
         maxTranscriptCharacters: 6_000, maxInputCharacters: 6_000, timeout: .seconds(6))
 }
@@ -176,4 +204,11 @@ public protocol TranscriptCleaner: Sendable {
     /// A cloud cleaner takes only `.cloud` payloads and throws `CloudBoundaryViolation` on `.local`. A cancelled call
     /// throws `CancellationError`.
     func clean(_ payload: CleanupPayload) async throws -> String
+    /// Gets the model ready for a request that is about to come, if it takes time to start. It never throws and its
+    /// result is only an optimization: a cleaner that has nothing to prepare does nothing.
+    func prewarm() async
+}
+
+extension TranscriptCleaner {
+    public func prewarm() async {}
 }

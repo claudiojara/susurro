@@ -169,11 +169,18 @@ struct RealPipelineTests {
         let rest: Duration
         /// What the cleanup stage did, from the history record: the cleaner and why it fell back, if it did.
         let cleanup: String
+        /// Whether the cleaner's text is the one that was inserted, and not the raw transcript.
+        let cleaned: Bool
+        /// Why the raw transcript was used although cleanup was on, from the history record.
+        let fallback: String?
         let text: String
     }
 
+    /// - Parameter beforeEachRun: What happens as the key goes down, before the speech is written. The app warms the
+    ///   cleaner there.
     private static func dictate(
-        _ samples: [Float], runs count: Int, cleaner: (any TranscriptCleaner)?, in folder: URL
+        _ samples: [Float], runs count: Int, cleaner: (any TranscriptCleaner)?, in folder: URL,
+        beforeEachRun: () async -> Void = {}
     ) async throws -> (runs: [Run], history: GRDBHistoryRepository, recordings: [VerifiedRecording]) {
         let parakeet = try await loadedParakeet()
         let settings = InMemorySettingsStore()
@@ -197,6 +204,7 @@ struct RealPipelineTests {
         var runs: [Run] = []
         var recordings: [VerifiedRecording] = []
         for _ in 0..<count {
+            await beforeEachRun()
             // The recording is written as the user speaks; the clock starts when the key comes up.
             let sink = try await Self.write(samples, to: store)
             let released = ContinuousClock.now
@@ -216,7 +224,7 @@ struct RealPipelineTests {
                 Run(
                     release: release, finish: closed - released, voice: voice, speech: speech,
                     rest: release - (closed - released) - voice - speech, cleanup: cleanup ?? "no record",
-                    text: inserted.text))
+                    cleaned: record?.cleanedText != nil, fallback: record?.fallbackReason, text: inserted.text))
             recordings.append(recording)
         }
         return (runs, history, recordings)
@@ -272,7 +280,9 @@ struct RealPipelineTests {
         )
     }
 
-    @Test("with Apple Intelligence cleanup on, which is the default, the same dictation takes this long")
+    @Test(
+        "with Apple Intelligence cleanup on, which is the default, a dictation whose model was warmed at key-down takes under 2 s after the release"
+    )
     func releaseToTextWithCleanup() async throws {
         let cleaner = AppleIntelligenceCleaner()
         guard await cleaner.availability() == .available else {
@@ -283,11 +293,24 @@ struct RealPipelineTests {
         let speech = try SpokenClip.speak(Self.fiveSeconds)
         let samples = SpokenClip.silence(seconds: 0.3) + speech + SpokenClip.silence(seconds: 0.3)
 
-        let (runs, _, _) = try await Self.dictate(samples, runs: 4, cleaner: cleaner, in: folder)
+        let (runs, _, _) = try await Self.dictate(samples, runs: 6, cleaner: cleaner, in: folder) {
+            // The key goes down: the app warms the model while the person speaks. The speech here is written at once, so
+            // a pause of 1.5 s stands in for the first part of a hold that lasts as long as the clip.
+            await cleaner.prewarm()
+            try? await Task.sleep(for: .seconds(1.5))
+        }
         Self.report("with cleanup", runs)
 
-        // No bound is asserted: this is the number that the 2 s of the proposal has to be read against.
+        let warm = runs.dropFirst()
+        let median = warm.map(\.release).sorted()[warm.count / 2]
+        let cleaned = runs.filter(\.cleaned).count
+        let timeouts = runs.filter { $0.fallback == FallbackReason.timeout.rawValue }.count
+        print(
+            "REAL-WORLD 4d.10 with cleanup: first run \(Int(runs[0].release.milliseconds)) ms, warm runs median \(Int(median.milliseconds)) ms, worst \(Int((warm.map(\.release).max() ?? .zero).milliseconds)) ms; cleanup hit rate \(cleaned) of \(runs.count) cleaned, \(timeouts) timeout, \(runs.count - cleaned - timeouts) other fallback"
+        )
+
         #expect(runs.allSatisfy { !$0.text.isEmpty })
+        #expect(median < .seconds(2))
     }
 
     // MARK: 8a.9 A dictionary term

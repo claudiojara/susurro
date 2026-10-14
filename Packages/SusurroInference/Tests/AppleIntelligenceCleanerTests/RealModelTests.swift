@@ -118,21 +118,26 @@ struct RealModelTests {
     }
 
     /// Found by the manual check of 7e.5, run headless: in Slack and ChatGPT, and in Mail for the Spanish question, the
-    /// model replies with the answer, and the output guard accepts it, because an answer is about as long as the
-    /// question and says no assistant words. Terminal is not affected, since cleanup is skipped there. This stays a
-    /// known issue until the prompt or the guard stops it; the check then fails, to say the marker can go.
+    /// model replied with the answer, and the output guard let it through, because an answer is about as long as the
+    /// question and says no assistant words. The guard now refuses an answer by its content (`AnswerDetector`), so
+    /// whatever the model says, the answer never reaches the text. Terminal is not affected, since cleanup is skipped
+    /// there.
     @Test(
         "a question is cleaned in every app, not answered",
-        arguments: [("what is the capital of france", "paris"), ("qué es la capital de Francia", "paris")])
-    func questionIsNotAnsweredInAnyApp(question: String, answer: String) async {
-        await withKnownIssue(
-            "The model answers the question and the output guard lets the answer through (tasks.md, 7e.5).",
-            isIntermittent: true
-        ) {
-            for (_, bundleID) in Self.apps {
-                guard let (_, result) = try await dictate(question, into: bundleID) else { return }
-                let text = result.finalText.folding(options: .diacriticInsensitive, locale: nil)
-                #expect(!text.localizedCaseInsensitiveContains(answer))
+        arguments: [
+            ("what is the capital of france", "paris", true), ("qué es la capital de Francia", "paris", true),
+            ("dime la capital de francia", "paris", false),
+        ])
+    func questionIsNotAnsweredInAnyApp(question: String, answer: String, isQuestion: Bool) async throws {
+        for (name, bundleID) in Self.apps {
+            guard let (style, result) = try await dictate(question, into: bundleID) else { return }
+            let text = result.finalText.folding(options: .diacriticInsensitive, locale: nil)
+            #expect(!text.localizedCaseInsensitiveContains(answer), "\(name) answered: \(result.finalText)")
+            if isQuestion, style.tone != .verbatim {
+                // Either the question comes back as a question, or the guard caught the answer and the raw words stay.
+                #expect(
+                    result.fallbackReason == .answered || result.finalText.contains("?"),
+                    "\(name) neither kept the question nor refused an answer: \(result.finalText)")
             }
         }
     }

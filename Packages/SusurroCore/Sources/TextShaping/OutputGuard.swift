@@ -1,8 +1,8 @@
 import Domain
 
 /// Decides whether a cleaner's output may replace the raw transcript. The output is sanitized first. The raw transcript
-/// is used, with a reason, when the output is empty, reads like an assistant talking, or is out of proportion with the
-/// transcript.
+/// is used, with a reason, when the output is empty, reads like an assistant talking, answers the transcript instead of
+/// cleaning it (see `AnswerDetector`), or is out of proportion with it.
 public enum OutputGuard {
     public enum Verdict: Sendable, Equatable {
         /// The sanitized output, which may be used.
@@ -37,6 +37,9 @@ public enum OutputGuard {
         let text = OutputSanitizer.sanitize(output, raw: raw, reference: reference)
         guard !text.isEmpty else { return .fallback(.emptyOutput) }
         guard AssistantMarkers.firstMarker(in: text, notIn: raw) == nil else { return .fallback(.assistantMarker) }
+        guard !AnswerDetector.isAnswer(raw: raw, output: text, reference: reference) else {
+            return .fallback(.answered)
+        }
         let rawCount = raw.count
         let outputCount = text.count
         let upper =

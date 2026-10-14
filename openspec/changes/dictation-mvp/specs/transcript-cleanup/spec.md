@@ -38,6 +38,12 @@ The prompt MUST contain the tone and category, the vocabulary, and the transcrip
 - WHEN the prompt is built
 - THEN the never-copy-context rule is present
 
+#### Scenario: Question example
+
+- GIVEN any request
+- WHEN the prompt is built
+- THEN the fixed instructions show a dictated question coming back as a question, not as an answer
+
 ### Requirement: Cloud data boundary
 
 A request to a cloud provider MUST contain only the transcript, vocabulary terms, category, tone, and fixed instructions. It MUST NOT contain text around the cursor, the selection, OCR text, or screenshots. A local provider MAY additionally receive bounded text before the cursor, inside a context tag.
@@ -76,13 +82,31 @@ Model output MUST be stripped of think blocks, code fences, and leading labels o
 
 ### Requirement: Safety net
 
-The raw transcript MUST be used instead when the sanitized output is empty, contains assistant markers (such as refusals or "the user is asking"), or its length ratio to the raw transcript is out of range: above 4.0 (raw under 50 characters), 2.5 (under 150), or 2.0 otherwise, or below 0.4 for raw of 20 characters or more.
+The raw transcript MUST be used instead when the sanitized output is empty, contains assistant markers (such as refusals or "the user is asking"), answers the transcript, or its length ratio to the raw transcript is out of range: above 4.0 (raw under 50 characters), 2.5 (under 150), or 2.0 otherwise, or below 0.4 for raw of 20 characters or more. The output answers the transcript when a leading question or request word is gone and a content word the transcript did not have appears (reason `answered`). The leading words are the first three of the transcript, a word within one edit of a transcript word of four letters or more is not new, and neither is a word of the vocabulary or of the text before the cursor.
 
 #### Scenario: Model answers instead of cleaning
 
 - GIVEN raw "what is the capital of france" and a 400-character answer
 - WHEN the safety net runs
 - THEN the final text is the raw transcript and the reason is expansion
+
+#### Scenario: Model answers a short question
+
+- GIVEN raw "qué es la capital de francia" and the model returns "La capital de Francia es París."
+- WHEN the safety net runs
+- THEN the final text is the raw transcript and the reason is answered, although the answer is as long as the question
+
+#### Scenario: Model cleans a question
+
+- GIVEN raw "qué es la capital de francia" and the model returns "¿Qué es la capital de Francia?"
+- WHEN the safety net runs
+- THEN the cleaned question is used
+
+#### Scenario: Known term is not an answer
+
+- GIVEN raw "dime donde esta kael thorn", the vocabulary has "Kaelthorn", and the model returns "¿Dónde está Kaelthorn?"
+- WHEN the safety net runs
+- THEN the cleaned text is used
 
 #### Scenario: Empty output
 
@@ -120,7 +144,7 @@ The cleanup stage MUST NOT call a provider when the transcript exceeds the provi
 
 ### Requirement: Failure and timeout fallback
 
-Provider errors, unavailability, or exceeding a cleanup timeout MUST yield the raw transcript, never an error or a blocked insertion.
+Provider errors, unavailability, or exceeding a cleanup timeout MUST yield the raw transcript, never an error or a blocked insertion. The timeout of a local FoundationModels provider MUST follow the transcript: 1.2 s plus 8 ms for each character, up to 6 s. The timeout of a cloud provider is 6 s whatever the length.
 
 #### Scenario: Provider unavailable
 
@@ -133,6 +157,29 @@ Provider errors, unavailability, or exceeding a cleanup timeout MUST yield the r
 - GIVEN the provider does not respond before the timeout
 - WHEN the timeout elapses
 - THEN the final text is the raw transcript
+
+#### Scenario: Local timeout follows the transcript
+
+- GIVEN a local FoundationModels request whose transcript is 30 characters and a provider that never answers
+- WHEN 1,439 ms have passed
+- THEN cleanup is still waiting, and at 1,440 ms the final text is the raw transcript and the reason is timeout
+- AND a transcript of 1,000 characters waits 6,000 ms, the cap
+
+### Requirement: Cleaner warm-up
+
+The app MUST get the local cleaner ready as the dictation key goes down, in a task of its own that never delays the recording, so that the model is warm when the key comes up. A key that goes down for a tap that is discarded MAY warm it too. Warming MUST do nothing while cleanup is off or when the cleaner is not available, and a cleaner with nothing to prepare does nothing. A prepared session MUST serve one request only, so a dictation never sees the one before it.
+
+#### Scenario: Key down
+
+- GIVEN cleanup is on and a spy cleaner
+- WHEN the dictation key goes down
+- THEN the cleaner is asked to get ready once, and the recording starts without waiting for it
+
+#### Scenario: One request per session
+
+- GIVEN a cleaner that was warmed
+- WHEN it cleans two transcripts in a row
+- THEN the first uses the warm session and the second a new one
 
 ### Requirement: Cursor-aware spacing and capitalization
 
