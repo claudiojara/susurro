@@ -127,37 +127,65 @@ struct CleanupStageTests {
         }
     }
 
-    @Test("a local timeout of 4 s gives the raw transcript, and a late answer is ignored")
-    func localTimeout() async throws {
+    /// (transcript characters, limit in milliseconds): 1.2 s and 8 ms for each character, up to 6 s.
+    @Test(
+        "a local call gets 1.2 s plus 8 ms a character, up to 6 s, then the raw transcript is used and a late answer is ignored",
+        arguments: [(30, 1_440), (79, 1_832), (300, 3_600), (599, 5_992), (600, 6_000), (2_500, 6_000)])
+    func localTimeout(characters: Int, milliseconds: Int) async throws {
         let clock = ManualClock()
         let cleaner = FakeCleaner(gated: true)
         let stage = stage(cleaner, clock: clock)
-        let running = Task { try await stage.run(input()) }
+        let transcript = String(repeating: "a", count: characters)
+        let running = Task { try await stage.run(input(transcript)) }
         await clock.waitForSleeps(1)
-        clock.advance(by: .milliseconds(3_999))
+        clock.advance(by: .milliseconds(milliseconds - 1))
         #expect(cleaner.callCount == 1)
+        #expect(clock.pendingSleeps == 1)
         clock.advance(by: .milliseconds(1))
         let result = try await running.value
-        #expect(result.finalText == "hola equipo")
+        #expect(result.finalText == transcript)
         #expect(result.fallbackReason == .timeout)
         #expect(result.cleaned == nil)
         cleaner.releaseCleaning()
         #expect(result.fallbackReason == .timeout)
     }
 
-    @Test("a cloud timeout of 6 s gives the raw transcript")
+    @Test("a cloud call gets 6 s whatever the length of the transcript, then the raw transcript is used")
     func cloudTimeout() async throws {
-        let clock = ManualClock()
-        let cleaner = FakeCleaner(id: CleanerProviderID("cloud"), locality: .cloud, gated: true)
-        let stage = stage(cleaner, clock: clock)
-        let running = Task { try await stage.run(input()) }
-        await clock.waitForSleeps(1)
-        clock.advance(by: .seconds(4))
-        #expect(cleaner.callCount == 1)
-        clock.advance(by: .seconds(2))
-        let result = try await running.value
-        #expect(result.fallbackReason == .timeout)
-        #expect(result.finalText == "hola equipo")
+        for characters in [11, 3_000] {
+            let clock = ManualClock()
+            let cleaner = FakeCleaner(id: CleanerProviderID("cloud"), locality: .cloud, gated: true)
+            let stage = stage(cleaner, clock: clock)
+            let transcript = String(repeating: "a", count: characters)
+            let running = Task { try await stage.run(input(transcript)) }
+            await clock.waitForSleeps(1)
+            clock.advance(by: .seconds(4))
+            #expect(cleaner.callCount == 1)
+            clock.advance(by: .milliseconds(1_999))
+            #expect(clock.pendingSleeps == 1)
+            clock.advance(by: .milliseconds(1))
+            let result = try await running.value
+            #expect(result.fallbackReason == .timeout)
+            #expect(result.finalText == transcript)
+        }
+    }
+
+    // MARK: Prewarm
+
+    @Test("a prewarm gets the cleaner ready while cleanup is on")
+    func prewarmWhenEnabled() async {
+        let cleaner = FakeCleaner()
+        await stage(cleaner).prewarm()
+        #expect(cleaner.prewarmCount == 1)
+        #expect(cleaner.callCount == 0)
+    }
+
+    @Test("a prewarm does nothing while cleanup is off or when there is no cleaner")
+    func prewarmSkipped() async {
+        let cleaner = FakeCleaner()
+        await stage(cleaner, enabled: false).prewarm()
+        #expect(cleaner.prewarmCount == 0)
+        await stage(nil).prewarm()
     }
 
     @Test("cancelling the dictation during cleanup ends the stage with no text")
@@ -186,14 +214,43 @@ struct CleanupStageTests {
 
     @Test("a fallback keeps cleaned nil and shapes the raw transcript")
     func fallbackRecords() async throws {
-        let answer = String(repeating: "Paris is the capital of France. ", count: 12)
+        let answer = String(repeating: "El informe de ventas incluye todas las regiones. ", count: 12)
         let cleaner = FakeCleaner(answer: .text(answer))
         let result = try await stage(cleaner).run(
-            input("what is the capital of france", cursor: CursorContext(before: "Q:", after: "")))
+            input("el informe de ventas", cursor: CursorContext(before: "Q:", after: "")))
         #expect(result.cleaned == nil)
         #expect(result.fallbackReason == .expansion)
-        #expect(result.raw == "what is the capital of france")
-        #expect(result.finalText == " what is the capital of france")
+        #expect(result.raw == "el informe de ventas")
+        #expect(result.finalText == " el informe de ventas")
+    }
+
+    @Test("a model that answers a short dictated question gives the raw transcript and the reason answered")
+    func answeredQuestion() async throws {
+        let cleaner = FakeCleaner(answer: .text("La capital de Francia es París."))
+        let result = try await stage(cleaner).run(input("qué es la capital de francia"))
+        #expect(result.cleaned == nil)
+        #expect(result.fallbackReason == .answered)
+        #expect(result.provider == .appleIntelligence)
+        #expect(result.finalText == "qué es la capital de francia")
+    }
+
+    @Test("a cleaned question is kept, and a term of the vocabulary or the context is not taken for an answer")
+    func cleanedQuestionIsKept() async throws {
+        let cleaned = FakeCleaner(answer: .text("¿Qué es la capital de Francia?"))
+        let kept = try await stage(cleaned).run(input("qué es la capital de francia"))
+        #expect(kept.cleaned == "¿Qué es la capital de Francia?")
+        #expect(kept.fallbackReason == nil)
+
+        let term = FakeCleaner(answer: .text("¿Dónde está Kaelthorn?"))
+        let fromVocabulary = try await stage(term).run(
+            input("dime donde esta kael thorn", vocabulary: ["Kaelthorn"]))
+        #expect(fromVocabulary.fallbackReason == nil)
+        let fromContext = try await stage(term).run(
+            input(
+                "dime donde esta kael thorn", cursor: CursorContext(before: "Kaelthorn", after: "")))
+        #expect(fromContext.fallbackReason == nil)
+        let unknown = try await stage(term).run(input("dime donde esta kael thorn"))
+        #expect(unknown.fallbackReason == .answered)
     }
 
     @Test("the model's wrapper is stripped before the checks")

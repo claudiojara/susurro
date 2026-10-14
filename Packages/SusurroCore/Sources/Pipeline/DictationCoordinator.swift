@@ -102,6 +102,8 @@ public actor DictationCoordinator {
     private var contextJob: ContextJob?
     /// The vocabulary work of the recording under way, started with its context.
     private var vocabularyJob: VocabularyJob?
+    /// Gets the cleaner ready, as the key goes down.
+    private let prewarmCleaner: (@Sendable () async -> Void)?
     private let queue = ProcessingQueue()
     /// The jobs that are queued or running, oldest first.
     private var jobs: [UUID] = []
@@ -127,6 +129,8 @@ public actor DictationCoordinator {
     ///     `ManualClock`.
     ///   - vocabulary: Builds the vocabulary from the user's dictionary, the context, and the screen, starting at
     ///     key-down. Without it the recognizer and the cleaner get none.
+    ///   - prewarmCleaner: Gets the cleaner's model ready, called in a task of its own as each key goes down, so that it
+    ///     is warm by the time the key comes up. Without it nothing is warmed.
     public init(
         hotkeys: any HotkeySource,
         capture: any AudioCaptureSource,
@@ -140,9 +144,11 @@ public actor DictationCoordinator {
         diagnostics: any DiagnosticsLog = NoDiagnostics(),
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
         clock: any Clock<Duration> = ContinuousClock(),
-        vocabulary: VocabularyPipeline? = nil
+        vocabulary: VocabularyPipeline? = nil,
+        prewarmCleaner: (@Sendable () async -> Void)? = nil
     ) {
         self.vocabulary = vocabulary
+        self.prewarmCleaner = prewarmCleaner
         self.hotkeys = hotkeys
         self.capture = capture
         self.recordings = recordings
@@ -340,6 +346,8 @@ public actor DictationCoordinator {
         dictationTarget = await frontmost?.current()
         contextJob = context.map { ContextJob(app: dictationTarget, pipeline: $0) }
         vocabularyJob = vocabulary.map { VocabularyJob(context: contextJob, pipeline: $0) }
+        // Even a tap that is discarded warms the model: that costs little, and the next real hold finds it ready.
+        if let prewarmCleaner { Task.detached { await prewarmCleaner() } }
     }
 
     private func dropContextJob() {

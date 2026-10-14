@@ -174,7 +174,7 @@ The pipeline runs in this order:
    - the input exceeds the provider's budget.
 
    Budgets: FoundationModels has a context window of about 4K tokens shared by instructions, context, and output (which is about the same size as the input). Its transcript cap is 2,500 chars, and the local `<context>` is trimmed first. Cloud cleaners cap at 6,000 chars. Oversized input goes straight to raw.
-5. `OutputGuard`, with a timeout of 4 s local and 6 s cloud.
+5. `OutputGuard`, with a timeout that follows the transcript for the local model (1.2 s plus 8 ms for each character, up to 6 s) and 6 s for cloud (ADR 0015). The local cleaner is prewarmed as the key goes down, so that its model is warm when the key comes up. The guard also refuses an output that answers the transcript instead of cleaning it (ADR 0008, addendum).
 6. `InsertionShaper`.
 7. Insert and update the record with the raw text, the cleaned text, and the fallback reason.
 
@@ -193,6 +193,7 @@ Tag-like sequences inside any section (for example `</TRANSCRIPT>`) are neutrali
 
 - The output is empty.
 - The output contains assistant markers (refusals, "the user is asking", and ES equivalents).
+- The output answers the transcript (reason `answered`): a question or request word among the first three words of the transcript is gone from the output, and the output has a content word that neither the transcript (nor a word within one edit of it), the vocabulary, nor the text before the cursor has. This runs before the ratio checks, because an answer to a short question is as long as the question.
 - The ratio to raw is above 4.0 (raw under 50 chars), above 2.5 (raw under 150 chars), or above 2.0 (otherwise).
 - The ratio is below 0.4 when raw is 20 chars or more.
 - The provider throws, is unavailable, or times out (reason `provider-failure` or `timeout`).

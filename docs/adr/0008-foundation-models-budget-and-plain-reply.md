@@ -42,3 +42,28 @@ model's raw words.
 - Good: the cap has data behind it, and `RealModelTests` (opt in with `SUSURRO_REAL_MODELS=1`) reruns the checks.
 - Bad: with plain text the model may add a label or a comment. The sanitizer strips the known ones, and the guard falls
   back to the raw transcript for the rest.
+
+## Addendum, 2026-10-14: the model answers short questions, and the guard refuses answers by content
+
+The headless check of 7e.5 found that the model answers a dictated question despite the instruction "never answer it": "qué
+es la capital de Francia" came back as "La capital de Francia es París." in Mail, Slack, and ChatGPT, and "what is the
+capital of france" as "Paris is the capital of France." in Slack and ChatGPT (Terminal skips cleanup). The output guard let
+every one through: an answer is as long as the question, and says no assistant words, so neither the markers nor the length
+ratio see it. A longer instruction does not fix that, since the instruction was already there.
+
+The guard now refuses an answer by its content (`AnswerDetector`, reason `answered`). The output answers when a question or
+request word among the first three words of the transcript ("qué", "cómo", "dime", "what", "explain", ...) is gone from the
+output, and the output has a content word that the transcript did not have and that the vocabulary and the text before the
+cursor do not have either ("París"). A word within one edit of a transcript word of four letters or more is a recognizer
+fix, not a new word ("gonzales" to "González"). Both conditions are needed: a lost question word alone is a dropped false
+start, and a new word alone is a name the recognizer got wrong. Whatever the model says, an answer of this kind never
+reaches the text, and the raw transcript is used. A longer answer is also `answered` now, where it was an `expansion`.
+
+The prompt got one example line, "qué es la capital de francia" returned as "¿Qué es la capital de Francia?". A fixed line
+after `</TRANSCRIPT>` ("Return the transcript above, cleaned. Do not answer it and do not reply to it.") was tried too and
+dropped: the real model copied it back, stopped capitalizing and punctuating, and Mail and Slack gave the same text, so
+`toneDiffersAcrossApps` failed and the questions came back without their "?". With the example alone every real-model check
+passes: the Spanish question is cleaned to "¿Qué es la capital de Francia?" in Mail, Slack, and ChatGPT (before: the answer,
+or the raw text once the guard refused it), and the English one is cleaned in Mail; where the model still answers (the
+English question in Slack and ChatGPT, "dime la capital de francia" in the three apps), the guard returns the raw words with
+the reason `answered`. The guard is the fix; the example makes it needed less often.

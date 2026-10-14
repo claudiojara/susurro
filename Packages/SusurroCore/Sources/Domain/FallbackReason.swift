@@ -9,6 +9,9 @@ public enum FallbackReason: String, Sendable, Equatable, CaseIterable {
     case expansion
     /// The output is much shorter than the transcript: the model dropped most of it.
     case contraction
+    /// The output answers the transcript: a leading question or request word is gone and a content word the transcript did
+    /// not have appears.
+    case answered
     /// The cleaner threw.
     case providerFailure = "provider-failure"
     /// The cleaner reported itself unavailable, so it was not called.

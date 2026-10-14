@@ -37,6 +37,14 @@ public struct CleanupStage: Sendable {
             sleep: sleep)
     }
 
+    /// Gets the cleaner ready for the dictation that has just begun, so that the model is warm when the key comes up. It
+    /// does nothing while cleanup is off or when no cleaner can be used, and it never throws: the warm-up is only an
+    /// optimization, and the cleanup itself decides everything else when it runs.
+    public func prewarm() async {
+        guard isEnabled(), let cleaner = cleaner() else { return }
+        await cleaner.prewarm()
+    }
+
     /// Cleans one dictation. Throws `CancellationError` when the dictation is cancelled meanwhile, so nothing is inserted.
     ///
     /// - Parameter willClean: Called just before the cleaner is, and only if it will be, so a caller can show that the
@@ -63,7 +71,9 @@ public struct CleanupStage: Sendable {
         await willClean()
         let output: String
         do {
-            output = try await withDeadline(budget.timeout, stage: .cleanup, sleep: sleep) {
+            output = try await withDeadline(
+                budget.timeout(forTranscriptCharacters: raw.count), stage: .cleanup, sleep: sleep
+            ) {
                 try await cleaner.clean(payload)
             }
         } catch PipelineError.timedOut {

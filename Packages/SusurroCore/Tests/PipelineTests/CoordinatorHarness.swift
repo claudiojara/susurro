@@ -36,7 +36,8 @@ struct CoordinatorHarness {
         diagnostics: RecordingDiagnostics = RecordingDiagnostics(),
         clock: ManualClock = ManualClock(),
         cleanup: CleanupStage? = nil,
-        vocabulary: VocabularyPipeline? = nil
+        vocabulary: VocabularyPipeline? = nil,
+        prewarmCleaner: (@Sendable () async -> Void)? = nil
     ) async {
         self.capture = capture
         self.recordings = recordings
@@ -76,7 +77,8 @@ struct CoordinatorHarness {
             diagnostics: diagnostics,
             sleep: sleep,
             clock: clock,
-            vocabulary: vocabulary
+            vocabulary: vocabulary,
+            prewarmCleaner: prewarmCleaner
         )
         sut = coordinator
         states = coordinator.states.makeAsyncIterator()

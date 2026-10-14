@@ -79,12 +79,57 @@ struct OutputGuardTests {
         }
     }
 
-    @Test("a model that answers instead of cleaning is refused as an expansion")
-    func modelAnswersInsteadOfCleaning() {
+    @Test("a model that writes on past the text is refused as an expansion")
+    func modelWritesOn() {
+        let continuation = String(
+            repeating: "El informe de ventas incluye todas las regiones del país, ", count: 9
+        ).prefix(400)
+        #expect(continuation.count == 400)
+        #expect(
+            OutputGuard.evaluate(raw: "el informe de ventas", output: String(continuation))
+                == .fallback(.expansion))
+    }
+
+    // MARK: Answers
+
+    @Test("a long answer to a dictated question is refused as an answer, before its length is looked at")
+    func longAnswerIsAnswered() {
         let answer = String(repeating: "Paris is the capital and largest city of France, ", count: 9).prefix(400)
         #expect(answer.count == 400)
         #expect(
             OutputGuard.evaluate(raw: "what is the capital of france", output: String(answer))
-                == .fallback(.expansion))
+                == .fallback(.answered))
+    }
+
+    @Test(
+        "an answer to the dictated question gives the raw transcript",
+        arguments: [
+            ("qué es la capital de francia", "La capital de Francia es París."),
+            ("what is the capital of france", "Paris is the capital of France."),
+            ("dime la capital de francia", "La capital de Francia es París."),
+        ])
+    func answerIsRefused(raw: String, output: String) {
+        #expect(OutputGuard.evaluate(raw: raw, output: output) == .fallback(.answered))
+    }
+
+    @Test(
+        "a cleaned question, a kept request word, and a known term are accepted",
+        arguments: [
+            ("qué es la capital de francia", "¿Qué es la capital de Francia?", [String]()),
+            ("what is the capital of france", "What is the capital of France?", [String]()),
+            ("como te decía el informe va mañana", "Como te decía, el informe va mañana.", [String]()),
+            ("eh que que el informe va mañana", "Que el informe va mañana.", [String]()),
+            ("hablé con maría gonzales", "Hablé con María González.", ["María González"]),
+            ("dime donde esta kael thorn", "¿Dónde está Kaelthorn?", ["Kaelthorn"]),
+        ])
+    func cleanedQuestionIsAccepted(raw: String, output: String, reference: [String]) {
+        #expect(OutputGuard.evaluate(raw: raw, output: output, reference: reference) == .accepted(output))
+    }
+
+    @Test("the same new word is an answer when the reference does not have it")
+    func referenceDecides() {
+        #expect(
+            OutputGuard.evaluate(raw: "dime donde esta kael thorn", output: "¿Dónde está Kaelthorn?")
+                == .fallback(.answered))
     }
 }
