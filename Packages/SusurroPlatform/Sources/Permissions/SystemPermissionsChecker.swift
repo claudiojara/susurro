@@ -2,6 +2,7 @@ import AVFoundation
 import ApplicationServices
 import Domain
 import Foundation
+import IOKit.hid
 
 /// What the checker asks the system. Tests script these; `live` calls the real APIs.
 struct PermissionProbes: Sendable {
@@ -10,6 +11,14 @@ struct PermissionProbes: Sendable {
     var requestMicrophone: @Sendable () async -> Void
     /// Shows the system's Accessibility prompt, which links to System Settings.
     var requestAccessibility: @Sendable () -> Void
+    /// What the system says about listening to keyboard events, without raising a prompt.
+    var inputMonitoringAccess: @Sendable () -> IOHIDAccessType
+    /// Whether the screen capture preflight lets this process in, without raising a prompt.
+    var isScreenRecordingGranted: @Sendable () -> Bool
+    /// Asks to listen to keyboard events, which shows the system prompt the first time.
+    var requestInputMonitoring: @Sendable () -> Void
+    /// Asks to capture the screen, which shows the system prompt the first time.
+    var requestScreenRecording: @Sendable () -> Void
 
     static let live = PermissionProbes(
         microphoneAuthorization: { AVCaptureDevice.authorizationStatus(for: .audio) },
@@ -18,12 +27,16 @@ struct PermissionProbes: Sendable {
         requestAccessibility: {
             // `kAXTrustedCheckOptionPrompt` is a mutable global, which Swift 6 rejects, so its value is spelled out.
             _ = AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary)
-        }
+        },
+        inputMonitoringAccess: { IOHIDCheckAccess(kIOHIDRequestTypeListenEvent) },
+        isScreenRecordingGranted: { CGPreflightScreenCaptureAccess() },
+        requestInputMonitoring: { _ = IOHIDRequestAccess(kIOHIDRequestTypeListenEvent) },
+        requestScreenRecording: { _ = CGRequestScreenCaptureAccess() }
     )
 }
 
-/// Reads and requests the Microphone and Accessibility permissions from the system. Statuses are read on every call,
-/// so a change made in System Settings shows without a relaunch.
+/// Reads and requests the Microphone, Accessibility, Input Monitoring and Screen Recording permissions from the
+/// system. Statuses are read on every call, so a change made in System Settings shows without a relaunch.
 public struct SystemPermissionsChecker: PermissionsChecker {
     private let probes: PermissionProbes
 
@@ -50,6 +63,16 @@ public struct SystemPermissionsChecker: PermissionsChecker {
         // Accessibility reports only trusted or not, so an untrusted process cannot be told from one that was
         // never asked, and both are denied.
         case .accessibility: probes.isAccessibilityTrusted() ? .granted : .denied
+        case .inputMonitoring:
+            switch probes.inputMonitoringAccess() {
+            case kIOHIDAccessTypeGranted: .granted
+            case kIOHIDAccessTypeDenied: .denied
+            // Unknown means the user has not been asked. Any other value is not known to be granted, and asking again
+            // is safe.
+            default: .notDetermined
+            }
+        // The preflight, like Accessibility, answers only yes or no, so a process that was never asked is denied too.
+        case .screenRecording: probes.isScreenRecordingGranted() ? .granted : .denied
         }
     }
 
@@ -57,6 +80,8 @@ public struct SystemPermissionsChecker: PermissionsChecker {
         switch permission {
         case .microphone: await probes.requestMicrophone()
         case .accessibility: probes.requestAccessibility()
+        case .inputMonitoring: probes.requestInputMonitoring()
+        case .screenRecording: probes.requestScreenRecording()
         }
     }
 
@@ -68,6 +93,8 @@ public struct SystemPermissionsChecker: PermissionsChecker {
             switch permission {
             case .microphone: "Privacy_Microphone"
             case .accessibility: "Privacy_Accessibility"
+            case .inputMonitoring: "Privacy_ListenEvent"
+            case .screenRecording: "Privacy_ScreenCapture"
             }
         return URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)")!
     }
