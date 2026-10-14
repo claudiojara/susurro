@@ -25,7 +25,8 @@ struct WholeClipReprocessorTests {
         #expect(
             outcome
                 == .text(
-                    ReprocessedText(rawText: "hola mundo", finalText: "hola mundo", asrProvider: ASRProviderID("parakeet-v3"))))
+                    ReprocessedText(
+                        rawText: "hola mundo", finalText: "hola mundo", asrProvider: ASRProviderID("parakeet-v3"))))
         #expect(recognizer.transcribedClips == [clip])
     }
 

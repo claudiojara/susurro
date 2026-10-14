@@ -8,7 +8,8 @@ import Testing
 @Suite("CAF clip loader", .timeLimit(.minutes(1)))
 struct CAFClipLoaderTests {
     /// Writes a CAF of 16-bit samples at `sampleRate` and returns its folder and file.
-    private static func writeCAF(samples: [Float], sampleRate: Double = 16_000, channels: AVAudioChannelCount = 1) throws
+    private static func writeCAF(samples: [Float], sampleRate: Double = 16_000, channels: AVAudioChannelCount = 1)
+        throws
         -> (folder: URL, file: URL)
     {
         let folder = FileManager.default.temporaryDirectory.appending(path: "susurro-caf-\(UUID().uuidString)")
@@ -21,12 +22,15 @@ struct CAFClipLoaderTests {
         // The file is closed, and finished, when `output` goes away at the end of this function.
         let output = try AVAudioFile(forWriting: file, settings: settings)
         guard !samples.isEmpty else { return (folder, file) }
-        let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: channels, interleaved: false)!
+        let format = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: channels, interleaved: false)!
         let frames = AVAudioFrameCount(samples.count / Int(channels))
         let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)!
         buffer.frameLength = frames
         for channel in 0..<Int(channels) {
-            for frame in 0..<Int(frames) { buffer.floatChannelData![channel][frame] = samples[frame * Int(channels) + channel] }
+            for frame in 0..<Int(frames) {
+                buffer.floatChannelData![channel][frame] = samples[frame * Int(channels) + channel]
+            }
         }
         try output.write(from: buffer)
         return (folder, file)

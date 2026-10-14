@@ -52,7 +52,8 @@ struct HistoryViewModelTests {
 
     // MARK: Paging
 
-    @Test("the list is the newest dictations first, a page at a time, and the button to show older ones goes at the end")
+    @Test(
+        "the list is the newest dictations first, a page at a time, and the button to show older ones goes at the end")
     func paging() async throws {
         for index in 0..<120 { try await add(age: Double(index)) }
         let model = makeModel()
@@ -137,9 +138,15 @@ struct HistoryViewModelTests {
 
     @Test("a dictation with no cleaned text offers no copy cleaned, and one with no text shows what stands in for it")
     func missingText() async throws {
-        try await add(age: 10) { $0.cleanedText = nil; $0.finalText = nil }
-        try await add(.failed, age: 20) { $0.rawText = nil; $0.cleanedText = nil; $0.finalText = nil }
-        try await add(.noSpeech, age: 30) { $0.rawText = nil; $0.cleanedText = nil; $0.finalText = nil }
+        try await add(age: 10) {
+            $0.cleanedText = nil; $0.finalText = nil
+        }
+        try await add(.failed, age: 20) {
+            $0.rawText = nil; $0.cleanedText = nil; $0.finalText = nil
+        }
+        try await add(.noSpeech, age: 30) {
+            $0.rawText = nil; $0.cleanedText = nil; $0.finalText = nil
+        }
         let model = makeModel()
 
         await model.reload()
@@ -168,7 +175,9 @@ struct HistoryViewModelTests {
         try await add(.cancelled, age: 20)
         try await add(age: 30) { $0.delivery = .notInserted }
         try await add(age: 40) { $0.delivery = .copiedToClipboard }
-        try await add(age: 50) { $0.cleanedText = nil; $0.fallbackReason = "cleanup timed out" }
+        try await add(age: 50) {
+            $0.cleanedText = nil; $0.fallbackReason = "cleanup timed out"
+        }
         let model = makeModel()
 
         await model.reload()

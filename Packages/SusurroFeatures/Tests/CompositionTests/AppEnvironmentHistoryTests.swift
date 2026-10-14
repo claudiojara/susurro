@@ -31,7 +31,8 @@ struct AppEnvironmentHistoryTests {
         let window = window
         return AppEnvironmentFixture(
             history: HistoryDependencies(
-                repository: repository, deleter: deleter, loader: FakeAudioClipLoader(), clipboard: FakeClipboardWriter(),
+                repository: repository, deleter: deleter, loader: FakeAudioClipLoader(),
+                clipboard: FakeClipboardWriter(),
                 reprocessor: FakeDictationReprocessor(text: "again"), dates: dates, window: { _, _ in window }))
     }
 

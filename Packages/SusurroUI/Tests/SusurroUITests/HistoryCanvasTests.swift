@@ -25,7 +25,9 @@ struct HistoryCanvasTests {
                 Probe.height(of: canvas.view, width: canvas.size.width - 2 * margin, scheme: scheme) + 2 * margin
             #expect(needed > 2 * margin, "\(canvas): the view has no height")
             #expect(canvas.size.height >= needed, "\(canvas) is too short in \(scheme): \(needed) points are needed")
-            #expect(canvas.size.height - needed <= slack, "\(canvas) is much taller than its view in \(scheme): \(needed) points are needed")
+            #expect(
+                canvas.size.height - needed <= slack,
+                "\(canvas) is much taller than its view in \(scheme): \(needed) points are needed")
         }
     }
 }

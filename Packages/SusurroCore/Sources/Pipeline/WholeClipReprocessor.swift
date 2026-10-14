@@ -27,7 +27,8 @@ public struct WholeClipReprocessor: DictationReprocessing {
         case .ready: break
         case .notInstalled: throw PipelineError.recognizerNotInstalled
         case .loading: throw PipelineError.recognizerUnavailable("The speech model is still loading.", retryable: true)
-        case .unavailable(let reason, let retryable): throw PipelineError.recognizerUnavailable(reason, retryable: retryable)
+        case .unavailable(let reason, let retryable):
+            throw PipelineError.recognizerUnavailable(reason, retryable: retryable)
         }
         let recognizer = recognizer
         let transcript: RawTranscript

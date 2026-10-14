@@ -33,7 +33,8 @@ struct HistoryRepositoryContractTests {
             audioURL: audio ? URL(filePath: "/audio/\(id.uuidString).caf") : nil)
     }
 
-    @Test("a record is inserted when the audio is committed and updated when recognition ends", arguments: Kind.allCases)
+    @Test(
+        "a record is inserted when the audio is committed and updated when recognition ends", arguments: Kind.allCases)
     func insertThenUpdate(kind: Kind) async throws {
         let repository = try kind.make()
         var record = Self.record()
@@ -55,7 +56,8 @@ struct HistoryRepositoryContractTests {
     func everyFieldRoundTrips(kind: Kind) async throws {
         let repository = try kind.make()
         let record = DictationRecord(
-            createdAt: Self.now, duration: .milliseconds(61_234), status: .failed, rawText: "raw", cleanedText: "Cleaned",
+            createdAt: Self.now, duration: .milliseconds(61_234), status: .failed, rawText: "raw",
+            cleanedText: "Cleaned",
             finalText: "Final", asrProvider: ASRProviderID("parakeet-v3"), cleanerProvider: "foundation-models",
             fallbackReason: "cleanup timed out", appName: "Notes", bundleID: "com.apple.Notes", urlHost: "example.com",
             category: "notes", tone: "casual", styleSource: "seed", delivery: .copiedToClipboard,
@@ -72,7 +74,9 @@ struct HistoryRepositoryContractTests {
 
         #expect(try await repository.record(id: missing.id) == nil)
         await #expect(throws: HistoryError.recordNotFound(missing.id)) { try await repository.update(missing) }
-        await #expect(throws: HistoryError.recordNotFound(missing.id)) { try await repository.markAudioExpired(missing.id) }
+        await #expect(throws: HistoryError.recordNotFound(missing.id)) {
+            try await repository.markAudioExpired(missing.id)
+        }
         try await repository.delete(missing.id)
     }
 
@@ -140,7 +144,9 @@ struct HistoryRepositoryContractTests {
         #expect(try await repository.failInterrupted(createdBefore: Self.now.addingTimeInterval(60)) == 1)
     }
 
-    @Test("audioOlderThan lists the stored audio created before the cutoff, and expiring clears it", arguments: Kind.allCases)
+    @Test(
+        "audioOlderThan lists the stored audio created before the cutoff, and expiring clears it",
+        arguments: Kind.allCases)
     func audioRetention(kind: Kind) async throws {
         let repository = try kind.make()
         let day: TimeInterval = 86_400

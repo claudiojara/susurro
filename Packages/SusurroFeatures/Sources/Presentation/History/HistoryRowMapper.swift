@@ -43,7 +43,9 @@ struct HistoryRowMapper: Sendable {
     func timestamp(of date: Date, now: Date) -> String {
         let time = date.formatted(Self.style(time: true, in: self))
         if calendar.isDate(date, inSameDayAs: now) { return "Today, \(time)" }
-        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now), calendar.isDate(date, inSameDayAs: yesterday) {
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
+            calendar.isDate(date, inSameDayAs: yesterday)
+        {
             return "Yesterday, \(time)"
         }
         let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
@@ -51,7 +53,8 @@ struct HistoryRowMapper: Sendable {
     }
 
     private static func style(time: Bool, yearIncluded: Bool = false, in mapper: HistoryRowMapper) -> Date.FormatStyle {
-        var style = Date.FormatStyle(locale: mapper.locale, calendar: mapper.calendar, timeZone: mapper.calendar.timeZone)
+        var style = Date.FormatStyle(
+            locale: mapper.locale, calendar: mapper.calendar, timeZone: mapper.calendar.timeZone)
         style = time ? style.hour().minute() : style.day().month(.abbreviated)
         if !time && yearIncluded { style = style.year() }
         return style
