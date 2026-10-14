@@ -174,7 +174,7 @@ The pipeline runs in this order:
    - the input exceeds the provider's budget.
 
    Budgets: FoundationModels has a context window of about 4K tokens shared by instructions, context, and output (which is about the same size as the input). Its transcript cap is 2,500 chars, and the local `<context>` is trimmed first. Cloud cleaners cap at 6,000 chars. Oversized input goes straight to raw.
-5. `OutputGuard`, with a timeout that follows the transcript for the local model (1.2 s plus 8 ms for each character, up to 6 s) and 6 s for cloud (ADR 0015). The local cleaner is prewarmed as the key goes down, so that its model is warm when the key comes up. The guard also refuses an output that answers the transcript instead of cleaning it (ADR 0008, addendum).
+5. `OutputGuard`, with a timeout that follows the transcript for the local model (1.2 s plus 8 ms for each character, up to 6 s) and 6 s for cloud (ADR 0015). Cleanup is off by default, and nothing is prewarmed at key-down (ADR 0015, addendum). A call that runs out of time is cancelled where it runs. The guard also refuses an output that answers the transcript instead of cleaning it (ADR 0008, addendum).
 6. `InsertionShaper`.
 7. Insert and update the record with the raw text, the cleaned text, and the fallback reason.
 

@@ -68,9 +68,9 @@ struct SettingsWiringTests {
     func sharesTheStore() {
         let window = SpySettingsWindow()
         let f = AppEnvironmentFixture(settingsScreen: screen(window: window, settings: InMemorySettingsStore()))
-        f.settings.set(false, for: CleanupSettings.enabled)
+        f.settings.set(true, for: CleanupSettings.enabled)
 
-        #expect(f.environment.settingsModel?.state.general.cleanupEnabled == false)
+        #expect(f.environment.settingsModel?.state.general.cleanupEnabled == true)
     }
 
     @Test("the appearance the user chose is applied at launch, without opening the settings")

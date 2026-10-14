@@ -30,8 +30,18 @@ struct SpeechSettingsTests {
         let store = InMemorySettingsStore()
         #expect(store.value(for: GeneralSettings.appContextEnabled))
         #expect(store.value(for: GeneralSettings.ocrEnabled) == false)
-        #expect(store.value(for: CleanupSettings.enabled))
+        #expect(store.value(for: CleanupSettings.enabled) == false)
         #expect(store.value(for: GeneralSettings.overlayEdge) == .bottom)
+    }
+
+    @Test("cleanup is opt-in: a fresh install has it off, and the user's own choice either way is kept")
+    func cleanupIsOptIn() {
+        let store = InMemorySettingsStore()
+        #expect(store.value(for: CleanupSettings.enabled) == false)
+        store.set(true, for: CleanupSettings.enabled)
+        #expect(store.value(for: CleanupSettings.enabled))
+        store.set(false, for: CleanupSettings.enabled)
+        #expect(store.value(for: CleanupSettings.enabled) == false)
     }
 
     @Test("no two settings share a storage name")

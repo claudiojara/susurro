@@ -51,9 +51,7 @@ public enum EngineError: Error, Sendable, Equatable {
 /// `SystemLanguageModel`.
 public protocol FoundationModelsEngine: Sendable {
     func availability() -> EngineAvailability
-    /// Generates the cleaned text. A cancelled call throws `CancellationError`.
+    /// Generates the cleaned text. A cancelled call throws `CancellationError`, and it does so soon: the cleaner's
+    /// deadline cancels the call that ran out of time, and the next call waits for this one to leave.
     func generate(_ request: EngineRequest) async throws -> String
-    /// Gets the model ready for a `generate` call with these instructions that is about to come. The next call with the
-    /// same instructions uses what was prepared, once.
-    func prewarm(instructions: String) async
 }

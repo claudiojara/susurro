@@ -38,12 +38,12 @@ struct SettingsViewModelTests {
 
     // MARK: Toggles and overlay
 
-    @Test("app context is on by default, OCR is off, and cleanup is on")
+    @Test("app context is on by default, OCR is off, and cleanup is off")
     func toggleDefaults() {
         let general = SettingsRig().model().state.general
         #expect(general.appContextEnabled)
         #expect(!general.ocrEnabled)
-        #expect(general.cleanupEnabled)
+        #expect(!general.cleanupEnabled)
     }
 
     @Test("each toggle is written to its own setting")
@@ -52,12 +52,12 @@ struct SettingsViewModelTests {
         let model = rig.model()
         model.setAppContext(false)
         model.setOCR(true)
-        model.setCleanup(false)
+        model.setCleanup(true)
         #expect(rig.settings.value(for: GeneralSettings.appContextEnabled) == false)
         #expect(rig.settings.value(for: GeneralSettings.ocrEnabled))
-        #expect(rig.settings.value(for: CleanupSettings.enabled) == false)
+        #expect(rig.settings.value(for: CleanupSettings.enabled))
         let general = model.state.general
-        #expect(!general.appContextEnabled && general.ocrEnabled && !general.cleanupEnabled)
+        #expect(!general.appContextEnabled && general.ocrEnabled && general.cleanupEnabled)
     }
 
     @Test("the overlay edge is bottom until the user picks the top")
@@ -91,9 +91,9 @@ struct SettingsViewModelTests {
         let following = Task { await model.run() }
         defer { following.cancel() }
         for _ in 0..<20 { await Task.yield() }
-        rig.settings.set(false, for: CleanupSettings.enabled)
-        await waitUntil { !model.state.general.cleanupEnabled }
-        #expect(!model.state.general.cleanupEnabled)
+        rig.settings.set(true, for: CleanupSettings.enabled)
+        await waitUntil { model.state.general.cleanupEnabled }
+        #expect(model.state.general.cleanupEnabled)
     }
 
     // MARK: Providers

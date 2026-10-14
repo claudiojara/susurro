@@ -63,55 +63,6 @@ struct AppleIntelligenceCleanerTests {
         #expect(AppleIntelligenceCleaner.responseTokenLimit(forTranscriptCharacters: 2_500) == 1_298)
     }
 
-    // MARK: Prewarm
-
-    @Test("a prewarm asks the model to get ready with the instructions that every request carries")
-    func prewarmUsesTheInstructions() async {
-        let engine = FakeFoundationModelsEngine()
-        let cleaner = AppleIntelligenceCleaner(engine: engine)
-        await cleaner.prewarm()
-        #expect(engine.prewarmed == [PromptBuilder.systemPrompt])
-        #expect(engine.requests.isEmpty)
-    }
-
-    @Test("a prewarm and then a clean use the warm session once, and the next clean does not reuse it")
-    func warmSessionIsUsedOnce() async throws {
-        let engine = FakeFoundationModelsEngine()
-        let cleaner = AppleIntelligenceCleaner(engine: engine)
-        await cleaner.prewarm()
-        _ = try await cleaner.clean(local("one"))
-        _ = try await cleaner.clean(local("two"))
-        #expect(engine.usedWarmSession == [true, false])
-    }
-
-    @Test("a clean with no prewarm still works")
-    func cleanWithoutPrewarm() async throws {
-        let engine = FakeFoundationModelsEngine(answer: "Hola, equipo.")
-        let cleaner = AppleIntelligenceCleaner(engine: engine)
-        #expect(try await cleaner.clean(local()) == "Hola, equipo.")
-        #expect(engine.usedWarmSession == [false])
-    }
-
-    @Test("a second prewarm replaces the first: one session is left, and it is used once")
-    func prewarmTwice() async throws {
-        let engine = FakeFoundationModelsEngine()
-        let cleaner = AppleIntelligenceCleaner(engine: engine)
-        await cleaner.prewarm()
-        await cleaner.prewarm()
-        _ = try await cleaner.clean(local("one"))
-        _ = try await cleaner.clean(local("two"))
-        #expect(engine.prewarmed.count == 2)
-        #expect(engine.usedWarmSession == [true, false])
-    }
-
-    @Test("a model that is not available is not prewarmed")
-    func noPrewarmWhenUnavailable() async {
-        let engine = FakeFoundationModelsEngine(availability: .unavailable(.appleIntelligenceNotEnabled))
-        let cleaner = AppleIntelligenceCleaner(engine: engine)
-        await cleaner.prewarm()
-        #expect(engine.prewarmed.isEmpty)
-    }
-
     @Test("a cloud payload is refused and the model is never called")
     func cloudPayloadThrows() async {
         let engine = FakeFoundationModelsEngine()

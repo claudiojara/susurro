@@ -12,6 +12,28 @@ The cleanup stage MUST always return a usable final text and MUST retain both th
 - WHEN cleanup runs
 - THEN the provider is not called and the final text equals the raw transcript
 
+### Requirement: Cleanup is opt-in
+
+Cleanup MUST be off by default: `cleanup.enabled` is false on a fresh install, and cleanup runs only after the user turns it on, in the menu or in Settings. While it is off, the raw transcript is the text that is inserted, no provider is called, and nothing is prepared ahead. The menu switch MUST say that cleanup adds a few seconds. A user who already stored the switch as on keeps it on.
+
+#### Scenario: Fresh install
+
+- GIVEN a fresh install and a spy provider
+- WHEN a dictation is transcribed
+- THEN the provider is not called and the inserted text is the raw transcript
+
+#### Scenario: Stored on
+
+- GIVEN `cleanup.enabled` was stored as true before this default changed
+- WHEN the next dictation is transcribed
+- THEN the provider is called and the switch shows on
+
+#### Scenario: Menu copy
+
+- GIVEN any state of the switch
+- WHEN the menu is shown
+- THEN the cleanup switch reads "Clean up text (adds a few seconds)"
+
 ### Requirement: Cleanup providers
 
 Providers MUST implement one protocol reporting locality (local or cloud). Apple FoundationModels MUST be the default; OpenAI-compatible and Anthropic providers MAY be enabled by the user. Cloud keys MUST live in Keychain (service `app.tuminuta`) and cloud providers MUST be unusable until enabled with a key.
@@ -158,6 +180,12 @@ Provider errors, unavailability, or exceeding a cleanup timeout MUST yield the r
 - WHEN the timeout elapses
 - THEN the final text is the raw transcript
 
+#### Scenario: Timeout cancels the model call
+
+- GIVEN a local request whose model call is still running when the timeout elapses
+- WHEN the timeout elapses
+- THEN the task running the model call is cancelled and its session is dropped, not left running, and the next request does not queue behind it
+
 #### Scenario: Local timeout follows the transcript
 
 - GIVEN a local FoundationModels request whose transcript is 30 characters and a provider that never answers
@@ -165,21 +193,15 @@ Provider errors, unavailability, or exceeding a cleanup timeout MUST yield the r
 - THEN cleanup is still waiting, and at 1,440 ms the final text is the raw transcript and the reason is timeout
 - AND a transcript of 1,000 characters waits 6,000 ms, the cap
 
-### Requirement: Cleaner warm-up
+### Requirement: Nothing is prepared before the release
 
-The app MUST get the local cleaner ready as the dictation key goes down, in a task of its own that never delays the recording, so that the model is warm when the key comes up. A key that goes down for a tap that is discarded MAY warm it too. Warming MUST do nothing while cleanup is off or when the cleaner is not available, and a cleaner with nothing to prepare does nothing. A prepared session MUST serve one request only, so a dictation never sees the one before it.
+The app MUST NOT call the cleaner, to get it ready or for any other purpose, before the dictation key comes up. Loading the on-device model while the person speaks slowed speech recognition from about 0.12 s to 2 to 6 s (ADR 0015, addendum). Each request MUST use a session of its own, so a dictation never sees the one before it.
 
 #### Scenario: Key down
 
 - GIVEN cleanup is on and a spy cleaner
-- WHEN the dictation key goes down
-- THEN the cleaner is asked to get ready once, and the recording starts without waiting for it
-
-#### Scenario: One request per session
-
-- GIVEN a cleaner that was warmed
-- WHEN it cleans two transcripts in a row
-- THEN the first uses the warm session and the second a new one
+- WHEN the dictation key goes down and the recording starts
+- THEN the cleaner has received no call of any kind
 
 ### Requirement: Cursor-aware spacing and capitalization
 

@@ -204,11 +204,4 @@ public protocol TranscriptCleaner: Sendable {
     /// A cloud cleaner takes only `.cloud` payloads and throws `CloudBoundaryViolation` on `.local`. A cancelled call
     /// throws `CancellationError`.
     func clean(_ payload: CleanupPayload) async throws -> String
-    /// Gets the model ready for a request that is about to come, if it takes time to start. It never throws and its
-    /// result is only an optimization: a cleaner that has nothing to prepare does nothing.
-    func prewarm() async
-}
-
-extension TranscriptCleaner {
-    public func prewarm() async {}
 }
