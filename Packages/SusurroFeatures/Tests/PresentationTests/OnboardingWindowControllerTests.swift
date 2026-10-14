@@ -49,7 +49,7 @@ struct OnboardingWindowControllerTests {
 
         let content = controller.window.contentLayoutRect
 
-        #expect(content.width == (try Theme.default.resolved(for: .light)).size(.onboardingWidth))
+        #expect(content.width == (try Theme.default.resolved(for: .light)).layout(.onboardingWidth))
         #expect(content.height > 300)
         #expect(content.height < 900)
     }
@@ -172,7 +172,7 @@ struct OnboardingWindowControllerTests {
 
         let frame = controller.window.frame
 
-        #expect(frame.size.width == (try? Theme.default.resolved(for: .light).size(.onboardingWidth)))
+        #expect(frame.size.width == (try? Theme.default.resolved(for: .light).layout(.onboardingWidth)))
         #expect(abs(frame.midX - Self.screen.midX) < 1)
         #expect(frame.maxY < Self.screen.maxY)
         #expect(frame.minY > Self.screen.minY)

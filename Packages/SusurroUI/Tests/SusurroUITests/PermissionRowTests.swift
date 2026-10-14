@@ -29,8 +29,8 @@ struct PermissionRowTests {
         arguments: [
             (OnboardingFixtures.Row.granted, ColorToken.statusSuccess),
             (.denied, .statusError),
-            (.waitingForPrompt, .accentPrimary),
-            (.waitingInSettings, .accentPrimary),
+            (.waitingForPrompt, .statusPending),
+            (.waitingInSettings, .statusPending),
             (.stale, .statusWarning),
         ])
     func statusTint(fixture: OnboardingFixtures.Row, token: ColorToken) throws {
@@ -56,7 +56,7 @@ struct PermissionRowTests {
             let steps = try #require(
                 SnapshotSupport.extent(of: stale, matching: theme.color(.statusWarning), tolerance: Probe.exact))
             let status = try #require(
-                SnapshotSupport.extent(of: waiting, matching: theme.color(.accentPrimary), tolerance: Probe.exact))
+                SnapshotSupport.extent(of: waiting, matching: theme.color(.statusPending), tolerance: Probe.exact))
 
             // The first line holds the icon and the pill and is about as tall as the icon; the steps are lines below it.
             #expect(steps.height > status.height + 30, "\(steps) against \(status) in \(scheme)")
@@ -88,8 +88,7 @@ struct PermissionRowTests {
             let theme = try Probe.theme(scheme)
             let picture = Probe.picture(of: row(fixture), size: canvas, scheme: scheme)
 
-            // The accent also colors the icon and the pill of a waiting row, so only rows whose status is not in the
-            // accent are looked at: the paint of a button is at least as wide as its title, an icon a few points.
+            // The accent is only the fill of a button here: the paint of a button is at least as wide as its title.
             let found = SnapshotSupport.extent(
                 of: picture, matching: theme.color(.accentPrimary), tolerance: Probe.exact)
             let isButton = (found?.width ?? 0) > 40
@@ -153,12 +152,9 @@ struct PermissionRowTests {
 
     // MARK: Look
 
-    @Test("a theme with another accent repaints the waiting status and nothing of a granted row")
+    @Test("a theme with another pending color repaints the waiting status and nothing of a granted row")
     func followsTheTheme() throws {
-        var other = Theme.default
-        other.palette["testMagenta"] = PaletteColor(
-            light: .init(red: 1, green: 0, blue: 1), dark: .init(red: 1, green: 0, blue: 1))
-        other.colors[ColorToken.accentPrimary.rawValue] = "testMagenta"
+        let other = Self.themeWith(ColorToken.statusPending)
 
         let waitingNow = Probe.picture(of: row(.waitingForPrompt), size: canvas, scheme: .light)
         let waitingThen = Probe.picture(of: row(.waitingForPrompt), size: canvas, scheme: .light, theme: other)
@@ -167,5 +163,24 @@ struct PermissionRowTests {
 
         #expect(SnapshotSupport.differingPixels(waitingNow, waitingThen, tolerance: 0.02) > 50)
         #expect(SnapshotSupport.differingPixels(grantedNow, grantedThen, tolerance: 0.02) == 0)
+    }
+
+    @Test("a theme with another accent leaves a waiting row as it was: waiting is not the accent")
+    func accentDoesNotPaintWaiting() {
+        let other = Self.themeWith(ColorToken.accentPrimary)
+
+        let now = Probe.picture(of: row(.waitingForPrompt), size: canvas, scheme: .light)
+        let then = Probe.picture(of: row(.waitingForPrompt), size: canvas, scheme: .light, theme: other)
+
+        #expect(SnapshotSupport.differingPixels(now, then, tolerance: 0.02) == 0)
+    }
+
+    /// The default theme with one color token pointed at magenta.
+    private static func themeWith(_ token: ColorToken) -> Theme {
+        var other = Theme.default
+        other.palette["testMagenta"] = PaletteColor(
+            light: .init(red: 1, green: 0, blue: 1), dark: .init(red: 1, green: 0, blue: 1))
+        other.colors[token.rawValue] = "testMagenta"
+        return other
     }
 }

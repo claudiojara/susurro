@@ -11,7 +11,8 @@ struct DefaultThemeTests {
     func catalogCoversEveryKind() {
         let expected =
             ColorToken.allCases.count + TypeToken.allCases.count + SpacingToken.allCases.count
-            + RadiusToken.allCases.count + SizeToken.allCases.count + MotionToken.allCases.count
+            + RadiusToken.allCases.count + SizeToken.allCases.count + LayoutToken.allCases.count
+            + MotionToken.allCases.count
             + OverlayGeometry.CodingKeys.allCases.count
         #expect(expected > 0)
         #expect(ThemeTokenCatalog.allKeys.count == expected)
@@ -44,7 +45,7 @@ struct DefaultThemeTests {
         let encoded = try #require(
             try JSONSerialization.jsonObject(with: JSONEncoder().encode(theme)) as? [String: Any])
         let bundled = Theme.bundledObject
-        #expect(ThemeTokenCatalog.groups.count == 7)
+        #expect(ThemeTokenCatalog.groups.count == 8)
         for group in ThemeTokenCatalog.groups {
             let property = try #require(
                 encoded[group.name] as? [String: Any], "\(group.name) is not a property of Theme")
@@ -55,7 +56,26 @@ struct DefaultThemeTests {
         }
         #expect(
             ThemeTokenCatalog.groups.map(\.name)
-                == ["colors", "typography", "spacing", "radii", "sizes", "motion", "overlay"])
+                == ["colors", "typography", "spacing", "radii", "sizes", "layout", "motion", "overlay"])
+    }
+
+    @Test("the sizes are the dimensions of components, and the geometry of a screen is in the layout group")
+    func sizesAndLayoutAreApart() {
+        #expect(SizeToken.allCases.map(\.rawValue) == ["statusDot", "levelBar"])
+        #expect(LayoutToken.allCases.map(\.rawValue) == ["onboardingWidth"])
+        #expect(theme.layout["onboardingWidth"] == 440)
+        #expect(theme.sizes["onboardingWidth"] == nil)
+        #expect(LayoutToken.group == "layout")
+    }
+
+    @Test("the pending color is a role of its own, not the accent: a waiting row cannot be taken for a primary button")
+    func pendingIsNotTheAccent() throws {
+        let pending = try #require(theme.colors[ColorToken.statusPending.rawValue].flatMap { theme.palette[$0] })
+        let accent = try #require(theme.colors[ColorToken.accentPrimary.rawValue].flatMap { theme.palette[$0] })
+
+        #expect(ColorToken.statusPending.rawValue == "status.pending")
+        #expect(pending.light != accent.light)
+        #expect(pending.dark != accent.dark)
     }
 
     @Test("every color token points at a palette entry with a light and a dark value")

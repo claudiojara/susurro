@@ -13,7 +13,7 @@ struct PermissionRowPresentationTests {
             (OnboardingRowStatus.granted, "Allowed", Tint.success, "checkmark.circle.fill"),
             (.notAsked, "Not asked yet", .neutral, "circle"),
             (.denied, "Not allowed", .error, "xmark.circle.fill"),
-            (.waiting, "Waiting…", .accent, "hourglass"),
+            (.waiting, "Waiting…", .pending, "hourglass"),
             (.stale(guidance: "Switch it off and on."), "Needs attention", .warning, "exclamationmark.triangle.fill"),
             (.stale(guidance: "Quit and reopen."), "Needs attention", .warning, "exclamationmark.triangle.fill"),
         ]
