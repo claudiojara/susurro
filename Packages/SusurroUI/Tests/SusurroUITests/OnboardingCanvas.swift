@@ -11,11 +11,15 @@ enum OnboardingCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
     case rowGranted, rowNotAsked, rowDenied, rowWaitingForPrompt, rowWaitingInSettings, rowStale, rowOptional
     case bannerShort, bannerLong
     case checklistRequired, checklistWithOptional
+    case screenFresh, screenAllGranted, screenStale
 
     var testDescription: String { "\(self)" }
 
     /// The width a row has inside the onboarding screen, plus the margin of the canvas.
     private static let rowWidth: CGFloat = 424
+
+    /// The onboarding width of the default theme, plus the margin of the canvas.
+    private static let screenWidth: CGFloat = 472
 
     var size: CGSize {
         switch self {
@@ -30,6 +34,9 @@ enum OnboardingCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
         case .bannerLong: CGSize(width: Self.rowWidth, height: 94)
         case .checklistRequired: CGSize(width: Self.rowWidth, height: 266)
         case .checklistWithOptional: CGSize(width: Self.rowWidth, height: 512)
+        case .screenFresh: CGSize(width: Self.screenWidth, height: 520)
+        case .screenAllGranted: CGSize(width: Self.screenWidth, height: 400)
+        case .screenStale: CGSize(width: Self.screenWidth, height: 600)
         }
     }
 
@@ -46,10 +53,19 @@ enum OnboardingCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
         case .bannerLong: AnyView(Banner(OnboardingFixtures.longBanner))
         case .checklistRequired: AnyView(PermissionChecklist(OnboardingFixtures.rows(.fresh)) { _, _ in })
         case .checklistWithOptional: AnyView(PermissionChecklist(OnboardingFixtures.rows(.withOptional)) { _, _ in })
+        case .screenFresh: screen(.fresh)
+        case .screenAllGranted: screen(.allGranted)
+        case .screenStale: screen(.stale)
         }
     }
 
     @MainActor private func row(_ fixture: OnboardingFixtures.Row) -> AnyView {
         AnyView(PermissionRow(OnboardingFixtures.row(fixture)) { _ in })
+    }
+
+    @MainActor private func screen(_ fixture: OnboardingFixtures.Screen) -> AnyView {
+        AnyView(
+            OnboardingScreen(
+                state: OnboardingFixtures.state(fixture), onAction: { _, _ in }, onRecheck: {}, onDone: {}))
     }
 }

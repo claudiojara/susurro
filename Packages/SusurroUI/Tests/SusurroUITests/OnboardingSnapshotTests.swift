@@ -14,6 +14,7 @@ struct OnboardingSnapshotTests {
     ]
 
     nonisolated private static let banners: [OnboardingCanvas] = [.bannerShort, .bannerLong]
+    nonisolated private static let screens: [OnboardingCanvas] = [.screenFresh, .screenAllGranted, .screenStale]
     nonisolated private static let checklists: [OnboardingCanvas] = [.checklistRequired, .checklistWithOptional]
 
     @Test("a permission row in each state", arguments: rows, Probe.schemes)
@@ -28,6 +29,13 @@ struct OnboardingSnapshotTests {
 
     @Test("the checklist with the required rows and with the optional ones", arguments: checklists, Probe.schemes)
     func checklists(canvas: OnboardingCanvas, scheme: ColorScheme) {
+        assertViewSnapshot(of: canvas.view, size: canvas.size, scheme: scheme, named: "\(canvas)-\(scheme.pictureName)")
+    }
+
+    @Test(
+        "the onboarding screen on a fresh install, with everything allowed, and with a stale grant", arguments: screens,
+        Probe.schemes)
+    func screens(canvas: OnboardingCanvas, scheme: ColorScheme) {
         assertViewSnapshot(of: canvas.view, size: canvas.size, scheme: scheme, named: "\(canvas)-\(scheme.pictureName)")
     }
 }
