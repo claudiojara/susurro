@@ -20,6 +20,11 @@ public final class GRDBHistoryRepository: HistoryRepository {
         try self.init(DatabaseQueue(path: path))
     }
 
+    /// A history that lives in memory and is gone when the app quits.
+    public static func inMemory() throws -> GRDBHistoryRepository {
+        try GRDBHistoryRepository(DatabaseQueue())
+    }
+
     // MARK: HistoryRepository
 
     public func insert(_ record: DictationRecord) async throws {
