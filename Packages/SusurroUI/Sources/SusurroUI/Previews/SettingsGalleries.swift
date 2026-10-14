@@ -118,6 +118,22 @@ import SwiftUI
         }
     }
 
+    extension HotkeyRecorder {
+        struct Gallery: View {
+            @Environment(\.theme) private var theme
+
+            var body: some View {
+                VStack(alignment: .leading, spacing: theme.spacing(.lg)) {
+                    HotkeyRecorder(state: SettingsFixtures.recorderIdle, actions: .none)
+                    HotkeyRecorder(state: SettingsFixtures.recorderCustom, actions: .none)
+                    HotkeyRecorder(state: SettingsFixtures.recorderListening, actions: .none)
+                    HotkeyRecorder(state: SettingsFixtures.recorderHolding, actions: .none)
+                    HotkeyRecorder(state: SettingsFixtures.recorderRefused, actions: .none)
+                }
+            }
+        }
+    }
+
     extension StyleTableEditor {
         struct Gallery: View {
             @Environment(\.theme) private var theme

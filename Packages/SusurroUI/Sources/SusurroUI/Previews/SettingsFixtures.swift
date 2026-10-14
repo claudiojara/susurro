@@ -162,6 +162,21 @@
                 "Secure Event Input is on, so keyed shortcuts may not respond until it ends. A password field or another app has turned it on."
         )
 
+        // MARK: Hotkey recorder
+
+        /// The default shortcut in use, so there is nothing to restore.
+        static let recorderIdle = HotkeyRecorderState(phase: .idle, rejection: nil, canRestoreDefault: false)
+        static let recorderCustom = HotkeyRecorderState(phase: .idle, rejection: nil, canRestoreDefault: true)
+        static let recorderListening = HotkeyRecorderState(
+            phase: .listening(held: []), rejection: nil, canRestoreDefault: true)
+        static let recorderHolding = HotkeyRecorderState(
+            phase: .listening(held: ["⌃", "⌥"]), rejection: nil, canRestoreDefault: true)
+        static let recorderRefused = HotkeyRecorderState(
+            phase: .listening(held: []),
+            rejection:
+                "Press the key together with Control, or with Option and Command. Other combinations clash with typing or with the shortcuts of other apps.",
+            canRestoreDefault: true)
+
         // MARK: Style
 
         static let style = StyleSettingsState(

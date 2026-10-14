@@ -15,7 +15,10 @@ struct SettingsSnapshotTests {
         .rowOpenAICompatible,
     ]
     nonisolated private static let sections: [SettingsCanvas] = [
-        .general, .generalPinned, .providers, .hotkey, .hotkeyWarnings, .appearance,
+        .general, .generalPinned, .providers, .hotkey, .hotkeyWarnings, .hotkeyRecording, .appearance,
+    ]
+    nonisolated private static let recorders: [SettingsCanvas] = [
+        .recorderIdle, .recorderCustom, .recorderListening, .recorderHolding, .recorderRefused,
     ]
     nonisolated private static let style: [SettingsCanvas] = [.styleSeeds, .styleOverrides]
     nonisolated private static let dictionary: [SettingsCanvas] = [.dictionaryEmpty, .dictionaryPopulated]
@@ -33,6 +36,11 @@ struct SettingsSnapshotTests {
 
     @Test("the General, Providers, Hotkey, and Appearance sections", arguments: sections, Probe.schemes)
     func sections(canvas: SettingsCanvas, scheme: ColorScheme) {
+        assertViewSnapshot(of: canvas.view, size: canvas.size, scheme: scheme, named: "\(canvas)-\(scheme.pictureName)")
+    }
+
+    @Test("the hotkey recorder at rest, listening, holding keys, and refusing one", arguments: recorders, Probe.schemes)
+    func recorders(canvas: SettingsCanvas, scheme: ColorScheme) {
         assertViewSnapshot(of: canvas.view, size: canvas.size, scheme: scheme, named: "\(canvas)-\(scheme.pictureName)")
     }
 

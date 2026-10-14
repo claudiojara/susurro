@@ -13,7 +13,8 @@ enum SettingsCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
     case rowParakeet, rowLocalWhisper, rowLocalWhisperInvalid, rowDeepgramNeedsKey, rowAnthropic, rowOpenAICompatible
     case general, generalPinned
     case providers
-    case hotkey, hotkeyWarnings
+    case hotkey, hotkeyWarnings, hotkeyRecording
+    case recorderIdle, recorderCustom, recorderListening, recorderHolding, recorderRefused
     case styleSeeds, styleOverrides
     case dictionaryEmpty, dictionaryPopulated
     case appearance
@@ -39,6 +40,12 @@ enum SettingsCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
         case .providers: CGSize(width: Self.sectionWidth, height: 890)
         case .hotkey: CGSize(width: Self.sectionWidth, height: 158)
         case .hotkeyWarnings: CGSize(width: Self.sectionWidth, height: 334)
+        case .hotkeyRecording: CGSize(width: Self.sectionWidth, height: 209)
+        case .recorderIdle: CGSize(width: Self.sectionWidth, height: 64)
+        case .recorderCustom: CGSize(width: Self.sectionWidth, height: 64)
+        case .recorderListening: CGSize(width: Self.sectionWidth, height: 79)
+        case .recorderHolding: CGSize(width: Self.sectionWidth, height: 79)
+        case .recorderRefused: CGSize(width: Self.sectionWidth, height: 147)
         case .styleSeeds: CGSize(width: Self.sectionWidth, height: 896)
         case .styleOverrides: CGSize(width: Self.sectionWidth, height: 988)
         case .dictionaryEmpty: CGSize(width: Self.sectionWidth, height: 195)
@@ -67,6 +74,16 @@ enum SettingsCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
         case .providers: AnyView(ProvidersSection(SettingsFixtures.providers, actions: .none))
         case .hotkey: AnyView(HotkeySection(SettingsFixtures.hotkey, actions: .none) { EmptyView() })
         case .hotkeyWarnings: AnyView(HotkeySection(SettingsFixtures.hotkeyWarnings, actions: .none) { EmptyView() })
+        case .hotkeyRecording:
+            AnyView(
+                HotkeySection(SettingsFixtures.hotkey, actions: .none) {
+                    HotkeyRecorder(state: SettingsFixtures.recorderHolding, actions: .none)
+                })
+        case .recorderIdle: recorder(SettingsFixtures.recorderIdle)
+        case .recorderCustom: recorder(SettingsFixtures.recorderCustom)
+        case .recorderListening: recorder(SettingsFixtures.recorderListening)
+        case .recorderHolding: recorder(SettingsFixtures.recorderHolding)
+        case .recorderRefused: recorder(SettingsFixtures.recorderRefused)
         case .styleSeeds: AnyView(StyleTableEditor(SettingsFixtures.style, actions: .none))
         case .styleOverrides: AnyView(StyleTableEditor(SettingsFixtures.styleWithOverrides, actions: .none))
         case .dictionaryEmpty: AnyView(DictionaryEditor(SettingsFixtures.dictionaryEmpty, actions: .none))
@@ -75,6 +92,10 @@ enum SettingsCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
         case .screenGeneral:
             AnyView(SettingsScreen(state: SettingsFixtures.screen, actions: .none) { EmptyView() })
         }
+    }
+
+    @MainActor private func recorder(_ state: HotkeyRecorderState) -> AnyView {
+        AnyView(HotkeyRecorder(state: state, actions: .none))
     }
 
     @MainActor private func row(_ fixture: SettingsFixtures.Row) -> AnyView {
