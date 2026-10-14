@@ -49,6 +49,17 @@ let package = Package(
                 .product(name: "DesignSystem", package: "SusurroUI"),
             ]
         ),
+        // Checks that run the real speech models, the real recording files, and the real Whisper install through the
+        // app's own pipeline. They are off unless SUSURRO_REAL_MODELS=1, so CI compiles them and skips them.
+        .testTarget(
+            name: "RealModelPipelineTests",
+            dependencies: [
+                .product(name: "SusurroCore", package: "SusurroCore"),
+                .product(name: "CoreTestSupport", package: "SusurroCore"),
+                .product(name: "SusurroPlatform", package: "SusurroPlatform"),
+                .product(name: "SusurroInference", package: "SusurroInference"),
+            ]
+        ),
         .testTarget(
             name: "CompositionTests",
             dependencies: [
