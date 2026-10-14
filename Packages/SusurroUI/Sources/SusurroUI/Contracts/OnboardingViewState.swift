@@ -1,6 +1,7 @@
 // The contract between the onboarding screen and the code that drives it. The screen draws these values and calls the
 // intents; it knows nothing of the core, so the permissions have a name of their own here and the view model in
-// `SusurroFeatures` maps them. Every text is ready to show.
+// `SusurroFeatures` maps them. Every text is ready to show, and every word on the screen is in these values: the views
+// write none, so the words have one owner, the code that builds the state.
 
 /// A permission the onboarding can ask for.
 public nonisolated enum OnboardingPermission: String, CaseIterable, Hashable, Sendable {
@@ -59,6 +60,8 @@ public nonisolated struct OnboardingRowState: Equatable, Sendable, Identifiable 
     public let why: String
     public let requirement: OnboardingRequirement
     public let status: OnboardingRowStatus
+    /// The word for `status` that the row shows in its pill, such as "Allowed".
+    public let statusText: String
     /// Nil when there is nothing to do: the permission is granted, or a prompt is up.
     public let action: OnboardingAction?
 
@@ -68,6 +71,7 @@ public nonisolated struct OnboardingRowState: Equatable, Sendable, Identifiable 
         why: String,
         requirement: OnboardingRequirement,
         status: OnboardingRowStatus,
+        statusText: String,
         action: OnboardingAction?
     ) {
         self.id = id
@@ -75,23 +79,43 @@ public nonisolated struct OnboardingRowState: Equatable, Sendable, Identifiable 
         self.why = why
         self.requirement = requirement
         self.status = status
+        self.statusText = statusText
         self.action = action
     }
 }
 
 /// Everything the onboarding screen shows.
 public nonisolated struct OnboardingViewState: Equatable, Sendable {
+    public let title: String
+    /// What the permissions are for, under the title.
+    public let subtitle: String
     public let rows: [OnboardingRowState]
-    /// On once no required permission is missing.
-    public let isDoneEnabled: Bool
     /// What the missing required permissions cost: that dictation is off, that the text goes to the clipboard, or both.
     /// Nil when none is missing.
     public let restrictionMessage: String?
+    /// The title of the button that reads the statuses again.
+    public let recheckTitle: String
+    /// The title of the button that finishes the onboarding.
+    public let doneTitle: String
+    /// On once no required permission is missing.
+    public let isDoneEnabled: Bool
 
-    public init(rows: [OnboardingRowState], isDoneEnabled: Bool, restrictionMessage: String?) {
+    public init(
+        title: String,
+        subtitle: String,
+        rows: [OnboardingRowState],
+        restrictionMessage: String?,
+        recheckTitle: String,
+        doneTitle: String,
+        isDoneEnabled: Bool
+    ) {
+        self.title = title
+        self.subtitle = subtitle
         self.rows = rows
-        self.isDoneEnabled = isDoneEnabled
         self.restrictionMessage = restrictionMessage
+        self.recheckTitle = recheckTitle
+        self.doneTitle = doneTitle
+        self.isDoneEnabled = isDoneEnabled
     }
 }
 

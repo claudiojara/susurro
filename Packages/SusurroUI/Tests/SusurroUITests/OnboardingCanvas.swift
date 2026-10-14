@@ -36,7 +36,7 @@ enum OnboardingCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
         case .checklistWithOptional: CGSize(width: Self.rowWidth, height: 512)
         case .screenFresh: CGSize(width: Self.screenWidth, height: 510)
         case .screenAllGranted: CGSize(width: Self.screenWidth, height: 358)
-        case .screenStale: CGSize(width: Self.screenWidth, height: 504)
+        case .screenStale: CGSize(width: Self.screenWidth, height: 516)
         }
     }
 
@@ -66,6 +66,7 @@ enum OnboardingCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
     @MainActor private func screen(_ fixture: OnboardingFixtures.Screen) -> AnyView {
         AnyView(
             OnboardingScreen(
-                state: OnboardingFixtures.state(fixture), onAction: { _, _ in }, onRecheck: {}, onDone: {}))
+                state: OnboardingFixtures.state(fixture), maxHeight: nil, onAction: { _, _ in }, onRecheck: {},
+                onDone: {}))
     }
 }

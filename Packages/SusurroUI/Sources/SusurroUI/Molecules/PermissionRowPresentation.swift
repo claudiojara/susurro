@@ -1,9 +1,8 @@
 import DesignSystem
 
-/// How a row shows where its permission stands: a word, a tint, and a symbol. The three together tell the statuses apart
-/// without color alone.
+/// How a row shows where its permission stands: a tint and a symbol, beside the word that the state carries. The three
+/// together tell the statuses apart without color alone.
 struct StatusBadge: Equatable {
-    let text: String
     let tint: Tint
     let symbol: String
 }
@@ -11,11 +10,11 @@ struct StatusBadge: Equatable {
 extension OnboardingRowStatus {
     var badge: StatusBadge {
         switch self {
-        case .granted: StatusBadge(text: "Allowed", tint: .success, symbol: "checkmark.circle.fill")
-        case .notAsked: StatusBadge(text: "Not asked yet", tint: .neutral, symbol: "circle")
-        case .denied: StatusBadge(text: "Not allowed", tint: .error, symbol: "xmark.circle.fill")
-        case .waiting: StatusBadge(text: "Waiting…", tint: .pending, symbol: "hourglass")
-        case .stale: StatusBadge(text: "Needs attention", tint: .warning, symbol: "exclamationmark.triangle.fill")
+        case .granted: StatusBadge(tint: .success, symbol: "checkmark.circle.fill")
+        case .notAsked: StatusBadge(tint: .neutral, symbol: "circle")
+        case .denied: StatusBadge(tint: .error, symbol: "xmark.circle.fill")
+        case .waiting: StatusBadge(tint: .pending, symbol: "hourglass")
+        case .stale: StatusBadge(tint: .warning, symbol: "exclamationmark.triangle.fill")
         }
     }
 }

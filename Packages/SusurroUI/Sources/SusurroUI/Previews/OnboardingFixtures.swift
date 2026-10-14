@@ -19,40 +19,56 @@
             case withOptional
         }
 
-        static let shortBanner = "Dictation is off until Accessibility is allowed."
-        static let longBanner = "Dictation is off until Microphone and Accessibility are allowed."
+        // The words of the app are in `SusurroFeatures`, which this package cannot read. `OnboardingFixturesTests` there keeps
+        // these equal to what the view model builds, so that a change of the words cannot leave them behind.
+
+        /// The banner of a fresh install, and the ones with one required permission missing.
+        static let longBanner =
+            "Dictation is off until Microphone is allowed. "
+            + "Dictated text goes to the clipboard until Accessibility is allowed."
+        static let shortBanner = "Dictation is off until Microphone is allowed."
+        static let clipboardBanner = "Dictated text goes to the clipboard until Accessibility is allowed."
 
         static func state(_ screen: Screen) -> OnboardingViewState {
             switch screen {
-            case .fresh:
-                OnboardingViewState(rows: rows(.fresh), isDoneEnabled: false, restrictionMessage: longBanner)
-            case .allGranted:
-                OnboardingViewState(rows: rows(.allGranted), isDoneEnabled: true, restrictionMessage: nil)
-            case .stale:
-                OnboardingViewState(rows: rows(.stale), isDoneEnabled: false, restrictionMessage: shortBanner)
-            case .withOptional:
-                OnboardingViewState(rows: rows(.withOptional), isDoneEnabled: true, restrictionMessage: nil)
+            case .fresh: screenState(.fresh, banner: longBanner, isDoneEnabled: false)
+            case .allGranted: screenState(.allGranted, banner: nil, isDoneEnabled: true)
+            case .stale: screenState(.stale, banner: clipboardBanner, isDoneEnabled: false)
+            case .withOptional: screenState(.withOptional, banner: nil, isDoneEnabled: true)
             }
+        }
+
+        private static func screenState(_ screen: Screen, banner: String?, isDoneEnabled: Bool) -> OnboardingViewState {
+            OnboardingViewState(
+                title: "Set up Susurro",
+                subtitle: "Susurro needs these permissions to hear you and to type what you say.",
+                rows: rows(screen), restrictionMessage: banner, recheckTitle: "Check again", doneTitle: "Done",
+                isDoneEnabled: isDoneEnabled)
         }
 
         static func rows(_ screen: Screen) -> [OnboardingRowState] {
             switch screen {
-            case .fresh: [row(.notAsked), accessibility(status: .denied, action: allow("Accessibility"))]
-            case .allGranted: [row(.granted), accessibility(status: .granted, action: nil)]
+            case .fresh:
+                [row(.notAsked), accessibility(status: .denied, text: "Not allowed", action: allow("Accessibility"))]
+            case .allGranted: [row(.granted), accessibility(status: .granted, text: "Allowed", action: nil)]
             case .stale: [row(.granted), row(.stale)]
             case .withOptional:
-                [row(.granted), accessibility(status: .granted, action: nil), inputMonitoring, screenRecording]
+                [
+                    row(.granted), accessibility(status: .granted, text: "Allowed", action: nil), inputMonitoring,
+                    screenRecording,
+                ]
             }
         }
 
         static func row(_ row: Row) -> OnboardingRowState {
             switch row {
-            case .granted: microphone(status: .granted, action: nil)
-            case .notAsked: microphone(status: .notAsked, action: allow("Microphone"))
-            case .denied: microphone(status: .denied, action: openSettings)
-            case .waitingForPrompt: accessibility(status: .waiting, action: nil)
-            case .waitingInSettings: accessibility(status: .waiting, action: openSettings)
-            case .stale: accessibility(status: .stale(guidance: staleGuidance), action: openSettings)
+            case .granted: microphone(status: .granted, text: "Allowed", action: nil)
+            case .notAsked: microphone(status: .notAsked, text: "Not asked yet", action: allow("Microphone"))
+            case .denied: microphone(status: .denied, text: "Not allowed", action: openSettings)
+            case .waitingForPrompt: accessibility(status: .waiting, text: "Waiting…", action: nil)
+            case .waitingInSettings: accessibility(status: .waiting, text: "Waiting…", action: openSettings)
+            case .stale:
+                accessibility(status: .stale(guidance: staleGuidance), text: "Needs attention", action: openSettings)
             case .optional: inputMonitoring
             }
         }
@@ -71,18 +87,21 @@
 
         // MARK: Rows
 
-        private static func microphone(status: OnboardingRowStatus, action: OnboardingAction?) -> OnboardingRowState {
+        private static func microphone(status: OnboardingRowStatus, text: String, action: OnboardingAction?)
+            -> OnboardingRowState
+        {
             OnboardingRowState(
                 id: .microphone, title: "Microphone", why: "Needed to hear you while you hold the dictation hotkey.",
-                requirement: .required, status: status, action: action)
+                requirement: .required, status: status, statusText: text, action: action)
         }
 
-        private static func accessibility(status: OnboardingRowStatus, action: OnboardingAction?) -> OnboardingRowState
+        private static func accessibility(status: OnboardingRowStatus, text: String, action: OnboardingAction?)
+            -> OnboardingRowState
         {
             OnboardingRowState(
                 id: .accessibility, title: "Accessibility",
                 why: "Needed to paste the dictated text into the app you are using.", requirement: .required,
-                status: status, action: action)
+                status: status, statusText: text, action: action)
         }
 
         private static let inputMonitoring = OnboardingRowState(
@@ -90,14 +109,14 @@
             why: "Needed to notice a hotkey made only of modifier keys, such as fn.",
             requirement: .optional(
                 featureNote: "Optional: only for a hotkey made of modifier keys. Dictation works without it."),
-            status: .notAsked, action: allow("Input Monitoring"))
+            status: .notAsked, statusText: "Not asked yet", action: allow("Input Monitoring"))
 
         private static let screenRecording = OnboardingRowState(
             id: .screenRecording, title: "Screen Recording",
             why: "Needed to read the text on your screen as context for the cleanup.",
             requirement: .optional(
                 featureNote: "Optional: only for reading on-screen text. Dictation works without it."),
-            status: .notAsked, action: allow("Screen Recording"))
+            status: .notAsked, statusText: "Not asked yet", action: allow("Screen Recording"))
     }
 
 #endif

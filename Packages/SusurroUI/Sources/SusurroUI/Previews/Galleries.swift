@@ -55,7 +55,8 @@ import SwiftUI
                 HStack(alignment: .top, spacing: theme.spacing(.lg)) {
                     ForEach(Self.screens, id: \.self) { screen in
                         OnboardingScreen(
-                            state: OnboardingFixtures.state(screen), onAction: { _, _ in }, onRecheck: {}, onDone: {})
+                            state: OnboardingFixtures.state(screen), maxHeight: nil, onAction: { _, _ in },
+                            onRecheck: {}, onDone: {})
                     }
                 }
             }

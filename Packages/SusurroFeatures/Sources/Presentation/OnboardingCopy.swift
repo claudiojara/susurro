@@ -1,8 +1,28 @@
 import Domain
 import SusurroUI
 
-/// The words of the onboarding.
+/// The words of the onboarding, in one place: the screen, its rows, its window, and the menu item that opens it take all
+/// of their words from here (the screen and the rows through the `OnboardingViewState` that the view model builds, which
+/// carries every word, and the window and the menu through `title`).
 enum OnboardingCopy {
+    /// The name of the onboarding: the title of the screen and of its window, and the menu item that opens it (with an
+    /// ellipsis, since the item opens a window).
+    static let title = "Set up Susurro"
+    static let subtitle = "Susurro needs these permissions to hear you and to type what you say."
+    static let recheckTitle = "Check again"
+    static let doneTitle = "Done"
+
+    /// The word a row shows in its pill for where its permission stands.
+    static func statusText(_ standing: PermissionStep.Standing) -> String {
+        switch standing {
+        case .granted: "Allowed"
+        case .notAsked: "Not asked yet"
+        case .denied: "Not allowed"
+        case .waiting: "Waiting…"
+        case .stale: "Needs attention"
+        }
+    }
+
     /// The troubleshooting steps that fit the permission. Every pane has a switch to turn off and on. Input Monitoring and
     /// Screen Recording apply a change only after the app is relaunched. Microphone has no add button, so there is
     /// nothing to remove and add again.

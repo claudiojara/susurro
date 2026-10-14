@@ -27,8 +27,8 @@ private final class SpyModel: OnboardingViewModeling {
 struct OnboardingContainerTests {
     private let size = CGSize(width: 472, height: 520)
 
-    private func container(_ model: SpyModel) -> OnboardingContainer {
-        OnboardingContainer(model: model, onDone: {})
+    private func container(_ model: SpyModel, maxHeight: CGFloat? = nil) -> OnboardingContainer {
+        OnboardingContainer(model: model, maxHeight: maxHeight, onDone: {})
     }
 
     private func png(of view: some View, scheme: ColorScheme = .light) -> Data {
@@ -40,9 +40,21 @@ struct OnboardingContainerTests {
         arguments: [OnboardingFixtures.Screen.fresh, .allGranted, .stale])
     func drawsTheModelsState(fixture: OnboardingFixtures.Screen) {
         let state = OnboardingFixtures.state(fixture)
-        let screen = OnboardingScreen(state: state, onAction: { _, _ in }, onRecheck: {}, onDone: {})
+        let screen = OnboardingScreen(
+            state: state, maxHeight: nil, onAction: { _, _ in }, onRecheck: {}, onDone: {})
 
         #expect(png(of: container(SpyModel(state))) == png(of: screen))
+    }
+
+    @Test("the height the container is given is the most its screen takes")
+    func maxHeightReachesTheScreen() {
+        let model = SpyModel(OnboardingFixtures.state(.withOptional))
+
+        let free = Probe.height(of: container(model), width: 440)
+        let capped = Probe.height(of: container(model, maxHeight: 400), width: 440)
+
+        #expect(free > 500)
+        #expect(capped <= 400)
     }
 
     @Test("a model that has another state is drawn differently")

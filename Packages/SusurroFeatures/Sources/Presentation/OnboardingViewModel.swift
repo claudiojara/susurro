@@ -14,9 +14,13 @@ public final class OnboardingViewModel: OnboardingViewModeling {
 
     public var state: OnboardingViewState {
         OnboardingViewState(
+            title: OnboardingCopy.title,
+            subtitle: OnboardingCopy.subtitle,
             rows: monitor.requested.map(row(for:)),
-            isDoneEnabled: monitor.isOnboardingComplete,
-            restrictionMessage: monitor.restriction?.message
+            restrictionMessage: monitor.restriction?.message,
+            recheckTitle: OnboardingCopy.recheckTitle,
+            doneTitle: OnboardingCopy.doneTitle,
+            isDoneEnabled: monitor.isOnboardingComplete
         )
     }
 
@@ -52,6 +56,7 @@ public final class OnboardingViewModel: OnboardingViewModeling {
             why: OnboardingCopy.why(permission),
             requirement: OnboardingCopy.requirement(permission),
             status: OnboardingCopy.status(step.standing, for: permission),
+            statusText: OnboardingCopy.statusText(step.standing),
             action: step.action.map { OnboardingCopy.action($0, for: permission) }
         )
     }

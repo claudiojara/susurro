@@ -19,6 +19,12 @@ struct OnboardingWindowControllerTests {
 
     private static let screen = CGRect(x: 0, y: 0, width: 1_512, height: 949)
 
+    /// A display whose visible frame the test changes, as moving to another display does.
+    private final class Box {
+        var frame: CGRect
+        init(_ frame: CGRect) { self.frame = frame }
+    }
+
     private func makeController(
         _ statuses: [Permission: PermissionStatus] = [.microphone: .denied, .accessibility: .denied],
         activations: Activations = Activations()
@@ -34,6 +40,7 @@ struct OnboardingWindowControllerTests {
         let controller = makeController()
 
         #expect(controller.window.title == "Set up Susurro")
+        #expect(controller.window.title == controller.content.model.state.title)
         #expect(controller.window.styleMask.contains(.titled))
         #expect(controller.window.styleMask.contains(.closable))
         #expect(!controller.window.styleMask.contains(.resizable))
@@ -161,6 +168,100 @@ struct OnboardingWindowControllerTests {
         #expect(magenta.errors.isEmpty)
         #expect(bundled.count == repainted.count && bundled.count > 1_000)
         #expect(differing > 1_000, "\(differing) bytes differ")  // the two request buttons are about 300 by 40 points
+    }
+
+    // MARK: A display shorter than the screen
+
+    private static let everything = PermissionNeeds(modifierOnlyHotkey: true, ocrEnabled: true)
+
+    private func tallController(on area: @escaping () -> CGRect) async -> OnboardingWindowController {
+        let rig = Rig(
+            [.microphone: .denied, .accessibility: .denied, .inputMonitoring: .denied, .screenRecording: .denied],
+            needs: Self.everything)
+        let controller = OnboardingWindowController(
+            model: OnboardingViewModel(monitor: rig.monitor), themes: ThemeModel(), activate: {}, visibleFrame: area)
+        await rig.monitor.refresh()
+        return controller
+    }
+
+    @Test("on a display shorter than the screen's content the window is cut to the visible frame, top edge at its top")
+    func tallContentOnASmallDisplay() async {
+        let small = CGRect(x: 0, y: 40, width: 1_280, height: 520)
+        let controller = await tallController(on: { small })
+
+        controller.placeIfNeeded()
+        let frame = controller.window.frame
+
+        #expect(frame.height <= small.height, "\(frame) against \(small)")
+        #expect(small.contains(frame), "\(frame) against \(small)")
+        #expect(frame.maxY == small.maxY)
+        // Without the cap the window would be taller than the display.
+        let roomy = await tallController(on: { Self.screen })
+        roomy.placeIfNeeded()
+        #expect(roomy.window.frame.height > small.height)
+    }
+
+    @Test("the checklist that does not fit is in a scroll view that draws: the middle of the window shows a row")
+    func scrolledChecklistIsDrawn() async {
+        let small = CGRect(x: 0, y: 40, width: 1_280, height: 520)
+        let controller = await tallController(on: { small })
+        controller.show()
+        defer { controller.close() }
+        let view = controller.window.contentView!
+
+        // The scroll view of the checklist draws on a later turn of the run loop than the window. A raised card is not the
+        // window's color, so once a row is drawn the middle of the window differs between the padding, at the edge, and the
+        // inside of the card.
+        func isCardAtTheMiddle() -> Bool {
+            guard let picture = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return false }
+            view.cacheDisplay(in: view.bounds, to: picture)
+            let scale = CGFloat(picture.pixelsWide) / view.bounds.width
+            let middle = picture.pixelsHigh / 2
+            guard let padding = picture.colorAt(x: Int(4 * scale), y: middle),
+                let card = picture.colorAt(x: Int(34 * scale), y: middle)
+            else { return false }
+            return padding != card
+        }
+        await waitUntil { isCardAtTheMiddle() }
+
+        #expect(isCardAtTheMiddle())
+    }
+
+    @Test("the cap follows the display the window is shown on, and lifts when the display is tall enough")
+    func capFollowsTheDisplay() async {
+        let area = Box(CGRect(x: 0, y: 0, width: 1_280, height: 520))
+        let controller = await tallController(on: { area.frame })
+
+        controller.show()
+        let small = controller.window.frame.height
+        area.frame = Self.screen
+        controller.show()
+        // SwiftUI redraws on the next turn of the run loop, which is when the hosting controller resizes the window.
+        await waitUntil { controller.window.frame.height > small + 100 || !controller.window.isVisible }
+        let large = controller.window.frame.height
+        controller.close()
+
+        #expect(small <= 520)
+        #expect(large > small + 100)
+    }
+
+    @Test("a window that fits the display is not cut")
+    func fittingWindowIsNotCapped() async {
+        let area = CGRect(x: 0, y: 0, width: 1_280, height: 520)
+        let rig = Rig([.microphone: .granted, .accessibility: .denied])
+        let controller = OnboardingWindowController(
+            model: OnboardingViewModel(monitor: rig.monitor), themes: ThemeModel(), activate: {},
+            visibleFrame: { area })
+        await rig.monitor.refresh()
+        let roomy = OnboardingWindowController(
+            model: OnboardingViewModel(monitor: rig.monitor), themes: ThemeModel(), activate: {},
+            visibleFrame: { Self.screen })
+
+        controller.placeIfNeeded()
+        roomy.placeIfNeeded()
+
+        #expect(controller.window.frame.height == roomy.window.frame.height)
+        #expect(controller.window.frame.height < area.height)
     }
 
     // MARK: Placement
