@@ -13,7 +13,7 @@ let package = Package(
         .target(name: "Domain"),
         .target(name: "Pipeline", dependencies: ["Domain"]),
         .target(name: "CoreTestSupport", dependencies: ["Domain"]),
-        .testTarget(name: "DomainTests", dependencies: ["Domain"]),
+        .testTarget(name: "DomainTests", dependencies: ["Domain", "CoreTestSupport"]),
         .testTarget(name: "CoreTestSupportTests", dependencies: ["CoreTestSupport", "Domain"]),
         .testTarget(name: "PipelineTests", dependencies: ["Pipeline", "Domain", "CoreTestSupport"]),
     ],
