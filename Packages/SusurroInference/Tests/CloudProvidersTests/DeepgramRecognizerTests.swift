@@ -70,7 +70,9 @@ struct DeepgramRecognizerTests {
             settings: InMemorySettingsStore(), secrets: InMemorySecretStore([.deepgram: Self.key]),
             session: server.session, endpoint: server.url("/v1/listen"))
 
-        await #expect(throws: RecognitionError.notReady) { try await recognizer.transcribe(clip, options: RecognitionOptions()) }
+        await #expect(throws: RecognitionError.notReady) {
+            try await recognizer.transcribe(clip, options: RecognitionOptions())
+        }
         #expect(server.requests.isEmpty)
     }
 
@@ -163,7 +165,11 @@ struct DeepgramRecognizerTests {
         let request = try #require(rig.server.requests.first)
         let names = Set(request.query.map(\.name))
         #expect(names.isSubset(of: ["model", "language", "detect_language", "smart_format", "keyterm"]))
-        #expect(Set(request.headers.keys.map { $0.lowercased() }).isSubset(of: ["authorization", "content-type", "content-length", "accept", "accept-encoding", "accept-language", "user-agent"]))
+        #expect(
+            Set(request.headers.keys.map { $0.lowercased() }).isSubset(of: [
+                "authorization", "content-type", "content-length", "accept", "accept-encoding", "accept-language",
+                "user-agent",
+            ]))
     }
 
     // MARK: Failure

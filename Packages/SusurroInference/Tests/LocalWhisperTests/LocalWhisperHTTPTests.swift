@@ -50,7 +50,9 @@ struct LocalWhisperHTTPTests {
 
     // MARK: The request
 
-    @Test("an OpenAI-compatible server gets the WAV as a multipart file with the model, the language, and the vocabulary as the prompt")
+    @Test(
+        "an OpenAI-compatible server gets the WAV as a multipart file with the model, the language, and the vocabulary as the prompt"
+    )
     func openAIRequest() async throws {
         let rig = Rig(model: "large-v3")
 
@@ -109,10 +111,12 @@ struct LocalWhisperHTTPTests {
 
     // MARK: The address
 
-    @Test("an address that is not on this Mac is refused before anything is sent", arguments: [
-        "https://api.example.com/v1/audio/transcriptions", "http://192.168.1.20:8080/inference",
-        "http://localhost.example.com/inference", "ftp://localhost/inference", "not an address", "",
-    ])
+    @Test(
+        "an address that is not on this Mac is refused before anything is sent",
+        arguments: [
+            "https://api.example.com/v1/audio/transcriptions", "http://192.168.1.20:8080/inference",
+            "http://localhost.example.com/inference", "ftp://localhost/inference", "not an address", "",
+        ])
     func nonLoopback(address: String) async {
         let server = StubServer()
         let settings = InMemorySettingsStore()
@@ -140,7 +144,9 @@ struct LocalWhisperHTTPTests {
         let elsewhere = StubServer()
         let rig = Rig(reply: .redirect(elsewhere.url("/steal")))
 
-        await #expect(throws: (any Error).self) { try await rig.recognizer.transcribe(clip, options: RecognitionOptions()) }
+        await #expect(throws: (any Error).self) {
+            try await rig.recognizer.transcribe(clip, options: RecognitionOptions())
+        }
         #expect(elsewhere.requests.isEmpty, "the audio followed a redirect to another host")
     }
 

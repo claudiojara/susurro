@@ -83,7 +83,8 @@ public struct LocalWhisperRecognizer: SpeechRecognizer {
     // MARK: Modes
 
     private func makeHTTP() throws -> LocalWhisperHTTP {
-        let text = settings.value(for: SpeechSettings.localWhisperEndpoint).trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = settings.value(for: SpeechSettings.localWhisperEndpoint).trimmingCharacters(
+            in: .whitespacesAndNewlines)
         // Whether the address is on this Mac is decided by `isAllowedEndpoint`, in the request.
         guard let url = URL(string: text), ["http", "https"].contains(url.scheme?.lowercased()), url.host != nil
         else { throw LocalWhisperError.invalidEndpoint }

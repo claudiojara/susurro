@@ -94,7 +94,8 @@ struct LocalWhisperCLITests {
         let run = Task { try await cli.transcribe(wavPath: "/tmp/a.wav", language: nil) }
         await clock.waitForSleeps(before + 1)
         #expect(await eventually { FileManager.default.fileExists(atPath: pidFile) })
-        let pid = try #require(Int32(String(contentsOfFile: pidFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)))
+        let pid = try #require(
+            Int32(String(contentsOfFile: pidFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)))
         #expect(isAlive(pid: pid))
 
         clock.advance(by: .seconds(59))
@@ -117,7 +118,8 @@ struct LocalWhisperCLITests {
         let run = Task { try await cli.transcribe(wavPath: "/tmp/a.wav", language: nil) }
         await clock.waitForSleeps(before + 1)
         #expect(await eventually { FileManager.default.fileExists(atPath: pidFile) })
-        let pid = try #require(Int32(String(contentsOfFile: pidFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)))
+        let pid = try #require(
+            Int32(String(contentsOfFile: pidFile, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)))
 
         run.cancel()
 

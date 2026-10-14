@@ -48,7 +48,8 @@ public struct KeychainSecretStore: SecretStore {
     private let client: any KeychainClient
     private let diagnostics: any DiagnosticsLog
 
-    public init(client: any KeychainClient = SystemKeychainClient(), diagnostics: any DiagnosticsLog = NoDiagnostics()) {
+    public init(client: any KeychainClient = SystemKeychainClient(), diagnostics: any DiagnosticsLog = NoDiagnostics())
+    {
         self.client = client
         self.diagnostics = diagnostics
     }

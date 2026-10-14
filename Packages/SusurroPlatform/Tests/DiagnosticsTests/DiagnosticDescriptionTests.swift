@@ -61,8 +61,14 @@ struct DiagnosticDescriptionTests {
                 .permissionRequestEnded(permission: .accessibility, status: .denied), .default,
                 "permission accessibility: request ended, now denied"
             ),
-            (.secretUnreadable(account: .deepgram, status: -25308), .error, "key store unreadable for deepgram: status -25308"),
-            (.cloudRequestFailed(provider: "deepgram", reason: "http-401"), .error, "cloud request to deepgram failed: http-401"),
+            (
+                .secretUnreadable(account: .deepgram, status: -25308), .error,
+                "key store unreadable for deepgram: status -25308"
+            ),
+            (
+                .cloudRequestFailed(provider: "deepgram", reason: "http-401"), .error,
+                "cloud request to deepgram failed: http-401"
+            ),
         ])
     func descriptions(event: DiagnosticEvent, level: OSLogType, line: String) {
         let description = OSLogDiagnostics.describe(event)

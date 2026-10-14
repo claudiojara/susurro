@@ -119,7 +119,9 @@ public struct DeepgramRecognizer: SpeechRecognizer {
     /// A value of the query with everything but letters, digits, and `-._~` encoded. The usual encoding of a query leaves
     /// `+` and `&` as they are, which would turn the term "C++" into "C" and a space.
     private static func encoded(_ value: String) -> String {
-        value.addingPercentEncoding(withAllowedCharacters: CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~")) ?? ""
+        value.addingPercentEncoding(
+            withAllowedCharacters: CharacterSet(
+                charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~")) ?? ""
     }
 
     private struct Response: Decodable {
