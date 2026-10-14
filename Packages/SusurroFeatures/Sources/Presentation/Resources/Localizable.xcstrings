@@ -1,0 +1,281 @@
+{
+  "sourceLanguage": "en",
+  "version": "1.0",
+  "strings": {
+    "onboarding.action.allow": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allow %@"
+          }
+        }
+      }
+    },
+    "onboarding.action.openSettings": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open System Settings"
+          }
+        }
+      }
+    },
+    "onboarding.done": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Done"
+          }
+        }
+      }
+    },
+    "onboarding.feature.inputMonitoring": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "a hotkey made of modifier keys"
+          }
+        }
+      }
+    },
+    "onboarding.feature.screenRecording": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "reading on-screen text"
+          }
+        }
+      }
+    },
+    "onboarding.guidance.addAgain": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "If it still does not work, remove Susurro from the list, add it again, and switch it on."
+          }
+        }
+      }
+    },
+    "onboarding.guidance.prefix": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Still not allowed?"
+          }
+        }
+      }
+    },
+    "onboarding.guidance.relaunch": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Then quit and reopen Susurro, because this permission applies only after a relaunch."
+          }
+        }
+      }
+    },
+    "onboarding.guidance.switch": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "In System Settings, switch Susurro off and on again."
+          }
+        }
+      }
+    },
+    "onboarding.optional.note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Optional: %@Dictation works without it."
+          }
+        }
+      }
+    },
+    "onboarding.optional.onlyFor": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "only for %@. "
+          }
+        }
+      }
+    },
+    "onboarding.recheck": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Check again"
+          }
+        }
+      }
+    },
+    "onboarding.status.denied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not allowed"
+          }
+        }
+      }
+    },
+    "onboarding.status.granted": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Allowed"
+          }
+        }
+      }
+    },
+    "onboarding.status.notAsked": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not asked yet"
+          }
+        }
+      }
+    },
+    "onboarding.status.stale": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needs attention"
+          }
+        }
+      }
+    },
+    "onboarding.status.waiting": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Waiting…"
+          }
+        }
+      }
+    },
+    "onboarding.subtitle": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Susurro needs these permissions to hear you and to type what you say."
+          }
+        }
+      }
+    },
+    "onboarding.title": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Set up Susurro"
+          }
+        }
+      }
+    },
+    "onboarding.why.accessibility": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needed to paste the dictated text into the app you are using."
+          }
+        }
+      }
+    },
+    "onboarding.why.inputMonitoring": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needed to notice a hotkey made only of modifier keys, such as fn."
+          }
+        }
+      }
+    },
+    "onboarding.why.microphone": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needed to hear you while you hold the dictation hotkey."
+          }
+        }
+      }
+    },
+    "onboarding.why.screenRecording": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Needed to read the text on your screen as context for the cleanup."
+          }
+        }
+      }
+    },
+    "restriction.accessibility": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dictated text goes to the clipboard until Accessibility is allowed."
+          }
+        }
+      }
+    },
+    "restriction.microphone": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dictation is off until Microphone is allowed."
+          }
+        }
+      }
+    }
+  }
+}

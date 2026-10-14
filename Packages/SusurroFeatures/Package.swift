@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "SusurroFeatures",
+    defaultLocalization: "en",
     platforms: [.macOS(.v26)],
     products: [
         .library(name: "SusurroFeatures", targets: ["Presentation", "Composition"])
@@ -21,7 +22,8 @@ let package = Package(
                 .product(name: "SusurroCore", package: "SusurroCore"),
                 .product(name: "SusurroUI", package: "SusurroUI"),
                 .product(name: "DesignSystem", package: "SusurroUI"),
-            ]
+            ],
+            resources: [.process("Resources")]
         ),
         .target(
             name: "Composition",
