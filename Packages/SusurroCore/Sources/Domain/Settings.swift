@@ -79,7 +79,27 @@ extension SettingKey where Value: Codable {
     }
 }
 
-/// A setting that was set, named by the `storageName` of its key. A subscriber reads the key again for the new value.
+extension SettingKey {
+    /// The value for the stored form a store holds under this key, or nil when it holds none. A stored form that does
+    /// not read as a `Value` gives the default and is recorded in `diagnostics`, by the name of the key and never by what
+    /// it holds.
+    public func value(stored: Any?, reportingTo diagnostics: any DiagnosticsLog) -> Value {
+        guard let stored else { return defaultValue }
+        if let value = decode(stored) { return value }
+        diagnostics.record(.settingUnreadable(key: storageName))
+        return defaultValue
+    }
+
+    /// The stored form of a value. A value with no stored form gives nil and is recorded in `diagnostics`, by the name
+    /// of the key and never by the value.
+    public func storedForm(of value: Value, reportingTo diagnostics: any DiagnosticsLog) -> (any Sendable)? {
+        let stored = encode(value)
+        if stored == nil { diagnostics.record(.settingNotStored(key: storageName)) }
+        return stored
+    }
+}
+
+/// A setting that was set or removed, named by the `storageName` of its key. A subscriber reads the key again for the new value.
 public struct SettingChange: Sendable, Equatable {
     public let name: String
 
@@ -89,11 +109,17 @@ public struct SettingChange: Sendable, Equatable {
 }
 
 /// The user's settings, one value per key. Reading never fails: a key nobody set, or one that holds something that is
-/// not its type, gives the key's default, and a damaged key cannot affect another.
+/// not its type, gives the key's default, and a damaged key cannot affect another. What a store would otherwise swallow
+/// is recorded in its `DiagnosticsLog`, by key name only: a value that cannot be stored, which `set` leaves out, and a
+/// stored value that cannot be read, which reads as the default.
 public protocol SettingsStore: Sendable {
     func value<Value>(for key: SettingKey<Value>) -> Value
     func set<Value>(_ value: Value, for key: SettingKey<Value>)
-    /// Each call returns a stream of its own, which gets the sets made after the call.
+    /// Deletes what the key holds, so it reads as its default again, as if nobody had set it. Storing the default is not
+    /// a removal: the key would then hold a value of its own that a later change of the default would not reach. It
+    /// clears a value the key cannot read too. The key is announced even when it held nothing.
+    func remove<Value>(_ key: SettingKey<Value>)
+    /// Each call returns a stream of its own, which gets the sets and removals made after the call.
     func changes() -> AsyncStream<SettingChange>
 }
 
