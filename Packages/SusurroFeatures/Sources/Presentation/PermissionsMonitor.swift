@@ -4,8 +4,11 @@ import Observation
 /// What the app knows about the system permissions, kept current without a relaunch: the onboarding, the menu and the
 /// overlay read their state from it.
 ///
-/// The statuses are read again when the app becomes active, and every `pollInterval` only while the onboarding is
-/// visible, so a permission granted or revoked in System Settings shows within a second of the user looking at it.
+/// Once started, the statuses are read every `pollInterval` whether or not a screen is open, and again when the app
+/// becomes active, so a permission granted or revoked in System Settings shows within a second. Susurro is a menu bar app
+/// that rarely becomes active, so the read on a timer is what finds a revocation while the app idles. A second costs
+/// little: each status is one call to the system that raises no prompt, about 80 microseconds of CPU (Accessibility,
+/// about 1) plus a wait of about 3 ms on the privacy service that is not on the main actor, measured on this Mac.
 /// Only the requested permissions are read (`PermissionPolicy.requested(for:)`), and only the required ones can disable
 /// dictation or bring the onboarding back (`blocking`): a conditional permission that is missing leaves its own feature
 /// inactive and nothing else.
@@ -59,7 +62,7 @@ public final class PermissionsMonitor {
     /// - Parameters:
     ///   - openSettings: Opens the System Settings pane where the user changes a permission.
     ///   - clock: Times the poll and the stale-guidance wait. Tests pass a `ManualClock`.
-    ///   - pollInterval: The pause between reads while the onboarding is visible.
+    ///   - pollInterval: The pause between two reads of a started monitor.
     ///   - staleAfter: How long a permission may stay denied after the user came back from System Settings.
     public init(
         checker: any PermissionsChecker,
@@ -115,13 +118,9 @@ public final class PermissionsMonitor {
         await refresh()
     }
 
-    /// Polls every `pollInterval` while the onboarding is visible, and not otherwise. The first read is at once.
-    public func setOnboardingVisible(_ isVisible: Bool) {
-        guard isVisible else {
-            poll?.cancel()
-            poll = nil
-            return
-        }
+    /// Reads the statuses at once and then every `pollInterval`, until `stop()`. Starting a monitor that is running does
+    /// nothing.
+    public func start() {
         guard poll == nil else { return }
         poll = Task { [weak self, clock, pollInterval] in
             // `self` is held only while a read runs, so a monitor that is let go also ends its poll.
@@ -130,6 +129,12 @@ public final class PermissionsMonitor {
                 do { try await clock.sleep(for: pollInterval) } catch { return }
             }
         }
+    }
+
+    /// Ends the poll. The statuses stay as they were last read, and the app activation still reads them.
+    public func stop() {
+        poll?.cancel()
+        poll = nil
     }
 
     /// Reads the statuses because the user came back to the app, and starts the wait for the stale-grant guidance on

@@ -185,7 +185,13 @@ struct PermissionsMonitorTests {
         rig.monitor.start()
         await rig.clock.waitForSleeps(1)
         await rig.settle()
+        let whileSleeping = (rig.board.statusReads, rig.clock.pendingSleeps)
+        rig.monitor.start()
+        await rig.settle()
 
+        #expect(whileSleeping.0 == 2)
+        #expect(whileSleeping.1 == 1)
+        // A start while the poll sleeps neither reads at once nor begins another loop.
         #expect(rig.board.statusReads == 2)
         #expect(rig.clock.pendingSleeps == 1)
     }

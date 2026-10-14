@@ -103,9 +103,6 @@ public protocol OnboardingViewModeling: AnyObject {
     func request(_ permission: OnboardingPermission) async
     /// Opens the System Settings pane of the permission.
     func openSettings(_ permission: OnboardingPermission)
-    /// Reads the statuses now, for a "check again" button.
+    /// Reads the statuses now, for a "check again" button. They are also read every second without the screen's help.
     func recheck() async
-    /// The screen is on screen: the statuses are checked every second until it goes.
-    func onboardingDidAppear()
-    func onboardingDidDisappear()
 }
