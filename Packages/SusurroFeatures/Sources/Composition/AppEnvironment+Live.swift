@@ -28,6 +28,8 @@ extension AppEnvironment.Dependencies {
         let permissions = SystemPermissionsChecker()
         let recognizer = ParakeetRecognizer()
         let inserter = SimplePasteInserter(diagnostics: diagnostics)
+        // The folder exists, empty, so that the user has a place to put a theme and the watcher has something to watch.
+        try? FileManager.default.createDirectory(at: themesFolder, withIntermediateDirectories: true)
         let themes = ThemeStore(directory: themesFolder)
         return AppEnvironment.Dependencies(
             hotkeys: HotkeyService(),
