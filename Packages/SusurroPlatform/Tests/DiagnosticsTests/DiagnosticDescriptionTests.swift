@@ -61,6 +61,9 @@ struct DiagnosticDescriptionTests {
                 .permissionRequestEnded(permission: .accessibility, status: .denied), .default,
                 "permission accessibility: request ended, now denied"
             ),
+            (.recordingStoreFailed(step: "verify"), .error, "recording store failed at verify"),
+            (.historyWriteFailed(step: "insert"), .error, "history write failed at insert"),
+            (.languageDriftDetected, .default, "transcript in the wrong language, transcribing again"),
         ])
     func descriptions(event: DiagnosticEvent, level: OSLogType, line: String) {
         let description = OSLogDiagnostics.describe(event)

@@ -9,6 +9,10 @@ public enum NoticeKind: Sendable, Equatable {
     /// A press arrived while the last dictation was still being transcribed or inserted, so it was ignored. The
     /// pipeline state that was showing comes right back after this notice.
     case busy
+    /// The input device went away mid-recording. What was captured before is kept and goes on to be transcribed.
+    case deviceDisconnected
+    /// The recording is digital silence, so the microphone looks muted or disconnected, and nothing is transcribed.
+    case silentMicrophone
 }
 
 /// Where the user goes to recover from an error.
@@ -19,6 +23,8 @@ public enum Remedy: Sendable, Equatable {
     case settings
     /// Dictate again.
     case retry
+    /// The recording or the text is kept in the history, which is where to retry it or copy it from.
+    case history
 }
 
 public enum PipelineError: Error, Sendable, Equatable {
@@ -32,8 +38,10 @@ public enum PipelineError: Error, Sendable, Equatable {
     case recognitionFailed(String)
     /// A step did not finish in time and was abandoned.
     case timedOut(Stage)
-    /// The transcript is neither in the target app nor on the clipboard.
+    /// The transcript is neither in the target app nor on the clipboard. The history keeps it.
     case notInserted(NotInsertedReason)
+    /// The recording could not be written to disk and verified, so it was not transcribed. The text is the reason.
+    case persistenceFailed(String)
 
     public enum Stage: Sendable, Equatable {
         case readiness
@@ -53,6 +61,7 @@ public enum PipelineError: Error, Sendable, Equatable {
         case .recognitionFailed: "recognitionFailed"
         case .timedOut(let stage): "timedOut.\(stage)"
         case .notInserted(let reason): "notInserted.\(reason)"
+        case .persistenceFailed: "persistenceFailed"
         }
     }
 
@@ -61,7 +70,8 @@ public enum PipelineError: Error, Sendable, Equatable {
         case .microphoneNotGranted: .permissions
         case .recognizerNotInstalled: .settings
         case .recognizerUnavailable(_, let retryable): retryable ? .retry : .settings
-        case .captureFailed, .recognitionFailed, .timedOut, .notInserted: .retry
+        case .captureFailed, .persistenceFailed, .timedOut(.capture): .retry
+        case .recognitionFailed, .timedOut, .notInserted: .history
         }
     }
 }

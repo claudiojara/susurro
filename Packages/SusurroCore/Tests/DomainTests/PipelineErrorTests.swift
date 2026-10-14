@@ -10,10 +10,15 @@ struct PipelineErrorTests {
         #expect(PipelineError.recognizerUnavailable("offline", retryable: true).remedy == .retry)
         #expect(PipelineError.recognizerUnavailable("model is damaged", retryable: false).remedy == .settings)
         #expect(PipelineError.captureFailed("device").remedy == .retry)
-        #expect(PipelineError.recognitionFailed("model").remedy == .retry)
-        #expect(PipelineError.timedOut(.transcription).remedy == .retry)
-        #expect(PipelineError.notInserted(.clipboardChanged).remedy == .retry)
-        #expect(PipelineError.notInserted(.clipboardWriteFailed).remedy == .retry)
+        #expect(PipelineError.persistenceFailed("disk").remedy == .retry)
+        #expect(PipelineError.timedOut(.capture).remedy == .retry)
+        // The recording is kept, so the way out is the history.
+        #expect(PipelineError.recognitionFailed("model").remedy == .history)
+        #expect(PipelineError.timedOut(.transcription).remedy == .history)
+        #expect(PipelineError.timedOut(.readiness).remedy == .history)
+        #expect(PipelineError.timedOut(.insertion).remedy == .history)
+        #expect(PipelineError.notInserted(.clipboardChanged).remedy == .history)
+        #expect(PipelineError.notInserted(.clipboardWriteFailed).remedy == .history)
     }
 
     @Test("every error has a kind that names the case and leaves out the text it carries")
@@ -31,6 +36,7 @@ struct PipelineErrorTests {
             (.timedOut(.insertion), "timedOut.insertion"),
             (.notInserted(.clipboardChanged), "notInserted.clipboardChanged"),
             (.notInserted(.clipboardWriteFailed), "notInserted.clipboardWriteFailed"),
+            (.persistenceFailed(secret), "persistenceFailed"),
         ]
         for (error, kind) in kinds {
             #expect(error.kind == kind)

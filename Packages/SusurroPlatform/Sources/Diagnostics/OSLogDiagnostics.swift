@@ -47,6 +47,9 @@ public struct OSLogDiagnostics: DiagnosticsLog {
             (.default, "permission \(permission): troubleshooting steps shown")
         case .permissionRequestEnded(let permission, let status):
             (.default, "permission \(permission): request ended, now \(status)")
+        case .recordingStoreFailed(let step): (.error, "recording store failed at \(step)")
+        case .historyWriteFailed(let step): (.error, "history write failed at \(step)")
+        case .languageDriftDetected: (.default, "transcript in the wrong language, transcribing again")
         }
     }
 
