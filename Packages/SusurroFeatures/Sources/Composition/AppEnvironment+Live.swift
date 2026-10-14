@@ -11,11 +11,12 @@ import Permissions
 import Pipeline
 import Presentation
 import Settings
+import SusurroUI
 import TextInsertion
 import TextShaping
 
 extension AppEnvironment {
-    /// The graph on the real adapters: the Control+Option+D hotkey, the microphone, Parakeet, the pasteboard, the
+    /// The graph on the real adapters: the configured hotkey (Control+Option+D until the user changes it), the microphone, Parakeet, the pasteboard, the
     /// system permissions, and the log. Build it once, at launch.
     public static var live: AppEnvironment {
         AppEnvironment(Dependencies.live())
@@ -38,14 +39,14 @@ extension AppEnvironment.Dependencies {
         let clock = ContinuousClock()
         let settings = UserDefaultsSettingsStore(diagnostics: diagnostics)
         return AppEnvironment.Dependencies(
-            hotkeys: HotkeyService(),
+            hotkeys: HotkeyService(settings: settings, permissions: permissions),
             capture: AVAudioEngineCaptureSource(diagnostics: diagnostics),
             recognizer: recognizer,
             readinessChanges: { await recognizer.readinessChanges() },
             inserter: inserter,
             permissions: permissions,
             diagnostics: diagnostics,
-            overlay: SkeletonOverlayController(),
+            overlay: { OverlayController(model: $0, themes: $1, registry: .standard()) },
             restoreClipboardNow: { inserter.restoreForTermination() },
             settings: settings,
             onboarding: Onboarding(

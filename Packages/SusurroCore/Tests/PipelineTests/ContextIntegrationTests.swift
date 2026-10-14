@@ -122,8 +122,13 @@ struct ContextIntegrationTests {
         f.harness.capture.emit(AudioChunk(samples: DictationCoordinatorTests.clip))
         _ = await f.harness.read(through: .recording(.hold))
         await f.source.entered(call: 0).wait()
+        let before = f.harness.clock.suspendedSleeps
         await f.harness.sut.handle(.up(at: DictationCoordinatorTests.pressTime + .milliseconds(100)))
         _ = await f.harness.read(through: .idle)
+        // The double-tap window closes, so the next press is a new hold and not hands-free.
+        await f.harness.waitForTimers(startedAfter: before, count: 1)
+        f.harness.clock.advance(by: .milliseconds(350))
+        for _ in 0..<50 { await Task.yield() }
 
         // A second dictation runs through, and then the first context finally arrives.
         _ = await f.dictate()

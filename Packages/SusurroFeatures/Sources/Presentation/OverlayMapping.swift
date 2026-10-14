@@ -1,63 +1,51 @@
 import Domain
+import SusurroUI
 
-/// What the overlay shows for a pipeline state: a symbol, a message, and optionally how far a load has got. It is a pure
-/// function of the state, so it is tested without a window. The message names the way out of an error, since the
-/// overlay cannot be clicked.
-public struct OverlayIndicator: Equatable, Sendable {
-    /// How the indicator is colored. The view turns it into system colors; the unthemed skeleton has no palette.
-    public enum Tone: Equatable, Sendable {
-        case neutral
-        case recording
-        case success
-        case warning
-        case error
-    }
+/// What the overlay shows for a pipeline state: a pure function of the state, so it is tested without a window. Every
+/// text of the overlay is here. An error names the way out, since the overlay cannot be clicked.
+enum OverlayMapping {
+    /// How a hands-free recording is stopped, since its key is not held.
+    static let handsFreeHint = "Press the shortcut again to stop. Esc cancels."
 
-    public let tone: Tone
-    /// An SF Symbol name.
-    public let symbol: String
-    public let message: String
-    /// A fraction between 0 and 1 when the indicator shows a bar.
-    public let progress: Double?
-
-    /// Nil for an idle pipeline, which shows nothing.
-    static func indicator(for state: PipelineState) -> OverlayIndicator? {
+    /// The state of the overlay for a pipeline state. An idle pipeline shows nothing.
+    ///
+    /// There is no case for a polishing pipeline yet: the overlay can draw one (`OverlayViewState.polishing`), and the
+    /// case is added here with the stage that publishes it.
+    static func viewState(for state: PipelineState) -> OverlayViewState {
         switch state {
         case .idle:
-            nil
+            .hidden
         case .starting:
-            OverlayIndicator(tone: .neutral, symbol: "mic", message: "Getting ready…", progress: nil)
-        case .recording:
-            OverlayIndicator(tone: .recording, symbol: "mic.fill", message: "Listening…", progress: nil)
+            .starting(text: "Getting ready…")
+        case .recording(let mode):
+            .recording(
+                handsFree: mode == .handsFree, text: "Listening…", hint: mode == .handsFree ? handsFreeHint : nil)
         case .transcribing(let progress?):
             modelLoading(progress: progress)
         case .transcribing(nil):
-            OverlayIndicator(tone: .neutral, symbol: "waveform", message: "Transcribing…", progress: nil)
+            .transcribing(text: "Transcribing…", progress: nil)
         case .inserted:
-            OverlayIndicator(tone: .success, symbol: "checkmark.circle.fill", message: "Pasted", progress: nil)
+            .inserted(text: "Pasted")
         case .notice(let kind):
             notice(kind)
         case .error(let error):
-            OverlayIndicator(
-                tone: .error, symbol: "exclamationmark.triangle.fill", message: message(for: error), progress: nil)
+            .error(text: message(for: error))
         }
     }
 
     /// The speech model failed to load after its progress had been on screen.
-    static let modelUnavailable = OverlayIndicator(
-        tone: .warning, symbol: "exclamationmark.triangle",
-        message: "Speech model unavailable. Open the Susurro menu for details.", progress: nil)
+    static let modelUnavailable = OverlayViewState.notice(
+        symbol: "exclamationmark.triangle", text: "Speech model unavailable. Open the Susurro menu for details.")
 
     /// The speech model loading, whether a dictation waits for it or the app is idle.
-    static func modelLoading(progress: Double) -> OverlayIndicator {
+    static func modelLoading(progress: Double) -> OverlayViewState {
         let fraction = progress.loadFraction
-        return OverlayIndicator(
-            tone: .neutral, symbol: "arrow.down.circle",
-            message: "Preparing the speech model… \(Int((fraction * 100).rounded()))%", progress: fraction)
+        return .transcribing(
+            text: "Preparing the speech model… \(Int((fraction * 100).rounded()))%", progress: fraction)
     }
 
-    private static func notice(_ kind: NoticeKind) -> OverlayIndicator {
-        let (symbol, message): (String, String) =
+    private static func notice(_ kind: NoticeKind) -> OverlayViewState {
+        let (symbol, text): (String, String) =
             switch kind {
             case .noSpeech:
                 ("mic.slash", "No speech heard")
@@ -73,7 +61,7 @@ public struct OverlayIndicator: Equatable, Sendable {
             case .busy:
                 ("hourglass", "Still working on the last dictation")
             }
-        return OverlayIndicator(tone: .warning, symbol: symbol, message: message, progress: nil)
+        return .notice(symbol: symbol, text: text)
     }
 
     /// What failed, then the way out. The reason the system gave is left out: it can quote what was said.
@@ -82,6 +70,7 @@ public struct OverlayIndicator: Equatable, Sendable {
             switch error {
             case .microphoneNotGranted: "Microphone access is off."
             case .recognizerNotInstalled: "The speech model is missing."
+            case .cloudKeyMissing: "The speech service has no API key."
             case .recognizerUnavailable: "The speech model could not load."
             case .captureFailed: "Could not record."
             case .recognitionFailed: "Transcription failed."
@@ -98,6 +87,7 @@ public struct OverlayIndicator: Equatable, Sendable {
             case .settings: "Open the Susurro menu."
             case .retry: "Hold the key to try again."
             case .check: "Check the app before you dictate again."
+            case .addKey: "Open the Susurro menu to add a key."
             }
         return "\(headline) \(wayOut)"
     }

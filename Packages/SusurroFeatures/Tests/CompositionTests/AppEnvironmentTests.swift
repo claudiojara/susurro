@@ -49,6 +49,25 @@ struct AppEnvironmentTests {
         await f.environment.shutdown()
     }
 
+    @Test("choosing a modifier-only hotkey adds Input Monitoring to the permissions the app asks for, and back")
+    func hotkeyKindFollowsIntoThePermissions() async {
+        let f = AppEnvironmentFixture()
+        f.environment.start()
+        await f.eventually("the first read") { f.environment.monitor.hasReadStatuses }
+        #expect(!f.environment.monitor.requested.contains(.inputMonitoring))
+
+        f.settings.set(HotkeyKind.modifierOnly, for: HotkeySettings.kind)
+        await f.eventually("Input Monitoring to be asked for") {
+            f.environment.monitor.requested.contains(.inputMonitoring)
+        }
+
+        f.settings.set(HotkeyKind.keyed, for: HotkeySettings.kind)
+        await f.eventually("Input Monitoring to be dropped") {
+            !f.environment.monitor.requested.contains(.inputMonitoring)
+        }
+        await f.environment.shutdown()
+    }
+
     // MARK: Onboarding window
 
     @Test("the window opens at launch when a required permission is missing")

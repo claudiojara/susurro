@@ -1,5 +1,8 @@
 public enum RecordingMode: Sendable, Equatable {
+    /// The hotkey is held down while speaking.
     case hold
+    /// Started by a double tap: it goes on after the key is released, until the hotkey is pressed again.
+    case handsFree
 }
 
 public enum NoticeKind: Sendable, Equatable {
@@ -21,11 +24,15 @@ public enum Remedy: Sendable, Equatable {
     case retry
     /// Look at the app first: the text may already be there, and dictating again would duplicate it.
     case check
+    /// Add the API key of the cloud provider that is selected.
+    case addKey
 }
 
 public enum PipelineError: Error, Sendable, Equatable {
     case microphoneNotGranted
     case recognizerNotInstalled
+    /// The selected recognizer is a cloud provider that is not enabled or has no key.
+    case cloudKeyMissing
     /// The speech model failed to load. The text is the reason. `retryable` is false when trying again cannot help.
     case recognizerUnavailable(String, retryable: Bool)
     /// The capture failed. The text is the underlying error.
@@ -50,6 +57,7 @@ public enum PipelineError: Error, Sendable, Equatable {
         switch self {
         case .microphoneNotGranted: "microphoneNotGranted"
         case .recognizerNotInstalled: "recognizerNotInstalled"
+        case .cloudKeyMissing: "cloudKeyMissing"
         case .recognizerUnavailable: "recognizerUnavailable"
         case .captureFailed: "captureFailed"
         case .recognitionFailed: "recognitionFailed"
@@ -62,6 +70,7 @@ public enum PipelineError: Error, Sendable, Equatable {
         switch self {
         case .microphoneNotGranted: .permissions
         case .recognizerNotInstalled: .settings
+        case .cloudKeyMissing: .addKey
         case .recognizerUnavailable(_, let retryable): retryable ? .retry : .settings
         // An insertion that timed out may have pasted the text already, so it does not invite a second dictation.
         case .timedOut(.insertion): .check

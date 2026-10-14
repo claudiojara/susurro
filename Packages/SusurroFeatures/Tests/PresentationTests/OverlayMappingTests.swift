@@ -1,30 +1,60 @@
+import DesignSystem
 import Domain
+import SusurroUI
 import Testing
 
 @testable import Presentation
 
-@Suite("Overlay indicator mapping")
-struct OverlayIndicatorTests {
+@Suite("Overlay mapping")
+struct OverlayMappingTests {
     @Test("an idle pipeline shows nothing")
     func idleShowsNothing() {
-        #expect(OverlayIndicator.indicator(for: .idle) == nil)
+        #expect(OverlayMapping.viewState(for: .idle) == .hidden)
     }
 
     @Test(
-        "each active state has a tone and a message",
+        "each active state has a tint and a message",
         arguments: [
-            (PipelineState.starting, OverlayIndicator.Tone.neutral, "Getting ready…"),
+            (PipelineState.starting, Tint.neutral, "Getting ready…"),
             (.recording(.hold), .recording, "Listening…"),
             (.transcribing(progress: nil), .neutral, "Transcribing…"),
             (.inserted, .success, "Pasted"),
         ]
     )
-    func activeStates(state: PipelineState, tone: OverlayIndicator.Tone, message: String) {
-        let indicator = OverlayIndicator.indicator(for: state)
+    func activeStates(state: PipelineState, tint: Tint, message: String) {
+        let mapped = OverlayMapping.viewState(for: state)
 
-        #expect(indicator?.tone == tone)
-        #expect(indicator?.message == message)
-        #expect(indicator?.progress == nil)
+        #expect(mapped.tint == tint)
+        #expect(mapped.text == message)
+        #expect(mapped.progress == nil)
+    }
+
+    @Test("starting shows until the first buffer arrives, and then recording")
+    func readyGating() {
+        #expect(OverlayMapping.viewState(for: .starting) == .starting(text: "Getting ready…"))
+        #expect(
+            OverlayMapping.viewState(for: .recording(.hold))
+                == .recording(handsFree: false, text: "Listening…", hint: nil))
+    }
+
+    @Test("a hands-free recording sets the flag and tells how to stop")
+    func handsFree() {
+        let mapped = OverlayMapping.viewState(for: .recording(.handsFree))
+
+        #expect(mapped == .recording(handsFree: true, text: "Listening…", hint: OverlayMapping.handsFreeHint))
+        #expect(OverlayMapping.handsFreeHint.contains("again"))
+        #expect(OverlayMapping.handsFreeHint.contains("Esc"))
+    }
+
+    @Test("a cap notice maps to a notice that says the limit was reached")
+    func capNotice() {
+        let mapped = OverlayMapping.viewState(for: .notice(.capReached))
+
+        guard case .notice = mapped else {
+            Issue.record("Expected a notice, got \(mapped)")
+            return
+        }
+        #expect(mapped.text == "Recording limit reached. Transcribing what was said…")
     }
 
     @Test(
@@ -36,25 +66,26 @@ struct OverlayIndicatorTests {
         ]
     )
     func loadProgress(progress: Double, percent: String, fraction: Double) {
-        let indicator = OverlayIndicator.indicator(for: .transcribing(progress: progress))
+        let mapped = OverlayMapping.viewState(for: .transcribing(progress: progress))
 
-        #expect(indicator?.message == "Preparing the speech model… \(percent)")
-        #expect(indicator?.progress == fraction)
-        #expect(indicator?.tone == .neutral)
+        #expect(mapped.text == "Preparing the speech model… \(percent)")
+        #expect(mapped.progress == fraction)
+        #expect(mapped.tint == .neutral)
     }
 
-    @Test("the model indicator while idle reads like the one while waiting for the model")
-    func modelIndicatorMatchesTheWait() {
-        #expect(OverlayIndicator.modelLoading(progress: 0.3) == .indicator(for: .transcribing(progress: 0.3)))
+    @Test("the model state while idle reads like the one while waiting for the model")
+    func modelStateMatchesTheWait() {
+        #expect(
+            OverlayMapping.modelLoading(progress: 0.3) == OverlayMapping.viewState(for: .transcribing(progress: 0.3)))
     }
 
     @Test("a model that is unavailable shows a warning that names the menu")
     func modelUnavailable() {
-        let indicator = OverlayIndicator.modelUnavailable
+        let mapped = OverlayMapping.modelUnavailable
 
-        #expect(indicator.message == "Speech model unavailable. Open the Susurro menu for details.")
-        #expect(indicator.tone == .warning)
-        #expect(indicator.progress == nil)
+        #expect(mapped.text == "Speech model unavailable. Open the Susurro menu for details.")
+        #expect(mapped.tint == .warning)
+        #expect(mapped.progress == nil)
     }
 
     @Test(
@@ -71,10 +102,10 @@ struct OverlayIndicatorTests {
         ]
     )
     func notices(kind: NoticeKind, message: String) {
-        let indicator = OverlayIndicator.indicator(for: .notice(kind))
+        let mapped = OverlayMapping.viewState(for: .notice(kind))
 
-        #expect(indicator?.message == message)
-        #expect(indicator?.tone == .warning)
+        #expect(mapped.text == message)
+        #expect(mapped.tint == .warning)
     }
 
     @Test(
@@ -82,6 +113,7 @@ struct OverlayIndicatorTests {
         arguments: [
             (PipelineError.microphoneNotGranted, "Microphone access is off. Open the Susurro menu to turn it on."),
             (.recognizerNotInstalled, "The speech model is missing. Open the Susurro menu."),
+            (.cloudKeyMissing, "The speech service has no API key. Open the Susurro menu to add a key."),
             (
                 .recognizerUnavailable("offline", retryable: true),
                 "The speech model could not load. Hold the key to try again."
@@ -107,10 +139,10 @@ struct OverlayIndicatorTests {
         ]
     )
     func errors(error: PipelineError, message: String) {
-        let indicator = OverlayIndicator.indicator(for: .error(error))
+        let mapped = OverlayMapping.viewState(for: .error(error))
 
-        #expect(indicator?.message == message)
-        #expect(indicator?.tone == .error)
+        #expect(mapped == .error(text: message))
+        #expect(mapped.tint == .error)
     }
 
     @Test("the error text never repeats the reason the system gave, which can quote what was said")
@@ -121,7 +153,7 @@ struct OverlayIndicatorTests {
         ]
 
         for error in errors {
-            #expect(OverlayIndicator.indicator(for: .error(error))?.message.contains("hunter2") == false)
+            #expect(OverlayMapping.viewState(for: .error(error)).text?.contains("hunter2") == false)
         }
     }
 }
