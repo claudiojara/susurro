@@ -1,6 +1,7 @@
 import CoreTestSupport
 import Domain
 import Observation
+import Synchronization
 import Testing
 
 @testable import Presentation
@@ -83,17 +84,17 @@ struct MenuModelTests {
         let rig = Rig([.microphone: .granted, .accessibility: .granted])
         let model = MenuModel(monitor: rig.monitor)
         await rig.monitor.refresh()
-        var told = false
+        let told = Mutex(false)
 
         withObservationTracking {
             _ = model.content
         } onChange: {
-            told = true
+            told.withLock { $0 = true }
         }
         rig.board.set(.accessibility, to: .denied)
         await rig.monitor.refresh()
 
-        #expect(told)
+        #expect(told.withLock { $0 })
     }
 
     @Test("the model line follows the readiness the recognizer reports, until the stream ends")

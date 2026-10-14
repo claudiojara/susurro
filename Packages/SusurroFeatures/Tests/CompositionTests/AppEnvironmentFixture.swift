@@ -21,6 +21,17 @@ final class SpyOverlay: OverlaySurface {
     }
 }
 
+/// Counts calls from code that is not on the main actor.
+final class Counter: Sendable {
+    private let count = Mutex(0)
+
+    var value: Int { count.withLock { $0 } }
+
+    func increment() {
+        count.withLock { $0 += 1 }
+    }
+}
+
 /// The readiness the recognizer reports, to every subscriber, starting with the current value.
 final class ReadinessFeed: Sendable {
     private let state = Mutex(
@@ -64,7 +75,7 @@ final class AppEnvironmentFixture {
     let settings = InMemorySettingsStore()
     let themes: ThemeStore
     /// How many times the environment asked for the themes folder to be watched.
-    let themeWatches = Mutex(0)
+    let themeWatches = Counter()
     private let themeFolder = FileManager.default.temporaryDirectory.appendingPathComponent(
         "susurro-themes-\(UUID().uuidString)")
     private(set) var openedSettings: [Permission] = []
@@ -105,7 +116,7 @@ final class AppEnvironmentFixture {
                 restoreClipboardNow: { [unowned self] in clipboardRestores += 1 },
                 settings: settings,
                 themes: themes,
-                watchThemes: { themeWatches.withLock { $0 += 1 } },
+                watchThemes: { themeWatches.increment() },
                 clock: clock,
                 sleep: { try await sleeper.sleep($0) }
             )

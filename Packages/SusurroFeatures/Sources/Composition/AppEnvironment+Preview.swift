@@ -1,5 +1,7 @@
 import CoreTestSupport
+import DesignSystem
 import Domain
+import Foundation
 import Presentation
 
 extension AppEnvironment {
@@ -23,7 +25,9 @@ extension AppEnvironment.Dependencies {
             overlay: NoOverlay(),
             openSettings: { _ in },
             activations: { AsyncStream { _ in } },
-            restoreClipboardNow: {}
+            restoreClipboardNow: {},
+            settings: InMemorySettingsStore(),
+            themes: ThemeStore(directory: .temporaryDirectory.appending(path: "susurro-preview-themes"))
         )
     }
 }

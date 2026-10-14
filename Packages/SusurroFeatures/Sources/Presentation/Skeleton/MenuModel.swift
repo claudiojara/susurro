@@ -1,67 +1,37 @@
 import Domain
 import Observation
 
-/// The state behind the menu bar menu. It re-reads the permission statuses when asked, which the app does when it
-/// becomes active and on a slow timer, so a permission granted in System Settings shows without a relaunch. The model
-/// line follows the readiness the speech recognizer reports.
+/// The state behind the menu bar menu. The permissions come from the monitor, which reads them every second and when the
+/// app becomes active, so a permission granted or revoked in System Settings shows without the menu reading anything.
+/// The model line follows the readiness the speech recognizer reports.
 @MainActor
 @Observable
 public final class MenuModel {
-    public private(set) var content: MenuContent
-
-    @ObservationIgnored private let permissions: any PermissionsChecker
-    @ObservationIgnored private let openSettingsAction: @MainActor (Permission) -> Void
-    @ObservationIgnored private let refreshInterval: Duration
-    @ObservationIgnored private let sleep: @Sendable (Duration) async throws -> Void
-    private var microphone = PermissionStatus.notDetermined
-    private var accessibility = PermissionStatus.notDetermined
+    @ObservationIgnored private let monitor: PermissionsMonitor
     private var readiness = RecognizerReadiness.loading(progress: 0)
 
-    /// - Parameters:
-    ///   - openSettings: Opens the System Settings pane where the user changes a permission.
-    ///   - refreshInterval: The pause between reads of the statuses in `keepRefreshing`.
-    public init(
-        permissions: any PermissionsChecker,
-        openSettings: @escaping @MainActor (Permission) -> Void,
-        refreshInterval: Duration = .seconds(2),
-        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
-    ) {
-        self.permissions = permissions
-        openSettingsAction = openSettings
-        self.refreshInterval = refreshInterval
-        self.sleep = sleep
-        content = MenuContent.make(
-            microphone: .notDetermined, accessibility: .notDetermined, readiness: .loading(progress: 0))
+    public init(monitor: PermissionsMonitor) {
+        self.monitor = monitor
     }
 
-    /// Reads both statuses again.
-    public func refresh() async {
-        microphone = await permissions.status(.microphone)
-        accessibility = await permissions.status(.accessibility)
-        rebuild()
-    }
-
-    /// Reads the statuses now and every `refreshInterval` after, until the task is cancelled.
-    public func keepRefreshing() async {
-        while !Task.isCancelled {
-            await refresh()
-            do { try await sleep(refreshInterval) } catch { return }
-        }
+    /// What the menu shows now. It reads the monitor's statuses, which are observable, so a view that reads it is drawn
+    /// again when a permission changes.
+    public var content: MenuContent {
+        MenuContent.make(
+            microphone: monitor.statuses[.microphone] ?? .notDetermined,
+            accessibility: monitor.statuses[.accessibility] ?? .notDetermined,
+            disabledReason: monitor.disabledReason,
+            readiness: readiness)
     }
 
     /// Follows the readiness of the speech model until the stream ends.
     public func observe(_ changes: AsyncStream<RecognizerReadiness>) async {
-        for await value in changes {
-            readiness = value
-            rebuild()
-        }
+        for await value in changes { readiness = value }
     }
 
+    /// Opens the System Settings pane of the permission, through the monitor, which then follows the permission until
+    /// its status changes.
     public func openSettings(for permission: Permission) {
-        openSettingsAction(permission)
-    }
-
-    private func rebuild() {
-        content = MenuContent.make(microphone: microphone, accessibility: accessibility, readiness: readiness)
+        monitor.openSettings(for: permission)
     }
 }

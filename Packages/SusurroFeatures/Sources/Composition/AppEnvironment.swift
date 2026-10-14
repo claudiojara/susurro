@@ -1,3 +1,4 @@
+import DesignSystem
 import Domain
 import Pipeline
 import Presentation
@@ -24,6 +25,14 @@ public final class AppEnvironment {
         public var activations: @Sendable () -> AsyncStream<Void>
         /// Puts the user's clipboard back at once if a paste is still under way. It runs as the app terminates.
         public var restoreClipboardNow: @MainActor () -> Void
+        /// The user's settings. No setting is read yet: the first ones arrive with the hotkey configuration.
+        public var settings: any SettingsStore
+        /// The themes the user has put in the themes folder, and the one in use.
+        public var themes: ThemeStore
+        /// Starts watching the themes folder, so an edited theme file shows at once. Only debug builds do anything.
+        public var watchThemes: @Sendable () async -> Void
+        /// Times the permissions monitor: its poll and the wait before it shows the troubleshooting steps.
+        public var clock: any Clock<Duration>
         /// Paces every wait of the graph. Tests pass a fake.
         public var sleep: @Sendable (Duration) async throws -> Void
 
@@ -39,6 +48,10 @@ public final class AppEnvironment {
             openSettings: @escaping @MainActor (Permission) -> Void,
             activations: @escaping @Sendable () -> AsyncStream<Void>,
             restoreClipboardNow: @escaping @MainActor () -> Void,
+            settings: any SettingsStore,
+            themes: ThemeStore,
+            watchThemes: @escaping @Sendable () async -> Void = {},
+            clock: any Clock<Duration> = ContinuousClock(),
             sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
         ) {
             self.hotkeys = hotkeys
@@ -52,12 +65,24 @@ public final class AppEnvironment {
             self.openSettings = openSettings
             self.activations = activations
             self.restoreClipboardNow = restoreClipboardNow
+            self.settings = settings
+            self.themes = themes
+            self.watchThemes = watchThemes
+            self.clock = clock
             self.sleep = sleep
         }
     }
 
     /// The state behind the menu bar menu.
     public let menu: MenuModel
+    /// What the app knows about the permissions: the menu, the onboarding, and the overlay read it.
+    public let monitor: PermissionsMonitor
+    /// The onboarding screen's view model, over the monitor.
+    public let onboarding: OnboardingViewModel
+    /// The theme the app's windows are drawn in.
+    public let themes: ThemeModel
+    /// The user's settings.
+    public let settings: any SettingsStore
 
     private let dependencies: Dependencies
     private let coordinator: DictationCoordinator
@@ -85,20 +110,23 @@ public final class AppEnvironment {
         watcher = ModelLoadWatcher(
             sleep: sleep, report: { presenter.setModelProgress($0) },
             reportUnavailable: { presenter.showModelUnavailable() })
+        monitor = PermissionsMonitor(
+            checker: dependencies.permissions, openSettings: dependencies.openSettings, clock: dependencies.clock,
+            diagnostics: dependencies.diagnostics)
         prompter = PermissionPrompter(checker: dependencies.permissions)
-        menu = MenuModel(
-            permissions: dependencies.permissions,
-            openSettings: dependencies.openSettings,
-            sleep: sleep
-        )
+        onboarding = OnboardingViewModel(monitor: monitor)
+        menu = MenuModel(monitor: monitor)
+        themes = ThemeModel()
+        settings = dependencies.settings
     }
 
-    /// Starts the app's work: the overlay, the hotkey, the model, the permission prompts, and the menu. It does
-    /// nothing the second time.
+    /// Starts the app's work: the overlay, the hotkey, the model, the permission prompts and monitor, and the themes. It
+    /// does nothing the second time.
     public func start() {
         guard !hasStarted else { return }
         hasStarted = true
         dependencies.diagnostics.record(.appLaunched)
+        monitor.start()
         // The overlay listens before the coordinator can publish, and the coordinator registers the hotkey when it runs.
         run { await $0.presenter.run(states: $0.coordinator.states) }
         run { await $0.coordinator.run() }
@@ -106,15 +134,15 @@ public final class AppEnvironment {
         run { await $0.menu.observe(await $0.dependencies.readinessChanges()) }
         run { await $0.logModelReadiness() }
         run { await $0.launch() }
-        run { await $0.menu.keepRefreshing() }
-        run { environment in
-            for await _ in environment.dependencies.activations() { await environment.menu.refresh() }
-        }
+        run { await $0.monitor.run(activations: $0.dependencies.activations()) }
+        run { await $0.themes.follow(await $0.dependencies.themes.updates()) }
+        run { await $0.dependencies.watchThemes() }
     }
 
-    /// Stops the coordinator, which stops a recording and waits a moment for a paste to put the clipboard back, and
-    /// then the rest. The app calls it when the user quits.
+    /// Stops the permission poll and the coordinator, which stops a recording and waits a moment for a paste to put the
+    /// clipboard back, and then the rest. The app calls it when the user quits.
     public func shutdown() async {
+        monitor.stop()
         await coordinator.shutdown()
         for task in tasks { task.cancel() }
         tasks = []
@@ -129,13 +157,12 @@ public final class AppEnvironment {
 
     // MARK: Launch
 
-    /// The model starts loading before the first press, then the permission prompts come one at a time, and then the
-    /// menu reads what the user answered.
+    /// The model starts loading before the first press, then the permission prompts come one at a time, until the
+    /// onboarding window replaces them. The monitor reads what the user answered.
     private func launch() async {
         dependencies.diagnostics.record(.modelPrepareRequested)
         await dependencies.recognizer.prepare()
         await prompter.requestMissingPermissions()
-        await menu.refresh()
         let microphone = await dependencies.permissions.status(.microphone)
         let accessibility = await dependencies.permissions.status(.accessibility)
         dependencies.diagnostics.record(
