@@ -10,6 +10,7 @@ struct CoordinatorHarness {
     let recognizer: FakeRecognizer
     let inserter: FakeTextInserter
     let sleeper: FakeSleeper
+    let clock: ManualClock
     let diagnostics: RecordingDiagnostics
     let sut: DictationCoordinator
     private var states: AsyncStream<PipelineState>.Iterator
@@ -19,12 +20,14 @@ struct CoordinatorHarness {
         capture: FakeAudioCaptureSource = FakeAudioCaptureSource(),
         recognizer: FakeRecognizer = FakeRecognizer(),
         inserter: FakeTextInserter = FakeTextInserter(),
-        sleeper: FakeSleeper = FakeSleeper()
+        sleeper: FakeSleeper = FakeSleeper(),
+        clock: ManualClock = ManualClock()
     ) async {
         self.capture = capture
         self.recognizer = recognizer
         self.inserter = inserter
         self.sleeper = sleeper
+        self.clock = clock
         let diagnostics = RecordingDiagnostics()
         self.diagnostics = diagnostics
         let coordinator = DictationCoordinator(
@@ -34,7 +37,8 @@ struct CoordinatorHarness {
             inserter: inserter,
             permissions: permissions,
             diagnostics: diagnostics,
-            sleep: { try await sleeper.sleep($0) }
+            sleep: { try await sleeper.sleep($0) },
+            clock: clock
         )
         sut = coordinator
         states = coordinator.states.makeAsyncIterator()

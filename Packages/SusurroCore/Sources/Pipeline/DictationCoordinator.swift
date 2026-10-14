@@ -1,23 +1,37 @@
+import Activation
 import Domain
 
-/// Runs one hold-to-talk dictation at a time: key down records, key up transcribes the whole clip and inserts the
-/// text. A hold that runs into the recording cap is transcribed at once, and its text waits for the release before it
-/// goes in. A press while a dictation is recording or processing is ignored, and one that finds it processing says so
-/// with a busy notice. Every wait is bounded, and so is the whole of the processing, so the coordinator always returns
-/// to idle.
+/// Runs the dictations the hotkey asks for, one at a time. The hotkey events go through the `ActivationMachine` reducer,
+/// and the coordinator executes the effects it returns: hold to talk (key down records, key up transcribes the whole
+/// clip and inserts the text), a tap that is discarded, a double tap that records hands-free until the next press, and
+/// Esc, which cancels whatever is in flight without inserting anything. A recording that runs into the cap, whether it is
+/// the time cap of the machine or the size limit of the clip, is transcribed at once, and its text waits for the key to
+/// come up before it goes in. A press while a dictation is processing is ignored and says so with a busy notice, until
+/// the processing queue (which lets a new recording start meanwhile) arrives. Every wait is bounded, and so is the whole
+/// of the processing, so the coordinator always returns to idle.
 public actor DictationCoordinator {
     private enum Phase {
         case idle
-        case starting  // preconditions are being checked and the capture is starting
+        case starting  // the capture is starting
         case capturing
         case finishing  // capture is being stopped and drained
         case processing  // the clip is being transcribed and inserted
         case stopped  // after shutdown()
     }
 
-    private enum FinishReason {
-        case released(heldFor: Duration)
-        case capReached
+    /// How a recording ends, which the reducer decides.
+    private enum RecordingEnd {
+        /// The clip is submitted and becomes a job.
+        case submit(ActivationMachine.Effect.FinishMode)
+        /// A tap: the clip is thrown away.
+        case discard
+        /// Esc: the clip is not processed.
+        case cancel
+
+        var isJob: Bool {
+            if case .submit = self { return true }
+            return false
+        }
     }
 
     private static let capSampleCount = Int(DictationLimits.recordingCap / .seconds(1)) * AudioClip.sampleRate
@@ -29,6 +43,7 @@ public actor DictationCoordinator {
     private let permissions: any PermissionsChecker
     private let diagnostics: any DiagnosticsLog
     private let sleep: @Sendable (Duration) async throws -> Void
+    private let clock: any Clock<Duration>
 
     /// The current state first, then every change. It has a single consumer, which sees every state since creation.
     public nonisolated let states: AsyncStream<PipelineState>
@@ -36,18 +51,30 @@ public actor DictationCoordinator {
     private var phase = Phase.idle
     private var published = PipelineState.idle
     private let continuation: AsyncStream<PipelineState>.Continuation
-    private var pressedAt = Duration.zero
+    /// The state of the reducer and the timers it asked for.
+    private let machine = ActivationMachine()
+    private var activation = ActivationMachine.State()
+    private var timers = ActivationTimers()
+    private var escapeArmed = false
     /// Whether the key of the dictation that began last is still down.
     private var keyIsDown = false
     /// Ends when that key comes up, for the text that waits for it.
     private var keyUps: AsyncStream<Void>
     private var keyUp: AsyncStream<Void>.Continuation
-    private var pendingRelease: Duration?
+    /// How the recording that is starting or running was started.
+    private var recordingMode = RecordingMode.hold
+    /// How the recording ends, when the reducer ended it before the capture had started. It is honored as soon as the
+    /// capture has started.
+    private var pendingEnd: RecordingEnd?
     private var samples: [Float] = []
     private var receivedAudio = false
     private var captureFailure: String?
     private var captureTask: Task<Void, Never>?
     private var processTask: Task<Void, Never>?
+    /// The number of the newest job, and the number of the one Esc cancelled last. A job checks its own number, so a job
+    /// that was cancelled stays cancelled however late its work returns.
+    private var jobSerial = 0
+    private var cancelledSerial = 0
     /// The stage of the dictation being processed, which a cap that runs out names in its error.
     private var processingStage = PipelineError.Stage.readiness
     /// Whether the total cap ran out on the dictation being processed, as opposed to the limit of one of its stages.
@@ -58,6 +85,8 @@ public actor DictationCoordinator {
     /// - Parameters:
     ///   - diagnostics: Where failures that would otherwise be swallowed are reported. They carry no text.
     ///   - sleep: Paces readiness checks and times out the waits. Tests pass a fake.
+    ///   - clock: Runs the timers of the activation machine: the recording cap and the double-tap window. Tests pass a
+    ///     `ManualClock`.
     public init(
         hotkeys: any HotkeySource,
         capture: any AudioCaptureSource,
@@ -65,7 +94,8 @@ public actor DictationCoordinator {
         inserter: any TextInserter,
         permissions: any PermissionsChecker,
         diagnostics: any DiagnosticsLog = NoDiagnostics(),
-        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        clock: any Clock<Duration> = ContinuousClock()
     ) {
         self.hotkeys = hotkeys
         self.capture = capture
@@ -74,6 +104,7 @@ public actor DictationCoordinator {
         self.permissions = permissions
         self.diagnostics = diagnostics
         self.sleep = sleep
+        self.clock = clock
         (states, continuation) = AsyncStream.makeStream()
         (keyUps, keyUp) = AsyncStream.makeStream()
         continuation.yield(.idle)
@@ -95,6 +126,7 @@ public actor DictationCoordinator {
             let wasRecording = phase == .capturing || phase == .finishing
             let processing = processTask
             phase = .stopped
+            timers.cancelAll()
             captureTask?.cancel()
             processing?.cancel()
             samples = []
@@ -109,6 +141,7 @@ public actor DictationCoordinator {
         captureTask = nil
         processTask = nil
         await drainInserter()
+        setEscapeArmed(false)
         publish(.idle)
         continuation.finish()
     }
@@ -127,24 +160,147 @@ public actor DictationCoordinator {
     /// Applies one hotkey event. Events must arrive one at a time, as `run()` delivers them. The call returns once
     /// the event is applied, before any transcription it starts has finished.
     public func handle(_ event: HotkeyEvent) async {
+        guard phase != .stopped else { return }
         switch event {
         case .down(let time): await pressed(at: time)
         case .up(let time): await released(at: time)
-        case .escape: break
+        case .escape: await run(.escape)
         }
     }
 
+    // MARK: Events
+
     private func pressed(at time: Duration) async {
+        guard activation.startsCaptureOnPress else {
+            if activation.acceptsPress { beginKeyPress() }
+            return await run(.down(at: time))
+        }
         guard phase == .idle else { return reportBusyIfProcessing() }
         phase = .starting
-        pressedAt = time
-        pendingRelease = nil
+        pendingEnd = nil
+        beginKeyPress()
+        let failure = await startFailure()
+        guard phase == .starting else { return }  // shut down meanwhile
+        await run(.down(at: time, startFailure: failure))
+    }
+
+    private func released(at time: Duration) async {
+        keyIsDown = false
+        keyUp.finish()
+        await run(.up(at: time))
+    }
+
+    /// The key of a dictation went down. The text that waits for the key waits for this press.
+    private func beginKeyPress() {
         keyIsDown = true
         (keyUps, keyUp) = AsyncStream.makeStream()
+    }
+
+    /// A press that finds the last dictation still being processed gets no recording, so it says so. The state that was
+    /// showing comes right back: the dictation carries on unchanged.
+    private func reportBusyIfProcessing() {
+        guard phase == .processing else { return }
+        let showing = published
+        publish(.notice(.busy))
+        publish(showing)
+    }
+
+    /// Sends the event to the reducer and executes what it asks for, and returns once a recording that the event ended
+    /// has finished stopping.
+    private func run(_ event: ActivationMachine.Event) async {
+        await dispatch(event)?.value
+    }
+
+    /// Like `run`, for events that come from inside: the task that stops a recording is left to run, since the caller can
+    /// be the very task that it waits for.
+    @discardableResult
+    private func dispatch(_ event: ActivationMachine.Event) async -> Task<Void, Never>? {
+        let transition = machine.reduce(activation, event)
+        activation = transition.state
+        return await execute(transition.effects)
+    }
+
+    // MARK: Effects
+
+    /// Executes the effects in the order the reducer lists them, except that the capture starts last: it can take a
+    /// while, and the timers and the Esc registration must be in place by then, since a release can arrive meanwhile.
+    /// Returns the task that stops the recording, if the effects end one.
+    private func execute(_ effects: [ActivationMachine.Effect]) async -> Task<Void, Never>? {
+        var finishing: Task<Void, Never>?
+        var starting: RecordingMode?
+        for effect in effects {
+            switch effect {
+            case .armEsc: setEscapeArmed(true)
+            case .disarmEsc: setEscapeArmed(false)
+            case .startCapture(let mode): starting = mode
+            case .captureContext: break  // Context capture hooks in here.
+            case .scheduleCap(let duration): schedule(.cap, after: duration)
+            case .cancelCap: timers.cancel(.cap)
+            case .scheduleDoubleTapTimeout(let duration): schedule(.doubleTap, after: duration)
+            case .cancelDoubleTapTimeout: timers.cancel(.doubleTap)
+            case .finish(let mode): finishing = await endRecording(.submit(mode))
+            case .discardCapture: finishing = await endRecording(.discard)
+            case .cancelCapture: finishing = await endRecording(.cancel)
+            case .cancelNewestJob: cancelNewestJob()
+            case .notice(let kind): publish(.notice(kind))
+            case .showError(let error): await settle(.error(error))
+            }
+        }
+        if let starting { await startRecording(starting) }
+        return finishing
+    }
+
+    private func schedule(_ kind: ActivationTimers.Kind, after duration: Duration) {
+        timers.schedule(kind, after: duration, on: clock) { [self] token in
+            await self.timerFired(kind, token: token)
+        }
+    }
+
+    private func timerFired(_ kind: ActivationTimers.Kind, token: Int) async {
+        guard phase != .stopped, timers.complete(kind, token: token) else { return }
+        switch kind {
+        case .cap: await dispatch(.capReached)
+        case .doubleTap: await dispatch(.doubleTapTimeout)
+        }
+    }
+
+    private func setEscapeArmed(_ armed: Bool) {
+        guard armed != escapeArmed else { return }
+        escapeArmed = armed
+        hotkeys.setEscapeArmed(armed)
+    }
+
+    // MARK: Start
+
+    /// Reads what the start depends on and asks the rule whether the recording may start. The recognizer is asked to
+    /// prepare when it is not ready, which starts a load that never started and retries one that failed; what it says
+    /// afterward counts, not what it said before.
+    private func startFailure() async -> PipelineError? {
         do {
-            try await checkStartPreconditions()
-            guard phase == .starting else { return }  // shut down meanwhile
-            publish(.starting)
+            let microphone = await permissions.status(.microphone)
+            var readiness = RecognizerReadiness.ready
+            if microphone == .granted {
+                readiness = await recognizer.readiness()
+                if readiness != .ready, readiness != .notInstalled {
+                    try await withDeadline(DictationLimits.prepareTimeout, stage: .readiness, sleep: sleep) {
+                        [recognizer] in
+                        await recognizer.prepare()
+                    }
+                    readiness = await recognizer.readiness()
+                }
+            }
+            return StartPreconditions.evaluate(microphone: microphone, recognizer: readiness)
+        } catch {
+            return Self.pipelineError(from: error, otherwise: PipelineError.captureFailed)
+        }
+    }
+
+    /// Starts the capture, shows that it is starting, and carries on to the recording once it has. A press that ended
+    /// while the capture was starting is honored as soon as it has.
+    private func startRecording(_ mode: RecordingMode) async {
+        recordingMode = mode
+        publish(.starting)
+        do {
             let stream = try await startCapture()
             guard phase == .starting else { return await abandonCapture() }  // shut down meanwhile
             samples = []
@@ -152,10 +308,22 @@ public actor DictationCoordinator {
             captureFailure = nil
             phase = .capturing
             captureTask = Task { await self.consume(stream) }
-            if let release = pendingRelease { await released(at: release) }
+            if let pending = pendingEnd {
+                pendingEnd = nil
+                await endRecording(pending)?.value
+            }
         } catch {
-            settle(.error(Self.pipelineError(from: error, otherwise: PipelineError.captureFailed)))
+            await captureCouldNotStart(error)
         }
+    }
+
+    /// The recording did not start. The reducer goes back to idle, and an end that was waiting for the start is dropped.
+    private func captureCouldNotStart(_ error: any Error) async {
+        let dropped = pendingEnd
+        pendingEnd = nil
+        await dispatch(.captureFailed)
+        if dropped?.isJob == true { await dispatch(.jobFinished) }
+        await settle(.error(Self.pipelineError(from: error, otherwise: PipelineError.captureFailed)))
     }
 
     /// Starts the capture within its limit. One that has not started in time is told to stop, in case it starts late
@@ -172,52 +340,11 @@ public actor DictationCoordinator {
         }
     }
 
-    /// A press that finds the last dictation still being processed gets no recording, so it says so. The state that was
-    /// showing comes right back: the dictation carries on unchanged.
-    private func reportBusyIfProcessing() {
-        guard phase == .processing else { return }
-        let showing = published
-        publish(.notice(.busy))
-        publish(showing)
-    }
-
-    private func released(at time: Duration) async {
-        keyIsDown = false
-        keyUp.finish()
-        switch phase {
-        case .starting:
-            pendingRelease = time  // honored as soon as the capture has started
-        case .capturing:
-            await beginFinishing(reason: .released(heldFor: time - pressedAt))?.value
-        default:
-            return
-        }
-    }
-
-    private func checkStartPreconditions() async throws {
-        guard await permissions.status(.microphone) == .granted else { throw PipelineError.microphoneNotGranted }
-        var readiness = await recognizer.readiness()
-        if readiness == .ready { return }
-        if readiness != .notInstalled {
-            // A press is the chance to start a load that never started, or to retry one that failed. Preparing is
-            // idempotent, so it is asked every time and the recognizer decides. What it says afterward counts, not
-            // what it said before.
-            try await withDeadline(DictationLimits.prepareTimeout, stage: .readiness, sleep: sleep) { [recognizer] in
-                await recognizer.prepare()
-            }
-            readiness = await recognizer.readiness()
-        }
-        switch readiness {
-        case .notInstalled: throw PipelineError.recognizerNotInstalled
-        case .unavailable(let reason, let retryable):
-            throw PipelineError.recognizerUnavailable(reason, retryable: retryable)
-        case .loading, .ready: break
-        }
-    }
+    // MARK: Recording
 
     private func consume(_ stream: AsyncThrowingStream<AudioChunk, Error>) async {
         do {
-            for try await chunk in stream { receive(chunk) }
+            for try await chunk in stream { await receive(chunk) }
         } catch {
             // The samples captured so far stay in the clip. If none arrived, the release reports this failure.
             captureFailure = String(describing: error)
@@ -225,27 +352,45 @@ public actor DictationCoordinator {
         }
     }
 
-    private func receive(_ chunk: AudioChunk) {
+    private func receive(_ chunk: AudioChunk) async {
         if !receivedAudio, phase == .capturing {
             receivedAudio = true
-            publish(.recording(.hold))
+            publish(.recording(recordingMode))
         }
         samples.append(contentsOf: chunk.samples)
-        if samples.count >= Self.capSampleCount, beginFinishing(reason: .capReached) != nil {
-            diagnostics.record(.recordingCapReached)
+        if samples.count >= Self.capSampleCount, phase == .capturing {
+            await dispatch(.capReached)
         }
     }
 
-    /// Claims the recording for finishing, so the release and the cap cannot both finish it.
-    @discardableResult
-    private func beginFinishing(reason: FinishReason) -> Task<Void, Never>? {
-        guard phase == .capturing else { return nil }
-        phase = .finishing
-        return Task { await self.finishRecording(reason) }
+    /// Ends the recording the way the reducer decided. While the capture is still starting the end waits for it. The
+    /// task that stops the capture is returned, so that a caller that can wait for it does.
+    private func endRecording(_ end: RecordingEnd) async -> Task<Void, Never>? {
+        let serial = end.isJob ? newJob() : jobSerial
+        switch phase {
+        case .starting:
+            pendingEnd = end
+            return nil
+        case .capturing:
+            if case .submit(.cap) = end { diagnostics.record(.recordingCapReached) }
+            phase = .finishing
+            return Task { await self.finishRecording(end, serial: serial) }
+        case .idle, .finishing, .processing, .stopped:
+            // Nothing is being captured, so a job that this was to start does not exist.
+            if end.isJob { await dispatch(.jobFinished) }
+            return nil
+        }
     }
 
-    /// Stops capture, waits for the buffered chunks, then discards the clip or starts processing it.
-    private func finishRecording(_ reason: FinishReason) async {
+    /// A recording was submitted: a job is in flight from now on.
+    private func newJob() -> Int {
+        jobSerial += 1
+        activation = machine.reduce(activation, .jobEnqueued).state
+        return jobSerial
+    }
+
+    /// Stops capture, waits for the buffered chunks, then throws the clip away or starts processing it.
+    private func finishRecording(_ end: RecordingEnd, serial: Int) async {
         do {
             try await withDeadline(DictationLimits.captureStopTimeout, stage: .capture, sleep: sleep) {
                 [capture, captureTask] in
@@ -254,25 +399,33 @@ public actor DictationCoordinator {
             }
         } catch {
             captureTask?.cancel()
-            return settle(.error(Self.pipelineError(from: error, otherwise: PipelineError.captureFailed)))
+            return await settle(
+                .error(Self.pipelineError(from: error, otherwise: PipelineError.captureFailed)), endsJob: end.isJob)
         }
         guard phase == .finishing else { return }  // shut down meanwhile
         captureTask = nil
         let clip = AudioClip(samples: samples)
         samples = []
 
-        switch reason {
-        case .released(let heldFor):
-            guard heldFor >= DictationLimits.minimumHold else { return settle() }
+        switch end {
+        case .discard, .cancel:
+            return await settle()
+        case .submit:
+            guard cancelledSerial != serial else { return await settle(endsJob: true) }
             guard !clip.samples.isEmpty else {
-                return settle(.error(.captureFailed(captureFailure ?? "no audio was captured")))
+                return await settle(.error(.captureFailed(captureFailure ?? "no audio was captured")), endsJob: true)
             }
-        case .capReached:
-            publish(.notice(.capReached))
         }
         phase = .processing
         publish(.transcribing(progress: nil))
-        processTask = Task { await self.process(clip) }
+        processTask = Task { await self.process(clip, serial: serial) }
+    }
+
+    /// Esc cancels the newest job: it inserts nothing, whatever stage it is in. Its processing ends quietly and the job
+    /// finishes as any other.
+    private func cancelNewestJob() {
+        cancelledSerial = jobSerial
+        processTask?.cancel()
     }
 
     /// Best effort: a capture that does not stop in time is abandoned. It runs in an unstructured task, so a caller
@@ -290,22 +443,27 @@ public actor DictationCoordinator {
         }.value
     }
 
+    // MARK: Processing
+
     /// Runs the processing of one clip inside the total cap. The work returns the state to end on and does not settle
     /// the cycle itself, so work that the cap abandons cannot settle it after the cap has.
-    private func process(_ clip: AudioClip) async {
+    private func process(_ clip: AudioClip, serial: Int) async {
         processingStage = .readiness
         processingCapRanOut = false
         do {
             let outcome = try await withDeadline(
                 DictationLimits.processingCap, stageAtExpiry: { await self.capRanOut() }, sleep: sleep
             ) {
-                try await self.transcribeAndInsert(clip)
+                try await self.transcribeAndInsert(clip, serial: serial)
             }
-            settle(outcome)
+            await settle(outcome, endsJob: true)
         } catch {
+            // The user cancelled it: there is nothing to show.
+            if cancelledSerial == serial { return await settle(endsJob: true) }
             // The error alone cannot say which limit ended the dictation: the cap and a stage name the same stage.
             if processingCapRanOut { diagnostics.record(.processingCapReached) }
-            settle(.error(Self.pipelineError(from: error, otherwise: PipelineError.recognitionFailed)))
+            await settle(
+                .error(Self.pipelineError(from: error, otherwise: PipelineError.recognitionFailed)), endsJob: true)
         }
     }
 
@@ -315,7 +473,7 @@ public actor DictationCoordinator {
         return processingStage
     }
 
-    private func transcribeAndInsert(_ clip: AudioClip) async throws -> PipelineState {
+    private func transcribeAndInsert(_ clip: AudioClip, serial: Int) async throws -> PipelineState {
         try await waitUntilRecognizerIsReady()
         processingStage = .transcription
         let transcript = try await withDeadline(
@@ -323,9 +481,12 @@ public actor DictationCoordinator {
         ) { [recognizer] in
             try await recognizer.transcribe(clip, options: RecognitionOptions())
         }
+        // A job that Esc cancelled inserts nothing, even if the recognizer returned the text meanwhile.
+        guard cancelledSerial != serial else { throw CancellationError() }
         guard !transcript.text.allSatisfy(\.isWhitespace) else { return .notice(.noSpeech) }
         processingStage = .insertion
         try await waitForKeyRelease()
+        guard cancelledSerial != serial else { throw CancellationError() }
         let outcome = try await withDeadline(DictationLimits.insertionTimeout, stage: .insertion, sleep: sleep) {
             [inserter] in
             await inserter.insert(transcript.text)
@@ -395,8 +556,13 @@ public actor DictationCoordinator {
         error as? PipelineError ?? make(String(describing: error))
     }
 
-    /// Ends a cycle: shows the outcome, if any, and returns to idle.
-    private func settle(_ outcome: PipelineState? = nil) {
+    // MARK: Outcome
+
+    /// Ends a cycle: shows the outcome, if any, and returns to idle. A cycle that ended a job tells the reducer first, so
+    /// that Esc is already released when the idle state shows.
+    private func settle(_ outcome: PipelineState? = nil, endsJob: Bool = false) async {
+        guard phase != .stopped else { return }
+        if endsJob { await dispatch(.jobFinished) }
         guard phase != .stopped else { return }
         if let outcome {
             if case .error(let error) = outcome { diagnostics.record(.dictationFailed(kind: error.kind)) }
