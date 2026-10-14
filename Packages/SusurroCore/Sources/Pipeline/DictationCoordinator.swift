@@ -130,6 +130,7 @@ public actor DictationCoordinator {
         switch event {
         case .down(let time): await pressed(at: time)
         case .up(let time): await released(at: time)
+        case .escape: break
         }
     }
 
