@@ -25,6 +25,25 @@ enum OnboardingCopy {
         OnboardingAction(kind: .request, title: "Allow \(permission.displayName)")
     }
 
+    /// The button for a step of `PermissionStep`.
+    static func action(_ action: PermissionStep.Action, for permission: Permission) -> OnboardingAction {
+        switch action {
+        case .request: requestAction(permission)
+        case .openSettings: openSettingsAction
+        }
+    }
+
+    /// The status a row shows for where the permission stands. A stale one carries the troubleshooting that fits it.
+    static func status(_ standing: PermissionStep.Standing, for permission: Permission) -> OnboardingRowStatus {
+        switch standing {
+        case .granted: .granted
+        case .notAsked: .notAsked
+        case .denied: .denied
+        case .waiting: .waiting
+        case .stale: .stale(guidance: staleGuidance(permission))
+        }
+    }
+
     static func why(_ permission: Permission) -> String {
         switch permission {
         case .microphone: "Needed to hear you while you hold the dictation hotkey."

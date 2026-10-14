@@ -300,6 +300,43 @@ struct OnboardingViewModelTests {
         #expect(shown.action?.kind == .openSettings)
     }
 
+    @Test("a trip to System Settings keeps Allow for a permission that was never requested")
+    func settingsTripKeepsAllowWhenNotDetermined() async throws {
+        let rig = Rig([.microphone: .notDetermined, .accessibility: .granted])
+        let model = OnboardingViewModel(monitor: rig.monitor)
+        await rig.monitor.refresh()
+
+        model.openSettings(.microphone)
+
+        let shown = try row(.microphone, of: model)
+        #expect(rig.panes.opened == [.microphone])
+        #expect(shown.status == .notAsked)
+        #expect(shown.action == OnboardingCopy.requestAction(.microphone))
+    }
+
+    @Test("the menu and the onboarding offer the same step for every status and follow-up")
+    func menuAndOnboardingAgreeOnTheStep() throws {
+        let followUps: [PermissionsMonitor.FollowUp?] = [nil, .requesting, .sentToSettings, .stale]
+        var compared = 0
+        for status in [PermissionStatus.notDetermined, .denied, .granted] {
+            for followUp in followUps {
+                for permission in [Permission.microphone, .accessibility] {
+                    let menu = MenuContent.make(
+                        microphone: permission == .microphone ? status : .granted,
+                        accessibility: permission == .accessibility ? status : .granted,
+                        followUps: followUp.map { [permission: $0] } ?? [:], restriction: nil, readiness: .ready)
+                    let menuRow = permission == .microphone ? menu.microphone : menu.accessibility
+                    let onboardingRow = OnboardingViewModel.row(for: permission, status: status, followUp: followUp)
+
+                    #expect(menuRow.action?.kind.name == onboardingRow.action?.kind.name)
+                    #expect(menuRow.isGranted == (onboardingRow.status == .granted))
+                    compared += 1
+                }
+            }
+        }
+        #expect(compared == 24)
+    }
+
     @Test("a row that waits while its permission is not denied offers System Settings, and gets the troubleshooting")
     func waitingWithoutDeniedIsNotStuck() async throws {
         // The system can answer a request at once and leave the status as it was, as Input Monitoring does.
@@ -485,5 +522,24 @@ struct OnboardingViewModelTests {
         model.openSettings(.accessibility)
 
         #expect(told.withLock { $0 })
+    }
+}
+
+extension PermissionStep.Action {
+    /// The two kinds of step by name, so that the menu's and the onboarding's can be compared.
+    fileprivate var name: String {
+        switch self {
+        case .request: "request"
+        case .openSettings: "openSettings"
+        }
+    }
+}
+
+extension OnboardingAction.Kind {
+    fileprivate var name: String {
+        switch self {
+        case .request: "request"
+        case .openSettings: "openSettings"
+        }
     }
 }

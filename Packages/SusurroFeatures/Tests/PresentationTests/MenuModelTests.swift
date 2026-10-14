@@ -139,6 +139,53 @@ struct MenuModelTests {
         #expect(model.content.microphone.isGranted)
     }
 
+    @Test("allowing a permission asks the monitor, which asks the system and then waits for the status to change")
+    func allowRequestsThroughTheMonitor() async {
+        let rig = Rig([.microphone: .notDetermined, .accessibility: .granted])
+        let model = MenuModel(monitor: rig.monitor)
+        await rig.monitor.refresh()
+        let before = model.content.microphone.action
+
+        await model.request(.microphone)
+
+        #expect(before == MenuContent.PermissionRow.Action(kind: .request, title: "Allow Microphone…"))
+        #expect(rig.board.requested == [.microphone])
+        // The answer left the status as it was, so the next step is System Settings.
+        #expect(
+            model.content.microphone.action
+                == MenuContent.PermissionRow.Action(
+                    kind: .openSettings, title: "Open System Settings for Microphone…"))
+    }
+
+    @Test("while the system prompt is up the menu offers nothing for the permission")
+    func nothingWhileThePromptIsUp() async {
+        let checker = FakePermissionsChecker([.microphone: .notDetermined], gatedRequests: true)
+        let monitor = PermissionsMonitor(checker: checker, openSettings: { _ in }, clock: ManualClock())
+        let model = MenuModel(monitor: monitor)
+        await monitor.refresh()
+
+        let asking = Task { await model.request(.microphone) }
+        await checker.requestEntered.wait()
+        let whileUp = model.content.microphone.action
+        checker.releaseRequest()
+        await asking.value
+
+        #expect(whileUp == nil)
+    }
+
+    @Test("a trip to System Settings from the menu keeps the item that opens it")
+    func settingsTripKeepsTheItem() async {
+        let rig = Rig([.microphone: .denied, .accessibility: .denied])
+        let model = MenuModel(monitor: rig.monitor)
+        await rig.monitor.refresh()
+        let before = model.content.accessibility.action?.kind
+
+        model.openSettings(for: .accessibility)
+
+        #expect(before == .request)
+        #expect(model.content.accessibility.action?.kind == .openSettings)
+    }
+
     @Test("opening System Settings opens the pane through the monitor, which then follows the permission")
     func opensSettingsThroughTheMonitor() async {
         let rig = Rig([.microphone: .granted, .accessibility: .denied])

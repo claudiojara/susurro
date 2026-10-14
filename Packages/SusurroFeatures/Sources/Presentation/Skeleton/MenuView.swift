@@ -3,11 +3,12 @@ import SwiftUI
 
 /// The contents of the menu bar menu, in system styling: what a missing permission costs when one is missing, with the
 /// item that sets Susurro up, the hotkey, one row for each required permission, the speech model, and Quit. A permission that is not granted has
-/// an item that opens the matching pane of System Settings. The view knows nothing of the model or the application: it
+/// an item for the step that fits it: allow it, or open the matching pane of System Settings. The view knows nothing of the model or the application: it
 /// shows `content`, and what its items do is passed in.
 struct MenuView: View {
     let content: MenuContent
     let onSetUp: () -> Void
+    let onRequest: (Permission) -> Void
     let onOpenSettings: (Permission) -> Void
     let onQuit: () -> Void
 
@@ -31,8 +32,21 @@ struct MenuView: View {
     @ViewBuilder
     private func permissionRows(_ row: MenuContent.PermissionRow) -> some View {
         Text(row.title)
-        if let action = row.settingsActionTitle {
-            Button(action) { onOpenSettings(row.permission) }
+        if let action = row.action {
+            Button(action.title) {
+                Self.perform(action, for: row.permission, onRequest: onRequest, onOpenSettings: onOpenSettings)
+            }
+        }
+    }
+
+    /// Sends the step of an item to the handler of its kind. A static function, so a test can call it without a menu.
+    static func perform(
+        _ action: MenuContent.PermissionRow.Action, for permission: Permission,
+        onRequest: (Permission) -> Void, onOpenSettings: (Permission) -> Void
+    ) {
+        switch action.kind {
+        case .request: onRequest(permission)
+        case .openSettings: onOpenSettings(permission)
         }
     }
 }

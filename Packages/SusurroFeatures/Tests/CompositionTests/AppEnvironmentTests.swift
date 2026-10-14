@@ -247,6 +247,21 @@ struct AppEnvironmentTests {
         await f.environment.shutdown()
     }
 
+    @Test("the menu offers to allow a permission nobody has asked for, and the item asks the system")
+    func menuAllowAsksTheSystem() async {
+        let f = AppEnvironmentFixture(permissions: [.microphone: .notDetermined, .accessibility: .granted])
+        f.environment.start()
+        await f.eventually("the first read") { f.environment.monitor.hasReadStatuses }
+        let item = f.environment.menu.content.microphone.action
+
+        await f.environment.menu.request(.microphone)
+
+        #expect(item?.title == "Allow Microphone…")
+        #expect(f.permissions.requested == [.microphone])
+        #expect(f.openedSettings.isEmpty)
+        await f.environment.shutdown()
+    }
+
     @Test("the onboarding sees what the monitor reads: the rows and what the missing permissions cost")
     func onboardingFollowsTheMonitor() async {
         let f = AppEnvironmentFixture(permissions: [.microphone: .granted, .accessibility: .denied])

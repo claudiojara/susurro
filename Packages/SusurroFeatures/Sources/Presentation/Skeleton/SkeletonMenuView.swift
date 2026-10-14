@@ -13,6 +13,7 @@ public struct SkeletonMenuView: View {
         MenuView(
             content: model.content,
             onSetUp: { model.setUp() },
+            onRequest: { permission in Task { await model.request(permission) } },
             onOpenSettings: { model.openSettings(for: $0) },
             onQuit: { NSApplication.shared.terminate(nil) }
         )

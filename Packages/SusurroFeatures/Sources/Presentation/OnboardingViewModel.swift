@@ -35,37 +35,24 @@ public final class OnboardingViewModel: OnboardingViewModeling {
     // MARK: Rows
 
     private func row(for permission: Permission) -> OnboardingRowState {
-        let (status, action) = standing(of: permission)
+        Self.row(
+            for: permission, status: monitor.statuses[permission] ?? .notDetermined,
+            followUp: monitor.followUps[permission])
+    }
+
+    /// The row of a permission with the given status and follow-up. The step is `PermissionStep`'s, the rule the menu
+    /// follows too.
+    static func row(
+        for permission: Permission, status: PermissionStatus, followUp: PermissionsMonitor.FollowUp?
+    ) -> OnboardingRowState {
+        let step = PermissionStep.make(permission: permission, status: status, followUp: followUp)
         return OnboardingRowState(
             id: OnboardingPermission(permission),
             title: permission.displayName,
             why: OnboardingCopy.why(permission),
             requirement: OnboardingCopy.requirement(permission),
-            status: status,
-            action: action
-        )
-    }
-
-    /// Where the permission stands for the user and the one step that fits. A follow-up of the monitor decides it
-    /// whatever the status says: a prompt that is up needs the user's answer and nothing else, and after that System
-    /// Settings is the way on, also when the status did not become denied.
-    private func standing(of permission: Permission) -> (OnboardingRowStatus, OnboardingAction?) {
-        let reading = monitor.statuses[permission] ?? .notDetermined
-        if reading == .granted { return (.granted, nil) }
-        switch monitor.followUps[permission] {
-        case .requesting: return (.waiting, nil)
-        case .sentToSettings: return (.waiting, OnboardingCopy.openSettingsAction)
-        case .stale:
-            return (.stale(guidance: OnboardingCopy.staleGuidance(permission)), OnboardingCopy.openSettingsAction)
-        case nil: break
-        }
-        guard reading == .denied else { return (.notAsked, OnboardingCopy.requestAction(permission)) }
-        // For a permission whose denied status may mean never asked (`Permission.deniedMayMeanNotAsked`) the request,
-        // which shows the system prompt that leads to System Settings, comes before the pane.
-        return (
-            .denied,
-            permission.deniedMayMeanNotAsked
-                ? OnboardingCopy.requestAction(permission) : OnboardingCopy.openSettingsAction
+            status: OnboardingCopy.status(step.standing, for: permission),
+            action: step.action.map { OnboardingCopy.action($0, for: permission) }
         )
     }
 }

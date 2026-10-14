@@ -5,11 +5,18 @@ import Domain
 /// menu.
 public struct MenuContent: Equatable, Sendable {
     public struct PermissionRow: Equatable, Sendable {
+        /// The item that takes the next step for the permission.
+        public struct Action: Equatable, Sendable {
+            public let kind: PermissionStep.Action
+            public let title: String
+        }
+
         public let permission: Permission
         public let title: String
         public let isGranted: Bool
-        /// The title of the item that opens System Settings, or nil when the permission is granted.
-        public let settingsActionTitle: String?
+        /// The step that fits, or nil when the permission is granted or its prompt is up. It is the onboarding's
+        /// (`PermissionStep`): allow it when it was never asked, open System Settings when it was refused.
+        public let action: Action?
     }
 
     /// The reason a failed load gives is cut to this many characters.
@@ -26,33 +33,44 @@ public struct MenuContent: Equatable, Sendable {
     public let modelLine: String
 
     static func make(
-        microphone: PermissionStatus, accessibility: PermissionStatus, restriction: DictationRestriction?,
+        microphone: PermissionStatus, accessibility: PermissionStatus,
+        followUps: [Permission: PermissionsMonitor.FollowUp] = [:], restriction: DictationRestriction?,
         readiness: RecognizerReadiness
     ) -> MenuContent {
         MenuContent(
             hotkeyHint: "Hold Control-Option-D to dictate",
             restrictionMessage: restriction?.message,
             setUpTitle: restriction == nil ? nil : "Set up Susurro…",
-            microphone: row(.microphone, name: "Microphone", status: microphone),
-            accessibility: row(.accessibility, name: "Accessibility", status: accessibility),
+            microphone: row(.microphone, name: "Microphone", status: microphone, followUp: followUps[.microphone]),
+            accessibility: row(
+                .accessibility, name: "Accessibility", status: accessibility, followUp: followUps[.accessibility]),
             modelLine: modelLine(for: readiness)
         )
     }
 
-    private static func row(_ permission: Permission, name: String, status: PermissionStatus) -> PermissionRow {
+    private static func row(
+        _ permission: Permission, name: String, status: PermissionStatus, followUp: PermissionsMonitor.FollowUp?
+    ) -> PermissionRow {
         let state =
             switch status {
             case .granted: "allowed"
             case .denied: "not allowed"
             case .notDetermined: "not decided yet"
             }
-        let isGranted = status == .granted
+        let step = PermissionStep.make(permission: permission, status: status, followUp: followUp)
         return PermissionRow(
             permission: permission,
             title: "\(name): \(state)",
-            isGranted: isGranted,
-            settingsActionTitle: isGranted ? nil : "Open System Settings for \(name)…"
+            isGranted: status == .granted,
+            action: step.action.map { PermissionRow.Action(kind: $0, title: title(of: $0, name: name)) }
         )
+    }
+
+    private static func title(of action: PermissionStep.Action, name: String) -> String {
+        switch action {
+        case .request: "Allow \(name)…"
+        case .openSettings: "Open System Settings for \(name)…"
+        }
     }
 
     private static func modelLine(for readiness: RecognizerReadiness) -> String {

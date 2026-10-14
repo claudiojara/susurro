@@ -178,10 +178,12 @@ public final class PermissionsMonitor {
     }
 
     /// Opens the System Settings pane of the permission, and follows it until its status changes. A permission the setup
-    /// does not use is left alone.
+    /// does not use is left alone. One that was never asked for is not followed: its step is still the request, and a
+    /// trip to the pane must not take that away.
     public func openSettings(for permission: Permission) {
         guard requested.contains(permission) else { return }
         openSettingsAction(permission)
+        guard (statuses[permission] ?? .notDetermined) != .notDetermined else { return }
         follow(permission, as: .sentToSettings)
     }
 
