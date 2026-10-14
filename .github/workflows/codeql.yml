@@ -52,13 +52,16 @@ jobs:
             swift build --disable-sandbox --package-path "Packages/$pkg"
           done
 
+      # Same steps as `make build`, with the sandboxes off. OTHER_SWIFT_FLAGS keeps $(inherited)
+      # so the Swift settings that each package declares still apply.
       - name: Build app
-        run: >-
-          make build
-          SWIFTPM_FLAGS="--disable-keychain --disable-sandbox"
-          XCODEBUILD_PACKAGE_FLAGS="-clonedSourcePackagesDirPath build/SourcePackages -disableAutomaticPackageResolution
-          -IDEPackageSupportDisableManifestSandbox=YES -IDEPackageSupportDisablePluginExecutionSandbox=YES
-          OTHER_SWIFT_FLAGS=-disable-sandbox"
+        run: |
+          make bootstrap resolve SWIFTPM_FLAGS="--disable-keychain --disable-sandbox"
+          xcodebuild build -project App/Susurro.xcodeproj -scheme Susurro -destination 'platform=macOS' \
+            -derivedDataPath build -clonedSourcePackagesDirPath build/SourcePackages \
+            -disableAutomaticPackageResolution \
+            -IDEPackageSupportDisableManifestSandbox=YES -IDEPackageSupportDisablePluginExecutionSandbox=YES \
+            'OTHER_SWIFT_FLAGS=$(inherited) -disable-sandbox'
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
