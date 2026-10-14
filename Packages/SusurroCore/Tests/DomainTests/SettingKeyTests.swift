@@ -137,4 +137,31 @@ struct SettingKeyTests {
 
         #expect(encoded(key, Unencodable()) == nil)
     }
+
+    @Test(
+        "a part of a key name is valid unless it is empty or has a dot, which would make two keys share a storage name",
+        arguments: [
+            ("hotkey", true), ("holdThreshold", true), ("launch-at-login", true), ("v2", true),
+            ("", false), (".", false), ("hot.key", false), (".hotkey", false), ("hotkey.", false),
+        ]
+    )
+    func validParts(part: String, isValid: Bool) {
+        #expect(SettingKeyPart.isValid(part) == isValid)
+    }
+
+    @Test("a key with an empty part or a dot in a part cannot be declared, whichever way it is declared")
+    func invalidPartsAreRefused() async {
+        await #expect(processExitsWith: .failure) { _ = SettingKey<Int>(area: "", name: "retentionDays", default: 7) }
+        await #expect(processExitsWith: .failure) { _ = SettingKey<Int>(area: "history", name: "", default: 7) }
+        await #expect(processExitsWith: .failure) { _ = SettingKey<Bool>(area: "his.tory", name: "on", default: true) }
+        await #expect(processExitsWith: .failure) {
+            _ = SettingKey<Edge>(area: "overlay", name: "e.dge", default: .top)
+        }
+        await #expect(processExitsWith: .failure) {
+            _ = SettingKey<Combo>.json(area: "hotkey", name: "", default: Combo(keyCode: 2, modifiers: []))
+        }
+        await #expect(processExitsWith: .success) {
+            _ = SettingKey<Int>(area: "history", name: "retentionDays", default: 7)
+        }
+    }
 }
