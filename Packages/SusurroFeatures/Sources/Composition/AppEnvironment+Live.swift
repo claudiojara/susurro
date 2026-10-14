@@ -1,11 +1,14 @@
 import AppKit
 import AudioIO
+import DesignSystem
 import Diagnostics
 import Domain
 import FluidAudioASR
+import Foundation
 import Hotkeys
 import Permissions
 import Presentation
+import Settings
 import TextInsertion
 
 extension AppEnvironment {
@@ -25,6 +28,7 @@ extension AppEnvironment.Dependencies {
         let permissions = SystemPermissionsChecker()
         let recognizer = ParakeetRecognizer()
         let inserter = SimplePasteInserter(diagnostics: diagnostics)
+        let themes = ThemeStore(directory: themesFolder)
         return AppEnvironment.Dependencies(
             hotkeys: HotkeyService(),
             capture: AVAudioEngineCaptureSource(diagnostics: diagnostics),
@@ -36,8 +40,26 @@ extension AppEnvironment.Dependencies {
             overlay: SkeletonOverlayController(),
             openSettings: { NSWorkspace.shared.open(permissions.settingsURL(for: $0)) },
             activations: Self.applicationActivations,
-            restoreClipboardNow: { inserter.restoreForTermination() }
+            restoreClipboardNow: { inserter.restoreForTermination() },
+            settings: UserDefaultsSettingsStore(diagnostics: diagnostics),
+            themes: themes,
+            watchThemes: Self.themeWatcher(for: themes)
         )
+    }
+
+    /// Where the user puts theme files: `Themes` in the app's folder of Application Support.
+    private static var themesFolder: URL {
+        URL.applicationSupportDirectory.appending(path: "Susurro/Themes", directoryHint: .isDirectory)
+    }
+
+    /// Hot reload of the themes folder, in debug builds. The watcher is kept alive by the closure that starts it.
+    private static func themeWatcher(for themes: ThemeStore) -> @Sendable () async -> Void {
+        #if DEBUG
+            let watcher = ThemeFileWatcher(directory: themesFolder) { await themes.reload() }
+            return { await watcher.start() }
+        #else
+            return {}
+        #endif
     }
 
     /// A value each time the app becomes active, for as long as the stream is read.

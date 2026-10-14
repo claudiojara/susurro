@@ -1,4 +1,5 @@
 import CoreTestSupport
+import DesignSystem
 import Domain
 import Testing
 
@@ -48,10 +49,14 @@ struct AppEnvironmentTests {
             f.diagnostics.events.contains(.launchPermissions(microphone: "granted", accessibility: "granted"))
         }
 
+        await f.clock.waitForSleeps(1)
+
         let launches = f.diagnostics.events.filter { $0 == .appLaunched }.count
         let prepares = f.recognizer.calls.filter { $0 == .prepare }.count
         #expect(launches == 1)
         #expect(prepares == 1)
+        #expect(f.clock.pendingSleeps == 1)  // one permission poll
+        #expect(f.themeWatches.value == 1)
         await f.environment.shutdown()
     }
 
@@ -139,7 +144,24 @@ struct AppEnvironmentTests {
         await f.environment.shutdown()
     }
 
-    // MARK: Permissions in the menu
+    // MARK: Permissions
+
+    @Test(
+        "the monitor reads the permissions at launch, and again each second, so a revocation shows while the app idles")
+    func monitorPolls() async {
+        let f = AppEnvironmentFixture()
+        f.environment.start()
+        await f.eventually("the first read") { f.environment.monitor.hasReadStatuses }
+        await f.clock.waitForSleeps(1)
+        let granted = f.environment.monitor.blocking
+
+        f.permissions.set(.accessibility, to: .denied)
+        f.clock.advance(by: .seconds(1))
+        await f.eventually("the revocation") { f.environment.monitor.blocking == [.accessibility] }
+
+        #expect(granted.isEmpty)
+        await f.environment.shutdown()
+    }
 
     @Test("the menu reads the permissions again when the app becomes active")
     func activationRefreshesTheMenu() async {
@@ -156,13 +178,100 @@ struct AppEnvironmentTests {
         await f.environment.shutdown()
     }
 
-    @Test("opening System Settings from the menu goes to the settings opener")
+    @Test("the menu says why dictation is off while a required permission is missing, and stops when it is granted")
+    func menuShowsTheDisabledReason() async {
+        let f = AppEnvironmentFixture(permissions: [.microphone: .denied, .accessibility: .granted])
+        f.environment.start()
+        await f.eventually("the reason") { f.environment.menu.content.disabledMessage != nil }
+        let message = f.environment.menu.content.disabledMessage
+
+        f.permissions.set(.microphone, to: .granted)
+        f.activations.continuation.yield()
+        await f.eventually("the reason to go") { f.environment.menu.content.disabledMessage == nil }
+
+        #expect(message == "Dictation is off until Microphone is allowed.")
+        await f.environment.shutdown()
+    }
+
+    @Test("the onboarding sees what the monitor reads: the rows and the permissions that block dictation")
+    func onboardingFollowsTheMonitor() async {
+        let f = AppEnvironmentFixture(permissions: [.microphone: .granted, .accessibility: .denied])
+        f.environment.start()
+        await f.eventually("the first read") { f.environment.monitor.hasReadStatuses }
+
+        let state = f.environment.onboarding.state
+
+        #expect(state.rows.map(\.id) == [.microphone, .accessibility])
+        #expect(state.rows.map(\.status) == [.granted, .denied])
+        #expect(!state.isDoneEnabled)
+        #expect(state.dictationDisabledMessage == "Dictation is off until Accessibility is allowed.")
+        await f.environment.shutdown()
+    }
+
+    @Test("the status changes the monitor finds are logged, the first read included")
+    func monitorLogsItsReads() async {
+        let f = AppEnvironmentFixture(permissions: [.microphone: .granted, .accessibility: .denied])
+        f.environment.start()
+        await f.eventually("the first read") { f.environment.monitor.hasReadStatuses }
+
+        #expect(
+            f.diagnostics.events.contains(.permissionStatusChanged(permission: .microphone, from: nil, to: .granted)))
+        #expect(
+            f.diagnostics.events.contains(.permissionStatusChanged(permission: .accessibility, from: nil, to: .denied)))
+        await f.environment.shutdown()
+    }
+
+    @Test("opening System Settings from the menu opens the pane, and the monitor follows the permission")
     func openSettings() async {
-        let f = AppEnvironmentFixture()
+        let f = AppEnvironmentFixture(permissions: [.microphone: .granted, .accessibility: .denied])
+        f.environment.start()
+        await f.eventually("the first read") { f.environment.monitor.hasReadStatuses }
 
         f.environment.menu.openSettings(for: .accessibility)
 
         #expect(f.openedSettings == [.accessibility])
+        #expect(f.environment.monitor.followUps[.accessibility] == .sentToSettings)
+        await f.environment.shutdown()
+    }
+
+    // MARK: Themes and settings
+
+    @Test("the theme in use is the one the theme store publishes, and a theme file that works changes it")
+    func themeFollowsTheStore() async {
+        let f = AppEnvironmentFixture(themeFiles: ["ocean.json": #"{"schemaVersion": 1, "name": "Ocean"}"#])
+        defer { f.removeThemeFolder() }
+        f.environment.start()
+        await f.eventually("the bundled theme") { f.environment.themes.theme == .default }
+
+        await f.themes.select("ocean")
+        await f.eventually("the theme file") { f.environment.themes.theme.name == "Ocean" }
+
+        #expect(f.environment.themes.errors.isEmpty)
+        await f.environment.shutdown()
+    }
+
+    @Test("a theme file that cannot be used leaves the bundled theme and its errors")
+    func brokenThemeFile() async {
+        let f = AppEnvironmentFixture(themeFiles: ["broken.json": #"{"schemaVersion": 1, "colours": {}}"#])
+        defer { f.removeThemeFolder() }
+        f.environment.start()
+        await f.eventually("the bundled theme") { f.environment.themes.theme == .default }
+
+        await f.themes.select("broken")
+        await f.eventually("the errors") { !f.environment.themes.errors.isEmpty }
+
+        #expect(f.environment.themes.theme == .default)
+        await f.environment.shutdown()
+    }
+
+    @Test("the environment holds the settings store it was given")
+    func settingsStore() {
+        let f = AppEnvironmentFixture()
+        let key = SettingKey(area: "test", name: "flag", default: false)
+
+        f.environment.settings.set(true, for: key)
+
+        #expect(f.settings.value(for: key))
     }
 
     // MARK: Shutdown
@@ -179,6 +288,24 @@ struct AppEnvironmentTests {
 
         #expect(f.inserter.drainCount == 1)
         #expect(f.capture.startCount == 0)
+    }
+
+    @Test("shutdown ends the monitor's poll")
+    func shutdownStopsThePoll() async {
+        let f = AppEnvironmentFixture()
+        f.environment.start()
+        await f.eventually("the first read") { f.environment.monitor.hasReadStatuses }
+        await f.clock.waitForSleeps(1)
+        await f.eventually("the launch") {
+            f.diagnostics.events.contains(.launchPermissions(microphone: "granted", accessibility: "granted"))
+        }
+
+        await f.environment.shutdown()
+        let reads = f.permissions.statusReads
+        f.clock.advance(by: .seconds(5))
+        for _ in 0..<50 { await Task.yield() }
+
+        #expect(f.permissions.statusReads == reads)
     }
 
     @Test("termination is logged, and then puts the clipboard back")
@@ -200,5 +327,6 @@ struct AppEnvironmentTests {
         #expect(await dependencies.permissions.status(.microphone) == .granted)
         #expect(await dependencies.permissions.status(.accessibility) == .granted)
         #expect(await dependencies.recognizer.readiness() == .ready)
+        #expect(await dependencies.themes.current.theme == .default)
     }
 }

@@ -2,8 +2,10 @@
 
 Every color, type size, space, radius, component size, duration, and the overlay geometry comes from a theme: data, not code. The model
 and the loader are in `Packages/SusurroUI/Sources/DesignSystem`. The bundled default is
-`Resources/DefaultTheme.json`, and it defines every token. The app does not read a themes folder yet: task 1f.3 wires
-the store into the composition root.
+`Resources/DefaultTheme.json`, and it defines every token. The app reads the theme files in
+`~/Library/Application Support/Susurro/Themes` (`ThemeStore` in the composition root, `ThemeModel` for the windows), and
+a debug build watches the folder, so an edited file shows at once. Nothing chooses a theme other than `default` yet: the
+setting for it arrives with the appearance settings (9d).
 
 ## Theme files
 

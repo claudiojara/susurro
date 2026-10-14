@@ -1,7 +1,7 @@
 import Domain
 
-/// What the menu bar menu shows: the two required permissions, the speech model, and the hotkey. It is a pure function
-/// of the statuses, so it is tested without a menu.
+/// What the menu bar menu shows: why dictation is off when it is, the two required permissions, the speech model, and
+/// the hotkey. It is a pure function of the statuses and the reason, so it is tested without a menu.
 public struct MenuContent: Equatable, Sendable {
     public struct PermissionRow: Equatable, Sendable {
         public let permission: Permission
@@ -15,15 +15,20 @@ public struct MenuContent: Equatable, Sendable {
     private static let longestReason = 80
 
     public let hotkeyHint: String
+    /// Why dictation is off, naming the required permissions that are missing, or nil when nothing holds it back. It is
+    /// the sentence the onboarding shows, from the same `DictationDisabledReason`.
+    public let disabledMessage: String?
     public let microphone: PermissionRow
     public let accessibility: PermissionRow
     public let modelLine: String
 
     static func make(
-        microphone: PermissionStatus, accessibility: PermissionStatus, readiness: RecognizerReadiness
+        microphone: PermissionStatus, accessibility: PermissionStatus, disabledReason: DictationDisabledReason?,
+        readiness: RecognizerReadiness
     ) -> MenuContent {
         MenuContent(
             hotkeyHint: "Hold Control-Option-D to dictate",
+            disabledMessage: disabledReason?.message,
             microphone: row(.microphone, name: "Microphone", status: microphone),
             accessibility: row(.accessibility, name: "Accessibility", status: accessibility),
             modelLine: modelLine(for: readiness)

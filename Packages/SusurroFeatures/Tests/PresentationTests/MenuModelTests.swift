@@ -1,127 +1,143 @@
 import CoreTestSupport
 import Domain
+import Observation
 import Synchronization
 import Testing
 
 @testable import Presentation
 
+/// The menu shows what the permissions monitor knows, so these tests change the board the monitor reads and let it read.
 @MainActor
 @Suite("Menu model", .timeLimit(.minutes(1)))
 struct MenuModelTests {
-    private func makeModel(
-        _ board: MutablePermissionsChecker,
-        openSettings: @escaping @MainActor (Permission) -> Void = { _ in },
-        sleep: @escaping @Sendable (Duration) async throws -> Void = { _ in }
-    ) -> MenuModel {
-        MenuModel(permissions: board, openSettings: openSettings, refreshInterval: .seconds(2), sleep: sleep)
-    }
+    private let bothGranted: [Permission: PermissionStatus] = [.microphone: .granted, .accessibility: .granted]
 
-    @Test("before anything is read the menu shows nothing as allowed and the model as preparing")
+    @Test(
+        "before anything is read the menu shows nothing as allowed, says nothing about dictation, and shows the model as preparing"
+    )
     func initialContent() {
-        let model = makeModel(MutablePermissionsChecker([:]))
+        let model = MenuModel(monitor: Rig([:]).monitor)
 
         #expect(
             model.content
                 == MenuContent.make(
-                    microphone: .notDetermined, accessibility: .notDetermined, readiness: .loading(progress: 0)))
+                    microphone: .notDetermined, accessibility: .notDetermined, disabledReason: nil,
+                    readiness: .loading(progress: 0)))
     }
 
-    @Test("refresh reads both statuses")
-    func refreshReadsStatuses() async {
-        let model = makeModel(MutablePermissionsChecker([.microphone: .granted, .accessibility: .denied]))
+    @Test("the menu shows the statuses the monitor read")
+    func showsTheMonitorsStatuses() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .denied])
+        let model = MenuModel(monitor: rig.monitor)
 
-        await model.refresh()
+        await rig.monitor.refresh()
 
         #expect(model.content.microphone.isGranted)
         #expect(!model.content.accessibility.isGranted)
+        #expect(model.content.accessibility.title == "Accessibility: not allowed")
     }
 
-    @Test("a permission granted in System Settings shows after the next refresh, without a relaunch")
-    func grantShowsAfterRefresh() async {
-        let board = MutablePermissionsChecker([.microphone: .granted, .accessibility: .denied])
-        let model = makeModel(board)
-        await model.refresh()
-        let before = model.content.accessibility
+    @Test(
+        "a permission granted or revoked in System Settings shows after the monitor's next read, with no refresh here")
+    func followsTheMonitor() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .denied])
+        let model = MenuModel(monitor: rig.monitor)
+        await rig.monitor.refresh()
+        let before = model.content.accessibility.isGranted
 
-        board.set(.accessibility, to: .granted)
-        await model.refresh()
+        rig.board.set(.accessibility, to: .granted)
+        rig.board.set(.microphone, to: .denied)
+        await rig.monitor.refresh()
 
-        #expect(!before.isGranted)
+        #expect(!before)
         #expect(model.content.accessibility.isGranted)
-        #expect(model.content.accessibility.title == "Accessibility: allowed")
-    }
-
-    @Test("a permission revoked while the app runs shows after the next refresh")
-    func revocationShowsAfterRefresh() async {
-        let board = MutablePermissionsChecker([.microphone: .granted, .accessibility: .granted])
-        let model = makeModel(board)
-        await model.refresh()
-
-        board.set(.microphone, to: .denied)
-        await model.refresh()
-
         #expect(!model.content.microphone.isGranted)
-        #expect(model.content.accessibility.isGranted)
+    }
+
+    @Test("a required permission that is missing turns the reason on, naming it, and granting it turns it off")
+    func disabledReason() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .denied])
+        let model = MenuModel(monitor: rig.monitor)
+
+        await rig.monitor.refresh()
+        let off = model.content.disabledMessage
+        rig.board.set(.accessibility, to: .granted)
+        await rig.monitor.refresh()
+
+        #expect(off == "Dictation is off until Accessibility is allowed.")
+        #expect(model.content.disabledMessage == nil)
+    }
+
+    @Test("a denied permission that dictation does not need leaves the menu without a reason")
+    func conditionalPermissionIsNotAReason() async {
+        let rig = Rig(
+            bothGranted.merging([.inputMonitoring: .denied]) { $1 }, needs: PermissionNeeds(modifierOnlyHotkey: true))
+        let model = MenuModel(monitor: rig.monitor)
+
+        await rig.monitor.refresh()
+
+        #expect(model.content.disabledMessage == nil)
+    }
+
+    @Test("a SwiftUI view that reads the content is told when the monitor reads a change")
+    func contentIsObservable() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .granted])
+        let model = MenuModel(monitor: rig.monitor)
+        await rig.monitor.refresh()
+        let told = Mutex(false)
+
+        withObservationTracking {
+            _ = model.content
+        } onChange: {
+            told.withLock { $0 = true }
+        }
+        rig.board.set(.accessibility, to: .denied)
+        await rig.monitor.refresh()
+
+        #expect(told.withLock { $0 })
     }
 
     @Test("the model line follows the readiness the recognizer reports, until the stream ends")
     func observesReadiness() async {
-        let model = makeModel(MutablePermissionsChecker([:]))
+        let model = MenuModel(monitor: Rig([:]).monitor)
         let (readiness, continuation) = AsyncStream.makeStream(of: RecognizerReadiness.self)
         let observing = Task { await model.observe(readiness) }
 
         continuation.yield(.loading(progress: 0.3))
-        while model.content.modelLine != "Speech model: preparing… 30%" { await Task.yield() }
+        await waitUntil { model.content.modelLine == "Speech model: preparing… 30%" }
         continuation.yield(.ready)
-        while model.content.modelLine != "Speech model: ready" { await Task.yield() }
+        await waitUntil { model.content.modelLine == "Speech model: ready" }
         continuation.finish()
         await observing.value
 
         #expect(model.content.modelLine == "Speech model: ready")
     }
 
-    @Test("a refresh keeps the model line the recognizer reported")
-    func refreshKeepsTheModelLine() async {
-        let model = makeModel(MutablePermissionsChecker([.microphone: .granted]))
+    @Test("a read of the permissions keeps the model line the recognizer reported")
+    func readKeepsTheModelLine() async {
+        let rig = Rig(bothGranted)
+        let model = MenuModel(monitor: rig.monitor)
         let (readiness, continuation) = AsyncStream.makeStream(of: RecognizerReadiness.self)
         continuation.yield(.ready)
         continuation.finish()
         await model.observe(readiness)
 
-        await model.refresh()
+        await rig.monitor.refresh()
 
         #expect(model.content.modelLine == "Speech model: ready")
         #expect(model.content.microphone.isGranted)
     }
 
-    @Test("keepRefreshing reads the statuses, waits the interval, and goes on until the wait is cancelled")
-    func keepsRefreshing() async {
-        let board = MutablePermissionsChecker([.microphone: .granted])
-        let waits = Mutex<[Duration]>([])
-        let model = makeModel(
-            board,
-            sleep: { duration in
-                let count = waits.withLock { waits in
-                    waits.append(duration)
-                    return waits.count
-                }
-                if count == 3 { throw CancellationError() }
-            })
-
-        await model.keepRefreshing()
-
-        #expect(board.statusReads == 6)  // two statuses, three times
-        #expect(waits.withLock { $0 } == [.seconds(2), .seconds(2), .seconds(2)])
-    }
-
-    @Test("opening System Settings passes the permission on")
-    func opensSettings() {
-        var opened: [Permission] = []
-        let model = makeModel(MutablePermissionsChecker([:]), openSettings: { opened.append($0) })
+    @Test("opening System Settings opens the pane through the monitor, which then follows the permission")
+    func opensSettingsThroughTheMonitor() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .denied])
+        let model = MenuModel(monitor: rig.monitor)
+        await rig.monitor.refresh()
 
         model.openSettings(for: .accessibility)
-        model.openSettings(for: .microphone)
 
-        #expect(opened == [.accessibility, .microphone])
+        #expect(rig.panes.opened == [.accessibility])
+        #expect(rig.monitor.followUps[.accessibility] == .sentToSettings)
+        #expect(rig.monitor.followUps[.microphone] == nil)
     }
 }

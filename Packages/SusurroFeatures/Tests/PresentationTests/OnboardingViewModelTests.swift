@@ -1,6 +1,8 @@
 import CoreTestSupport
 import Domain
+import Observation
 import SusurroUI
+import Synchronization
 import Testing
 
 @testable import Presentation
@@ -432,5 +434,44 @@ struct OnboardingViewModelTests {
         #expect(before.1 == nil)
         #expect(!model.state.isDoneEnabled)
         #expect(model.state.dictationDisabledMessage == "Dictation is off until Microphone is allowed.")
+    }
+
+    // MARK: Observation
+
+    /// The container reads `state` in a SwiftUI body, so the screen redraws when what `state` is computed from changes.
+    /// Nothing here tells it to: the state is computed from observable properties of the monitor.
+    @Test("a view that reads the state is told when the monitor reads a change in a status")
+    func stateIsObservableThroughStatuses() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .granted])
+        let model = OnboardingViewModel(monitor: rig.monitor)
+        await rig.monitor.refresh()
+        let told = Mutex(false)
+
+        withObservationTracking {
+            _ = model.state
+        } onChange: {
+            told.withLock { $0 = true }
+        }
+        rig.board.set(.accessibility, to: .denied)
+        await rig.monitor.refresh()
+
+        #expect(told.withLock { $0 })
+    }
+
+    @Test("a view that reads the state is told when the user is sent to System Settings, which starts a follow-up")
+    func stateIsObservableThroughFollowUps() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .denied])
+        let model = OnboardingViewModel(monitor: rig.monitor)
+        await rig.monitor.refresh()
+        let told = Mutex(false)
+
+        withObservationTracking {
+            _ = model.state
+        } onChange: {
+            told.withLock { $0 = true }
+        }
+        model.openSettings(.accessibility)
+
+        #expect(told.withLock { $0 })
     }
 }

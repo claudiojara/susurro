@@ -41,9 +41,10 @@ ignored by git) and set `DEVELOPMENT_TEAM`.
    transcription waits for the model.
    The model files live in `~/Library/Application Support/Susurro/Models`, pinned to one reviewed revision.
 
-The menu bar menu shows the hotkey, one row for each permission (with an "Open System Settings" item while one is
-missing), the state of the speech model, and Quit. It re-reads the permissions when the app becomes active and every
-two seconds, so a permission you grant in System Settings shows without a relaunch.
+The menu bar menu shows why dictation is off while a required permission is missing, the hotkey, one row for each
+permission (with an "Open System Settings" item while one is missing), the state of the speech model, and Quit. The app
+reads the permissions when it becomes active and every second, so a permission you grant or revoke in System Settings
+shows within a second, without a relaunch.
 
 ## Dictate
 

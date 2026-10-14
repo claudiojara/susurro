@@ -1,5 +1,7 @@
 import CoreTestSupport
+import DesignSystem
 import Domain
+import Foundation
 import Presentation
 import Synchronization
 import Testing
@@ -16,6 +18,17 @@ final class SpyOverlay: OverlaySurface {
 
     func display(_ indicator: OverlayIndicator?) {
         shown.append(indicator)
+    }
+}
+
+/// Counts calls from code that is not on the main actor.
+final class Counter: Sendable {
+    private let count = Mutex(0)
+
+    var value: Int { count.withLock { $0 } }
+
+    func increment() {
+        count.withLock { $0 += 1 }
     }
 }
 
@@ -58,19 +71,36 @@ final class AppEnvironmentFixture {
     let overlay = SpyOverlay()
     let readiness = ReadinessFeed()
     let activations = AsyncStream.makeStream(of: Void.self)
+    let clock = ManualClock()
+    let settings = InMemorySettingsStore()
+    let themes: ThemeStore
+    /// How many times the environment asked for the themes folder to be watched.
+    let themeWatches = Counter()
+    private let themeFolder = FileManager.default.temporaryDirectory.appendingPathComponent(
+        "susurro-themes-\(UUID().uuidString)")
     private(set) var openedSettings: [Permission] = []
     private(set) var clipboardRestores = 0
     private(set) var environment: AppEnvironment!
 
+    /// - Parameter themeFiles: Theme files, by file name, that the themes folder holds when the environment is built.
     init(
         permissions: [Permission: PermissionStatus] = [.microphone: .granted, .accessibility: .granted],
-        recognizer: FakeRecognizer = FakeRecognizer(transcript: "hola")
+        recognizer: FakeRecognizer = FakeRecognizer(transcript: "hola"),
+        themeFiles: [String: String] = [:]
     ) {
         self.permissions = MutablePermissionsChecker(permissions)
         self.recognizer = recognizer
+        if !themeFiles.isEmpty {
+            try? FileManager.default.createDirectory(at: themeFolder, withIntermediateDirectories: true)
+            for (name, json) in themeFiles {
+                try? Data(json.utf8).write(to: themeFolder.appendingPathComponent(name))
+            }
+        }
+        themes = ThemeStore(directory: themeFolder)
         let readiness = readiness
         let activations = activations.stream
         let sleeper = sleeper
+        let themeWatches = themeWatches
         environment = AppEnvironment(
             AppEnvironment.Dependencies(
                 hotkeys: hotkeys,
@@ -84,9 +114,18 @@ final class AppEnvironmentFixture {
                 openSettings: { [unowned self] in openedSettings.append($0) },
                 activations: { activations },
                 restoreClipboardNow: { [unowned self] in clipboardRestores += 1 },
+                settings: settings,
+                themes: themes,
+                watchThemes: { themeWatches.increment() },
+                clock: clock,
                 sleep: { try await sleeper.sleep($0) }
             )
         )
+    }
+
+    /// Removes the themes folder the test made.
+    func removeThemeFolder() {
+        try? FileManager.default.removeItem(at: themeFolder)
     }
 
     /// Waits until `condition` holds, polling for up to five seconds.

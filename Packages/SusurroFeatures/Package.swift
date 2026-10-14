@@ -20,6 +20,7 @@ let package = Package(
             dependencies: [
                 .product(name: "SusurroCore", package: "SusurroCore"),
                 .product(name: "SusurroUI", package: "SusurroUI"),
+                .product(name: "DesignSystem", package: "SusurroUI"),
             ]
         ),
         .target(
@@ -27,6 +28,7 @@ let package = Package(
             dependencies: [
                 "Presentation",
                 .product(name: "SusurroCore", package: "SusurroCore"),
+                .product(name: "DesignSystem", package: "SusurroUI"),
                 // The preview environment runs on the fakes. They are small, and the live environment never touches them.
                 .product(name: "CoreTestSupport", package: "SusurroCore"),
                 .product(name: "SusurroPlatform", package: "SusurroPlatform"),
@@ -40,6 +42,7 @@ let package = Package(
                 .product(name: "SusurroCore", package: "SusurroCore"),
                 .product(name: "CoreTestSupport", package: "SusurroCore"),
                 .product(name: "SusurroUI", package: "SusurroUI"),
+                .product(name: "DesignSystem", package: "SusurroUI"),
             ]
         ),
         .testTarget(
@@ -49,6 +52,7 @@ let package = Package(
                 "Presentation",
                 .product(name: "SusurroCore", package: "SusurroCore"),
                 .product(name: "CoreTestSupport", package: "SusurroCore"),
+                .product(name: "DesignSystem", package: "SusurroUI"),
             ]
         ),
     ],
