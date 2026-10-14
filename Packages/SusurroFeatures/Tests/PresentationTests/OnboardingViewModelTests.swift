@@ -5,6 +5,11 @@ import Testing
 
 @testable import Presentation
 
+private struct GuidanceCase: Sendable {
+    let permission: Permission
+    let text: String
+}
+
 private struct RowCase: Sendable {
     let permission: Permission
     let status: PermissionStatus
@@ -76,14 +81,34 @@ struct OnboardingViewModelTests {
         let inputMonitoring = try row(.inputMonitoring, of: model)
         let screenRecording = try row(.screenRecording, of: model)
 
-        #expect(!microphone.isOptional)
-        #expect(!accessibility.isOptional)
-        #expect(microphone.featureNote == nil)
-        #expect(accessibility.featureNote == nil)
-        #expect(inputMonitoring.isOptional)
-        #expect(screenRecording.isOptional)
-        #expect(inputMonitoring.featureNote?.contains("modifier") == true)
-        #expect(screenRecording.featureNote?.contains("on-screen") == true)
+        #expect(microphone.requirement == .required)
+        #expect(accessibility.requirement == .required)
+        #expect(
+            inputMonitoring.requirement
+                == .optional(
+                    featureNote: "Optional: only for a hotkey made of modifier keys. Dictation works without it."))
+        #expect(
+            screenRecording.requirement
+                == .optional(featureNote: "Optional: only for reading on-screen text. Dictation works without it."))
+    }
+
+    @Test("the policy decides which rows are optional, and the copy has a note for each of them and for no other")
+    func notesFollowThePolicy() {
+        let model = OnboardingViewModel(monitor: Rig([:], needs: everything).monitor)
+        let conditional = PermissionPolicy.conditional(for: everything)
+
+        let optional = model.state.rows.filter { $0.requirement != .required }.map { $0.id.permission }
+
+        #expect(model.state.rows.count == 4)
+        #expect(optional == conditional)
+        #expect(Set(OnboardingCopy.features.keys) == Set(conditional))
+    }
+
+    @Test("a conditional permission with no entry in the copy is still optional, with a note that says so")
+    func optionalWithoutAFeature() {
+        let requirement = OnboardingCopy.requirement(.inputMonitoring, features: [:])
+
+        #expect(requirement == .optional(featureNote: "Optional: Dictation works without it."))
     }
 
     // MARK: Status and action
@@ -260,6 +285,41 @@ struct OnboardingViewModelTests {
         #expect(shown.action?.kind == .openSettings)
     }
 
+    @Test("a row that waits while its permission is not denied offers System Settings, and gets the troubleshooting")
+    func waitingWithoutDeniedIsNotStuck() async throws {
+        // The system can answer a request at once and leave the status as it was, as Input Monitoring does.
+        let rig = Rig(
+            [.microphone: .granted, .accessibility: .granted, .inputMonitoring: .notDetermined],
+            needs: PermissionNeeds(modifierOnlyHotkey: true))
+        let model = OnboardingViewModel(monitor: rig.monitor)
+        await rig.monitor.refresh()
+
+        await model.request(.inputMonitoring)
+        let waiting = try row(.inputMonitoring, of: model)
+        await rig.monitor.appDidBecomeActive()
+        await rig.clock.waitForSleeps(1)
+        rig.clock.advance(by: .seconds(30))
+        await waitUntil { rig.monitor.followUps[.inputMonitoring] == .stale }
+
+        let stale = try row(.inputMonitoring, of: model)
+        #expect(waiting.status == .waiting)
+        #expect(waiting.action?.kind == .openSettings)
+        #expect(stale.action?.kind == .openSettings)
+    }
+
+    @Test("no reason is shown before the statuses are read")
+    func noReasonBeforeTheFirstRead() async {
+        let rig = Rig([.microphone: .denied, .accessibility: .denied])
+        let model = OnboardingViewModel(monitor: rig.monitor)
+        let before = model.state.dictationDisabledMessage
+
+        await rig.monitor.refresh()
+
+        #expect(before == nil)
+        #expect(
+            model.state.dictationDisabledMessage == "Dictation is off until Microphone and Accessibility are allowed.")
+    }
+
     // MARK: Stale grants
 
     @Test("a row still denied 30 seconds after coming back from System Settings shows the troubleshooting steps")
@@ -273,14 +333,52 @@ struct OnboardingViewModelTests {
         await rig.monitor.appDidBecomeActive()
         await rig.clock.waitForSleeps(1)
         rig.clock.advance(by: .seconds(30))
-        await waitUntil { (try? row(.accessibility, of: model).status) == .stale }
+        await waitUntil { rig.monitor.followUps[.accessibility] == .stale }
 
         let stale = try row(.accessibility, of: model)
-        #expect(before.staleGuidance == nil)
-        #expect(stale.status == .stale)
+        #expect(before.status == .denied)
+        #expect(stale.status == .stale(guidance: OnboardingCopy.staleGuidance(.accessibility)))
         #expect(stale.action?.kind == .openSettings)
-        #expect(stale.staleGuidance?.isEmpty == false)
-        #expect(try row(.microphone, of: model).staleGuidance == nil)
+        #expect(try row(.microphone, of: model).status == .granted)
+    }
+
+    @Test(
+        "the troubleshooting steps fit the permission",
+        arguments: [
+            GuidanceCase(
+                permission: .microphone,
+                text: "Still not allowed? In System Settings, switch Susurro off and on again."),
+            GuidanceCase(
+                permission: .accessibility,
+                text: "Still not allowed? In System Settings, switch Susurro off and on again. "
+                    + "If it still does not work, remove Susurro from the list, add it again, and switch it on."),
+            GuidanceCase(
+                permission: .inputMonitoring,
+                text: "Still not allowed? In System Settings, switch Susurro off and on again. "
+                    + "Then quit and reopen Susurro, because this permission applies only after a relaunch. "
+                    + "If it still does not work, remove Susurro from the list, add it again, and switch it on."),
+            GuidanceCase(
+                permission: .screenRecording,
+                text: "Still not allowed? In System Settings, switch Susurro off and on again. "
+                    + "Then quit and reopen Susurro, because this permission applies only after a relaunch. "
+                    + "If it still does not work, remove Susurro from the list, add it again, and switch it on."),
+        ]
+    )
+    fileprivate func guidanceFitsThePermission(_ scenario: GuidanceCase) async throws {
+        let rig = Rig(
+            [.microphone: .denied, .accessibility: .denied, .inputMonitoring: .denied, .screenRecording: .denied],
+            needs: everything)
+        let model = OnboardingViewModel(monitor: rig.monitor)
+        await rig.monitor.refresh()
+        model.openSettings(OnboardingPermission(scenario.permission))
+
+        await rig.monitor.appDidBecomeActive()
+        await rig.clock.waitForSleeps(1)
+        rig.clock.advance(by: .seconds(30))
+        await waitUntil { rig.monitor.followUps[scenario.permission] == .stale }
+
+        let shown = try row(OnboardingPermission(scenario.permission), of: model)
+        #expect(shown.status == .stale(guidance: scenario.text))
     }
 
     // MARK: Intents

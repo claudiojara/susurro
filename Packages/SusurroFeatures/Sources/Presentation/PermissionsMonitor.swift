@@ -10,23 +10,39 @@ import Observation
 /// dictation or bring the onboarding back (`blocking`): a conditional permission that is missing leaves its own feature
 /// inactive and nothing else.
 ///
-/// It also follows what the user was asked to do. A permission the user was sent to System Settings for, or asked for
-/// with a prompt that left it unchanged, is `waiting` until its status changes. If it is still denied `staleAfter` after
-/// the user came back to the app, `staleGuidance` holds it, because a toggle that is on but reads denied is the sign of
-/// a grant that went stale, which removing the app from the list and adding it again fixes.
+/// It also follows what the user was asked to do (`followUps`). A permission the user was asked for with a prompt, or sent
+/// to System Settings for, is followed until its status changes. If it has not changed `staleAfter` after the user came
+/// back to the app, the follow-up is `stale`, because a toggle that is on but reads as not allowed is the sign of a
+/// grant that went stale, and the permission's troubleshooting steps apply.
 @MainActor
 @Observable
 public final class PermissionsMonitor {
+    /// Where the monitor stands with a permission the user was asked to act on. A follow-up only moves forward, in this
+    /// order, and ends when the permission's status changes.
+    public enum FollowUp: Comparable, Sendable {
+        /// The system's request is open and its prompt may be up. The answer comes by itself.
+        case requesting
+        /// The user was sent to System Settings, or the request returned and the status stayed as it was. The status is
+        /// read until it changes.
+        case sentToSettings
+        /// The status has not changed `staleAfter` after the user came back to the app: the troubleshooting steps apply.
+        case stale
+    }
+
+    private struct Step {
+        /// The status the permission had when the user was asked. The follow-up ends when a read differs from it.
+        let baseline: PermissionStatus
+        var phase: FollowUp
+    }
+
     /// The last status read of each permission. A permission that has not been read is missing.
     public private(set) var statuses: [Permission: PermissionStatus] = [:]
     /// Which of the optional permissions the setup uses.
     public private(set) var needs: PermissionNeeds
     /// Whether the statuses have been read at least once. Until then nothing is known, so the onboarding is not asked for.
     public private(set) var hasReadStatuses = false
-    /// The permissions the user was asked to act on whose status has not changed since, each with the status it had.
-    private var waitingFrom: [Permission: PermissionStatus] = [:]
-    /// The permissions still denied `staleAfter` after the user came back from System Settings.
-    public private(set) var staleGuidance: Set<Permission> = []
+    /// The permissions the user was asked to act on whose status has not changed since.
+    private var steps: [Permission: Step] = [:]
 
     @ObservationIgnored private let checker: any PermissionsChecker
     @ObservationIgnored private let openSettingsAction: @MainActor (Permission) -> Void
@@ -71,9 +87,12 @@ public final class PermissionsMonitor {
     /// Whether the onboarding must be shown: a required permission is missing, once the statuses are known.
     public var needsOnboarding: Bool { hasReadStatuses && !isOnboardingComplete }
     /// Why dictation is off, from `blocking` only, or nil when nothing blocks it.
-    public var disabledReason: DictationDisabledReason? { DictationDisabledReason(blocking: blocking) }
-    /// The permissions the user was asked to act on whose status has not changed since.
-    public var waiting: Set<Permission> { Set(waitingFrom.keys) }
+    /// Nothing is said before the first read, as with `needsOnboarding`, because nothing is known yet.
+    public var disabledReason: DictationDisabledReason? {
+        hasReadStatuses ? DictationDisabledReason(blocking: blocking) : nil
+    }
+    /// Where the monitor stands with each permission the user was asked to act on and whose status has not changed since.
+    public var followUps: [Permission: FollowUp] { steps.mapValues(\.phase) }
 
     // MARK: Reading
 
@@ -92,6 +111,7 @@ public final class PermissionsMonitor {
     public func setNeeds(_ needs: PermissionNeeds) async {
         guard needs != self.needs else { return }
         self.needs = needs
+        for permission in steps.keys where !requested.contains(permission) { endFollowUp(of: permission) }
         await refresh()
     }
 
@@ -113,11 +133,11 @@ public final class PermissionsMonitor {
     }
 
     /// Reads the statuses because the user came back to the app, and starts the wait for the stale-grant guidance on
-    /// each permission they were sent away for that is still denied.
+    /// each permission they were sent away for whose status has not changed, whatever it is. A prompt that is still up
+    /// has not been answered, so it is not counted yet.
     public func appDidBecomeActive() async {
         await refresh()
-        // A timer that has run stays in the table until the follow-up ends, so it is not started again.
-        for permission in waitingFrom.keys where statuses[permission] == .denied && staleTimers[permission] == nil {
+        for (permission, step) in steps where step.phase == .sentToSettings && staleTimers[permission] == nil {
             startStaleTimer(for: permission)
         }
     }
@@ -129,20 +149,25 @@ public final class PermissionsMonitor {
 
     // MARK: Acting
 
-    /// Asks the system for the permission, which may show its prompt, and shows it as waiting until its status changes.
-    /// A permission that is granted, or whose prompt is already up, is not asked for.
+    /// Asks the system for the permission, which may show its prompt, and follows it until its status changes. A
+    /// permission that is granted, whose prompt is already up, or that the setup does not use is not asked for.
     public func request(_ permission: Permission) async {
-        guard statuses[permission] != .granted, requestsInFlight.insert(permission).inserted else { return }
-        startWaiting(for: permission)
+        guard requested.contains(permission), statuses[permission] != .granted,
+            requestsInFlight.insert(permission).inserted
+        else { return }
+        follow(permission, as: .requesting)
         await checker.request(permission)
         requestsInFlight.remove(permission)
+        if steps[permission]?.phase == .requesting { steps[permission]?.phase = .sentToSettings }
         await refresh()
     }
 
-    /// Opens the System Settings pane of the permission, and shows it as waiting until its status changes.
+    /// Opens the System Settings pane of the permission, and follows it until its status changes. A permission the setup
+    /// does not use is left alone.
     public func openSettings(for permission: Permission) {
+        guard requested.contains(permission) else { return }
         openSettingsAction(permission)
-        startWaiting(for: permission)
+        follow(permission, as: .sentToSettings)
     }
 
     // MARK: Follow-up
@@ -150,22 +175,23 @@ public final class PermissionsMonitor {
     private func apply(_ read: [Permission: PermissionStatus]) {
         statuses = read
         hasReadStatuses = true
-        for (permission, status) in read {
-            if let baseline = waitingFrom[permission], baseline != status { endFollowUp(of: permission) }
+        for (permission, status) in read where steps[permission].map({ $0.baseline != status }) == true {
+            endFollowUp(of: permission)
         }
     }
 
-    private func startWaiting(for permission: Permission) {
+    /// Starts following a permission that is not granted, or moves its follow-up forward to `phase`.
+    private func follow(_ permission: Permission, as phase: FollowUp) {
         let current = statuses[permission] ?? .notDetermined
         guard current != .granted else { return }
-        waitingFrom[permission] = current
+        // A follow-up that is on ends as soon as a read differs from its baseline, so the baseline is always the status now.
+        steps[permission] = Step(baseline: current, phase: max(steps[permission]?.phase ?? phase, phase))
     }
 
-    /// The status changed, so the user's step did its work. A permission's timer and its stale guidance exist only while
-    /// it is waiting, so ending the wait ends them too.
+    /// The status changed, or the setup stopped using the permission, so the follow-up is over. A permission's timer
+    /// exists only while it is followed, so ending the follow-up ends the timer too.
     private func endFollowUp(of permission: Permission) {
-        waitingFrom[permission] = nil
-        staleGuidance.remove(permission)
+        steps[permission] = nil
         staleTimers.removeValue(forKey: permission)?.cancel()
     }
 
@@ -176,8 +202,11 @@ public final class PermissionsMonitor {
         }
     }
 
+    /// The time is up: the status is read once more, and a follow-up that is still on, so the status is the one it was
+    /// and is not granted, turns stale. The timer stays in the table until the follow-up ends, which keeps a second
+    /// one from starting.
     private func staleTimeElapsed(for permission: Permission) async {
         await refresh()
-        if statuses[permission] == .denied { staleGuidance.insert(permission) }
+        steps[permission]?.phase = .stale
     }
 }

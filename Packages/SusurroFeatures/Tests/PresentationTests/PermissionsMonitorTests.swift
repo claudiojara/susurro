@@ -279,6 +279,19 @@ struct PermissionsMonitorTests {
         }
     }
 
+    @Test("no reason is given before the first read, when nothing is known yet, and it is given after")
+    func noReasonBeforeTheFirstRead() async {
+        let rig = Rig([.microphone: .denied, .accessibility: .granted])
+        let before = (rig.monitor.disabledReason, rig.monitor.blocking)
+
+        await rig.monitor.refresh()
+
+        #expect(before.0 == nil)
+        // An unread permission is missing, so only the reason waits for the first read.
+        #expect(before.1 == [.microphone, .accessibility])
+        #expect(rig.monitor.disabledReason?.permissions == [.microphone])
+    }
+
     @Test("a missing required permission is the reason even when the conditional ones are missing too")
     func reasonIgnoresConditionalPermissions() async {
         let rig = Rig(
@@ -348,16 +361,16 @@ struct PermissionsMonitorTests {
         let checker = FakePermissionsChecker([.microphone: .notDetermined], gatedRequests: true)
         let monitor = PermissionsMonitor(checker: checker, openSettings: { _ in }, clock: ManualClock())
         await monitor.refresh()
-        let before = monitor.waiting
+        let before = monitor.followUps
 
         let asking = Task { await monitor.request(.microphone) }
         await checker.requestEntered.wait()
-        let whileThePromptIsUp = monitor.waiting
+        let whileThePromptIsUp = monitor.followUps
         checker.releaseRequest()
         await asking.value
 
         #expect(before.isEmpty)
-        #expect(whileThePromptIsUp == [.microphone])
+        #expect(whileThePromptIsUp == [.microphone: .requesting])
         #expect(checker.requested == [.microphone])
     }
 
@@ -385,7 +398,7 @@ struct PermissionsMonitorTests {
             await monitor.request(.microphone)
 
             #expect(monitor.statuses[.microphone] == answer)
-            #expect(monitor.waiting.isEmpty)
+            #expect(monitor.followUps.isEmpty)
         }
     }
 
@@ -397,7 +410,7 @@ struct PermissionsMonitorTests {
         await monitor.request(.microphone)
 
         #expect(monitor.statuses[.microphone] == .denied)
-        #expect(monitor.waiting.isEmpty)
+        #expect(monitor.followUps.isEmpty)
     }
 
     @Test("a permission whose status did not change after the request stays waiting until it does")
@@ -407,13 +420,13 @@ struct PermissionsMonitorTests {
 
         await rig.monitor.request(.accessibility)
         await rig.monitor.refresh()
-        let whileDenied = rig.monitor.waiting
+        let whileDenied = rig.monitor.followUps
         rig.board.set(.accessibility, to: .granted)
         await rig.monitor.refresh()
 
         #expect(rig.board.requested == [.accessibility])
-        #expect(whileDenied == [.accessibility])
-        #expect(rig.monitor.waiting.isEmpty)
+        #expect(whileDenied == [.accessibility: .sentToSettings])
+        #expect(rig.monitor.followUps.isEmpty)
     }
 
     @Test("a permission that is already granted is not requested")
@@ -424,7 +437,7 @@ struct PermissionsMonitorTests {
         await rig.monitor.request(.microphone)
 
         #expect(rig.board.requested.isEmpty)
-        #expect(rig.monitor.waiting.isEmpty)
+        #expect(rig.monitor.followUps.isEmpty)
     }
 
     @Test("opening System Settings opens the pane of the permission and waits for the status to change")
@@ -436,7 +449,7 @@ struct PermissionsMonitorTests {
         rig.monitor.openSettings(for: .microphone)
 
         #expect(rig.panes.opened == [.accessibility, .microphone])
-        #expect(rig.monitor.waiting == [.accessibility, .microphone])
+        #expect(rig.monitor.followUps == [.accessibility: .sentToSettings, .microphone: .sentToSettings])
     }
 
     @Test("a request can be made again once the first one is over")
@@ -448,6 +461,8 @@ struct PermissionsMonitorTests {
         await rig.monitor.request(.accessibility)
 
         #expect(rig.board.requested == [.accessibility, .accessibility])
+        // A follow-up only moves forward: the second request does not take it back to the prompt.
+        #expect(rig.monitor.followUps == [.accessibility: .sentToSettings])
     }
 
     @Test("opening System Settings for a permission that is granted waits for nothing")
@@ -458,7 +473,39 @@ struct PermissionsMonitorTests {
         rig.monitor.openSettings(for: .accessibility)
 
         #expect(rig.panes.opened == [.accessibility])
-        #expect(rig.monitor.waiting.isEmpty)
+        #expect(rig.monitor.followUps.isEmpty)
+    }
+
+    @Test("a permission the setup does not use is not requested, and nothing waits for it until the setup uses it")
+    func unneededPermissionIsNotRequested() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .granted, .screenRecording: .denied])
+        await rig.monitor.refresh()
+
+        await rig.monitor.request(.screenRecording)
+        await rig.monitor.request(.inputMonitoring)
+        let whileUnneeded = (rig.board.requested, rig.monitor.followUps)
+        await rig.monitor.setNeeds(PermissionNeeds(ocrEnabled: true))
+        await rig.monitor.request(.screenRecording)
+
+        #expect(whileUnneeded.0.isEmpty)
+        #expect(whileUnneeded.1.isEmpty)
+        #expect(rig.board.requested == [.screenRecording])
+        #expect(rig.monitor.followUps == [.screenRecording: .sentToSettings])
+    }
+
+    @Test("System Settings is not opened for a permission the setup does not use, and is once it does")
+    func unneededPermissionOpensNoPane() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .granted, .screenRecording: .denied])
+        await rig.monitor.refresh()
+
+        rig.monitor.openSettings(for: .screenRecording)
+        let whileUnneeded = (rig.panes.opened, rig.monitor.followUps)
+        await rig.monitor.setNeeds(PermissionNeeds(ocrEnabled: true))
+        rig.monitor.openSettings(for: .screenRecording)
+
+        #expect(whileUnneeded.0.isEmpty)
+        #expect(whileUnneeded.1.isEmpty)
+        #expect(rig.panes.opened == [.screenRecording])
     }
 
     // MARK: Stale grants
@@ -473,12 +520,91 @@ struct PermissionsMonitorTests {
         await rig.clock.waitForSleeps(1)
         rig.clock.advance(by: .milliseconds(29_999))
         await rig.settle()
-        let justBefore = rig.monitor.staleGuidance
+        let justBefore = rig.monitor.followUps
         rig.clock.advance(by: .milliseconds(1))
-        await waitUntil { !rig.monitor.staleGuidance.isEmpty }
+        await waitUntil { rig.monitor.followUps[.accessibility] == .stale }
 
-        #expect(justBefore.isEmpty)
-        #expect(rig.monitor.staleGuidance == [.accessibility])
+        #expect(justBefore == [.accessibility: .sentToSettings])
+        #expect(rig.monitor.followUps == [.accessibility: .stale])
+    }
+
+    @Test("a permission the user is waiting on but that is not denied gets the troubleshooting too")
+    func staleWithoutDenied() async {
+        // The system can answer a request at once and leave the status as it was, as Input Monitoring does.
+        let rig = Rig(
+            [.microphone: .granted, .accessibility: .granted, .inputMonitoring: .notDetermined],
+            needs: PermissionNeeds(modifierOnlyHotkey: true))
+        await rig.monitor.refresh()
+        await rig.monitor.request(.inputMonitoring)
+        let afterTheRequest = rig.monitor.followUps
+
+        await rig.monitor.appDidBecomeActive()
+        await rig.clock.waitForSleeps(1)
+        rig.clock.advance(by: .seconds(30))
+        await waitUntil { rig.monitor.followUps[.inputMonitoring] == .stale }
+
+        #expect(afterTheRequest == [.inputMonitoring: .sentToSettings])
+        #expect(rig.monitor.followUps == [.inputMonitoring: .stale])
+    }
+
+    @Test("opening System Settings again while the troubleshooting is shown keeps it")
+    func staleSurvivesAnotherTrip() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .denied])
+        await rig.monitor.refresh()
+        rig.monitor.openSettings(for: .accessibility)
+        await rig.monitor.appDidBecomeActive()
+        await rig.clock.waitForSleeps(1)
+        rig.clock.advance(by: .seconds(30))
+        await waitUntil { rig.monitor.followUps[.accessibility] == .stale }
+
+        rig.monitor.openSettings(for: .accessibility)
+
+        #expect(rig.panes.opened == [.accessibility, .accessibility])
+        #expect(rig.monitor.followUps == [.accessibility: .stale])
+    }
+
+    @Test("a permission the setup stops using stops being followed: its wait and its timer end")
+    func droppedNeedEndsTheWait() async {
+        let rig = Rig(
+            [.microphone: .granted, .accessibility: .granted, .screenRecording: .denied],
+            needs: PermissionNeeds(ocrEnabled: true))
+        await rig.monitor.refresh()
+        rig.monitor.openSettings(for: .screenRecording)
+        await rig.monitor.appDidBecomeActive()
+        await rig.clock.waitForSleeps(1)
+        let whileCounting = (rig.monitor.followUps, rig.clock.pendingSleeps)
+
+        await rig.monitor.setNeeds(PermissionNeeds())
+        let afterTheDrop = (rig.monitor.followUps, rig.clock.pendingSleeps)
+        rig.clock.advance(by: .seconds(60))
+        await rig.settle()
+        await rig.monitor.setNeeds(PermissionNeeds(ocrEnabled: true))
+
+        #expect(whileCounting.0 == [.screenRecording: .sentToSettings])
+        #expect(whileCounting.1 == 1)
+        #expect(afterTheDrop.0.isEmpty)
+        #expect(afterTheDrop.1 == 0)
+        #expect(rig.monitor.followUps.isEmpty)
+    }
+
+    @Test("a permission the setup stops using loses its troubleshooting, which does not come back with the need")
+    func droppedNeedEndsTheTroubleshooting() async {
+        let rig = Rig(
+            [.microphone: .granted, .accessibility: .granted, .screenRecording: .denied],
+            needs: PermissionNeeds(ocrEnabled: true))
+        await rig.monitor.refresh()
+        rig.monitor.openSettings(for: .screenRecording)
+        await rig.monitor.appDidBecomeActive()
+        await rig.clock.waitForSleeps(1)
+        rig.clock.advance(by: .seconds(30))
+        await waitUntil { rig.monitor.followUps[.screenRecording] == .stale }
+
+        await rig.monitor.setNeeds(PermissionNeeds())
+        let afterTheDrop = rig.monitor.followUps
+        await rig.monitor.setNeeds(PermissionNeeds(ocrEnabled: true))
+
+        #expect(afterTheDrop.isEmpty)
+        #expect(rig.monitor.followUps.isEmpty)
     }
 
     @Test("the bounded time is a setting of the monitor")
@@ -493,9 +619,9 @@ struct PermissionsMonitorTests {
         await monitor.appDidBecomeActive()
         await clock.waitForSleeps(1)
         clock.advance(by: .seconds(5))
-        await waitUntil { !monitor.staleGuidance.isEmpty }
+        await waitUntil { monitor.followUps[.accessibility] == .stale }
 
-        #expect(monitor.staleGuidance == [.accessibility])
+        #expect(monitor.followUps == [.accessibility: .stale])
     }
 
     @Test("the time counts from the return, not from opening System Settings")
@@ -507,14 +633,14 @@ struct PermissionsMonitorTests {
         await rig.settle()
         rig.clock.advance(by: .seconds(60))
         await rig.settle()
-        let whileAway = rig.monitor.staleGuidance
+        let whileAway = rig.monitor.followUps
         await rig.monitor.appDidBecomeActive()
         await rig.clock.waitForSleeps(1)
         rig.clock.advance(by: .seconds(29))
         await rig.settle()
 
-        #expect(whileAway.isEmpty)
-        #expect(rig.monitor.staleGuidance.isEmpty)
+        #expect(whileAway == [.accessibility: .sentToSettings])
+        #expect(rig.monitor.followUps == [.accessibility: .sentToSettings])
     }
 
     @Test("a grant before the time is up cancels the troubleshooting")
@@ -533,8 +659,7 @@ struct PermissionsMonitorTests {
         await rig.settle()
 
         #expect(pendingAfterTheGrant == 0)
-        #expect(rig.monitor.staleGuidance.isEmpty)
-        #expect(rig.monitor.waiting.isEmpty)
+        #expect(rig.monitor.followUps.isEmpty)
     }
 
     @Test("the troubleshooting goes away when the permission is granted at last")
@@ -545,12 +670,12 @@ struct PermissionsMonitorTests {
         await rig.monitor.appDidBecomeActive()
         await rig.clock.waitForSleeps(1)
         rig.clock.advance(by: .seconds(30))
-        await waitUntil { !rig.monitor.staleGuidance.isEmpty }
+        await waitUntil { rig.monitor.followUps[.accessibility] == .stale }
 
         rig.board.set(.accessibility, to: .granted)
         await rig.monitor.refresh()
 
-        #expect(rig.monitor.staleGuidance.isEmpty)
+        #expect(rig.monitor.followUps.isEmpty)
     }
 
     @Test("coming back to a permission that is granted by then starts no timer")
@@ -564,7 +689,7 @@ struct PermissionsMonitorTests {
         await rig.settle()
 
         #expect(rig.clock.suspendedSleeps == 0)
-        #expect(rig.monitor.staleGuidance.isEmpty)
+        #expect(rig.monitor.followUps.isEmpty)
     }
 
     @Test("only the permission that stays denied gets the troubleshooting")
@@ -578,9 +703,9 @@ struct PermissionsMonitorTests {
         await rig.monitor.appDidBecomeActive()
         await rig.clock.waitForSleeps(1)
         rig.clock.advance(by: .seconds(30))
-        await waitUntil { !rig.monitor.staleGuidance.isEmpty }
+        await waitUntil { rig.monitor.followUps[.microphone] == .stale }
 
-        #expect(rig.monitor.staleGuidance == [.microphone])
+        #expect(rig.monitor.followUps == [.microphone: .stale])
     }
 
     @Test("a request that leaves the permission denied, as Accessibility does, is followed up the same way")
@@ -592,9 +717,9 @@ struct PermissionsMonitorTests {
         await rig.monitor.appDidBecomeActive()
         await rig.clock.waitForSleeps(1)
         rig.clock.advance(by: .seconds(30))
-        await waitUntil { !rig.monitor.staleGuidance.isEmpty }
+        await waitUntil { rig.monitor.followUps[.accessibility] == .stale }
 
-        #expect(rig.monitor.staleGuidance == [.accessibility])
+        #expect(rig.monitor.followUps == [.accessibility: .stale])
     }
 
     @Test("a prompt the user answered with Deny is not a trip to System Settings, so it gets no troubleshooting")
@@ -609,7 +734,7 @@ struct PermissionsMonitorTests {
         for _ in 0..<20 { await Task.yield() }
 
         #expect(clock.suspendedSleeps == 0)
-        #expect(monitor.staleGuidance.isEmpty)
+        #expect(monitor.followUps.isEmpty)
     }
 
     @Test("a prompt that is still up when the app becomes active starts no timer")
@@ -641,7 +766,7 @@ struct PermissionsMonitorTests {
         await rig.settle()
         let whileCounting = rig.clock.pendingSleeps
         rig.clock.advance(by: .seconds(30))
-        await waitUntil { !rig.monitor.staleGuidance.isEmpty }
+        await waitUntil { rig.monitor.followUps[.accessibility] == .stale }
         await rig.monitor.appDidBecomeActive()
         await rig.settle()
 
@@ -662,7 +787,6 @@ struct PermissionsMonitorTests {
         await waitUntil { rig.monitor.statuses[.accessibility] == .granted }
         await rig.settle()
 
-        #expect(rig.monitor.staleGuidance.isEmpty)
-        #expect(rig.monitor.waiting.isEmpty)
+        #expect(rig.monitor.followUps.isEmpty)
     }
 }

@@ -50,13 +50,13 @@ If a permission is revoked while running, the system MUST detect it, disable the
 
 ### Requirement: Stale-grant guidance
 
-If a permission stays denied after the user returned from System Settings for a bounded time, the system SHOULD show troubleshooting steps (remove and re-add the app).
+If a permission stays denied after the user returned from System Settings for a bounded time, the system SHOULD show troubleshooting steps that fit the permission: switch it off and on, quit and reopen the app where the change applies only after a relaunch (Input Monitoring, Screen Recording), and remove and re-add the app where the pane allows it (Accessibility, Input Monitoring, Screen Recording).
 
 #### Scenario: Still denied
 
 - GIVEN the user returned from System Settings and the status is still denied after the bounded time
 - WHEN the time elapses
-- THEN the remove-and-re-add guidance is shown
+- THEN the permission's troubleshooting steps are shown
 
 ### Requirement: Onboarding completion
 

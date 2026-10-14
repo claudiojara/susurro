@@ -43,45 +43,38 @@ public final class OnboardingViewModel: OnboardingViewModeling {
     // MARK: Rows
 
     private func row(for permission: Permission) -> OnboardingRowState {
-        let status = status(of: permission)
+        let (status, action) = standing(of: permission)
         return OnboardingRowState(
             id: OnboardingPermission(permission),
             title: permission.displayName,
             why: OnboardingCopy.why(permission),
-            isOptional: !PermissionPolicy.required.contains(permission),
-            featureNote: OnboardingCopy.featureNote(permission),
+            requirement: OnboardingCopy.requirement(permission),
             status: status,
-            action: action(for: permission, shown: status),
-            staleGuidance: status == .stale ? OnboardingCopy.staleGuidance : nil
+            action: action
         )
     }
 
-    private func status(of permission: Permission) -> OnboardingRowStatus {
+    /// Where the permission stands for the user and the one step that fits. A follow-up of the monitor decides it
+    /// whatever the status says: a prompt that is up needs the user's answer and nothing else, and after that System
+    /// Settings is the way on, also when the status did not become denied.
+    private func standing(of permission: Permission) -> (OnboardingRowStatus, OnboardingAction?) {
         let reading = monitor.statuses[permission] ?? .notDetermined
-        if reading == .granted { return .granted }
-        if monitor.staleGuidance.contains(permission) { return .stale }
-        if monitor.waiting.contains(permission) { return .waiting }
-        return reading == .denied ? .denied : .notAsked
-    }
-
-    /// The step that fits where the permission stands. Accessibility and Screen Recording are reported only as allowed
-    /// or not, so for them denied can mean never asked, and the request, which shows the system prompt that leads to
-    /// System Settings, comes before the pane.
-    private func action(for permission: Permission, shown status: OnboardingRowStatus) -> OnboardingAction? {
-        switch status {
-        case .granted:
-            return nil
-        case .notAsked:
-            return OnboardingCopy.requestAction(permission)
-        case .denied:
-            return OnboardingCopy.deniedMeansNotAskedYet.contains(permission)
-                ? OnboardingCopy.requestAction(permission) : OnboardingCopy.openSettingsAction
-        case .waiting:
-            // A prompt that is up needs the user's answer. Otherwise the user was sent to System Settings.
-            return monitor.statuses[permission] == .denied ? OnboardingCopy.openSettingsAction : nil
+        if reading == .granted { return (.granted, nil) }
+        switch monitor.followUps[permission] {
+        case .requesting: return (.waiting, nil)
+        case .sentToSettings: return (.waiting, OnboardingCopy.openSettingsAction)
         case .stale:
-            return OnboardingCopy.openSettingsAction
+            return (.stale(guidance: OnboardingCopy.staleGuidance(permission)), OnboardingCopy.openSettingsAction)
+        case nil: break
         }
+        guard reading == .denied else { return (.notAsked, OnboardingCopy.requestAction(permission)) }
+        // For a permission whose denied status may mean never asked (`Permission.deniedMayMeanNotAsked`) the request,
+        // which shows the system prompt that leads to System Settings, comes before the pane.
+        return (
+            .denied,
+            permission.deniedMayMeanNotAsked
+                ? OnboardingCopy.requestAction(permission) : OnboardingCopy.openSettingsAction
+        )
     }
 }
 
