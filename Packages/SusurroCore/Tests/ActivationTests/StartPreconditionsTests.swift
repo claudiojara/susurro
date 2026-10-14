@@ -4,7 +4,9 @@ import Testing
 
 @Suite("Start preconditions")
 struct StartPreconditionsTests {
-    @Test("a microphone that is not granted points to the permissions", arguments: [PermissionStatus.denied, .notDetermined])
+    @Test(
+        "a microphone that is not granted points to the permissions",
+        arguments: [PermissionStatus.denied, .notDetermined])
     func microphone(status: PermissionStatus) {
         let failure = StartPreconditions.evaluate(microphone: status, recognizer: .ready)
 

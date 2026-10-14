@@ -18,7 +18,8 @@ final class KeyboardShortcutsEscapeRegistration: EscapeRegistration {
     func register(_ onEscape: @escaping @Sendable () -> Void) {
         let task = Task { @MainActor in
             // The system registers the key as the stream is made and releases it when the stream is no longer read.
-            for await event in KeyboardShortcuts.events(for: KeyboardShortcuts.Shortcut(.escape)) where event == .keyDown {
+            for await event in KeyboardShortcuts.events(for: KeyboardShortcuts.Shortcut(.escape))
+            where event == .keyDown {
                 onEscape()
             }
         }

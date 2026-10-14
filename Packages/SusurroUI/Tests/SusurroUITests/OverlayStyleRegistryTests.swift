@@ -54,12 +54,15 @@ struct OverlayStyleRegistryTests {
         let pill = StubOverlayModel(state: Self.state)
 
         #expect(type(of: OverlayContainer.style(for: compact, in: registry)).id == "compact")
-        #expect(png(of: OverlayContainer(model: compact, registry: registry))
-            == png(of: CompactOverlayStyle().body(state: Self.state, level: 0.5)))
-        #expect(png(of: OverlayContainer(model: pill, registry: registry))
-            == png(of: PillOverlayStyle().body(state: Self.state, level: 0.5)))
-        #expect(png(of: OverlayContainer(model: compact, registry: registry))
-            != png(of: OverlayContainer(model: pill, registry: registry)))
+        #expect(
+            png(of: OverlayContainer(model: compact, registry: registry))
+                == png(of: CompactOverlayStyle().body(state: Self.state, level: 0.5)))
+        #expect(
+            png(of: OverlayContainer(model: pill, registry: registry))
+                == png(of: PillOverlayStyle().body(state: Self.state, level: 0.5)))
+        #expect(
+            png(of: OverlayContainer(model: compact, registry: registry))
+                != png(of: OverlayContainer(model: pill, registry: registry)))
         #expect(registry.reportedErrors.isEmpty)
     }
 

@@ -11,7 +11,8 @@ import Testing
 @Suite("Overlay controller", .timeLimit(.minutes(1)))
 struct OverlayControllerTests {
     private static let screen = OverlayScreen(
-        frame: CGRect(x: 0, y: 0, width: 1_512, height: 949), visibleFrame: CGRect(x: 0, y: 0, width: 1_512, height: 920))
+        frame: CGRect(x: 0, y: 0, width: 1_512, height: 949),
+        visibleFrame: CGRect(x: 0, y: 0, width: 1_512, height: 920))
     private static let second = OverlayScreen(
         frame: CGRect(x: 1_512, y: 0, width: 1_920, height: 1_080),
         visibleFrame: CGRect(x: 1_512, y: 0, width: 1_920, height: 1_055))

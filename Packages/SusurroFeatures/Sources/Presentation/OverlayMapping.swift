@@ -18,7 +18,8 @@ enum OverlayMapping {
         case .starting:
             .starting(text: "Getting ready…")
         case .recording(let mode):
-            .recording(handsFree: mode == .handsFree, text: "Listening…", hint: mode == .handsFree ? handsFreeHint : nil)
+            .recording(
+                handsFree: mode == .handsFree, text: "Listening…", hint: mode == .handsFree ? handsFreeHint : nil)
         case .transcribing(let progress?):
             modelLoading(progress: progress)
         case .transcribing(nil):
@@ -39,7 +40,8 @@ enum OverlayMapping {
     /// The speech model loading, whether a dictation waits for it or the app is idle.
     static func modelLoading(progress: Double) -> OverlayViewState {
         let fraction = progress.loadFraction
-        return .transcribing(text: "Preparing the speech model… \(Int((fraction * 100).rounded()))%", progress: fraction)
+        return .transcribing(
+            text: "Preparing the speech model… \(Int((fraction * 100).rounded()))%", progress: fraction)
     }
 
     private static func notice(_ kind: NoticeKind) -> OverlayViewState {

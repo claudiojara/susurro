@@ -188,7 +188,8 @@ public final class OverlayViewModel: OverlayViewModeling {
 
     private func update(_ new: OverlayViewState) {
         guard new != state else { return }
-        if case .recording = new {} else {
+        if case .recording = new {
+        } else {
             level = 0
             throttle.reset()
         }

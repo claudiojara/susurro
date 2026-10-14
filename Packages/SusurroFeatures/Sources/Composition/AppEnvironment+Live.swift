@@ -8,8 +8,8 @@ import Foundation
 import Hotkeys
 import Permissions
 import Presentation
-import SusurroUI
 import Settings
+import SusurroUI
 import TextInsertion
 
 extension AppEnvironment {

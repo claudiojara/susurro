@@ -1,8 +1,8 @@
 import CoreTestSupport
 import DesignSystem
 import Domain
-import Synchronization
 import SusurroUI
+import Synchronization
 import Testing
 
 @testable import Presentation
@@ -22,7 +22,8 @@ struct OverlayViewModelLevelAndSettingsTests {
 
         await h.model.apply(.recording(.handsFree))
 
-        let expected = OverlayViewState.recording(handsFree: true, text: "Listening…", hint: OverlayMapping.handsFreeHint)
+        let expected = OverlayViewState.recording(
+            handsFree: true, text: "Listening…", hint: OverlayMapping.handsFreeHint)
         #expect(await h.model.state == expected)
     }
 
@@ -103,7 +104,9 @@ struct OverlayViewModelLevelAndSettingsTests {
         let h = await OverlayHarness()
         let settings = InMemorySettingsStore()
 
-        for (setting, edge): (OverlayEdgeSetting, ScreenEdge?) in [(.top, .top), (.bottom, .bottom), (.followTheme, nil)] {
+        for (setting, edge): (OverlayEdgeSetting, ScreenEdge?) in [
+            (.top, .top), (.bottom, .bottom), (.followTheme, nil),
+        ] {
             settings.set(setting, for: OverlaySettings.edge)
             await h.model.read(settings)
             #expect(await h.model.edgePreference == edge)

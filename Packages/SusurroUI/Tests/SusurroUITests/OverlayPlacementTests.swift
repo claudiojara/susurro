@@ -7,7 +7,8 @@ import Testing
 @Suite("Overlay placement")
 struct OverlayPlacementTests {
     private static let first = OverlayScreen(
-        frame: CGRect(x: 0, y: 0, width: 1_440, height: 900), visibleFrame: CGRect(x: 0, y: 0, width: 1_440, height: 875))
+        frame: CGRect(x: 0, y: 0, width: 1_440, height: 900),
+        visibleFrame: CGRect(x: 0, y: 0, width: 1_440, height: 875))
     private static let second = OverlayScreen(
         frame: CGRect(x: 1_440, y: 0, width: 1_920, height: 1_080),
         visibleFrame: CGRect(x: 1_440, y: 30, width: 1_920, height: 1_025))

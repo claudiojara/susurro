@@ -149,7 +149,8 @@ struct DictationCoordinatorActivationTests {
 
     // MARK: Esc
 
-    @Test("Esc is armed by the press, released by a tap with no job, armed again by hands-free, and released at the end")
+    @Test(
+        "Esc is armed by the press, released by a tap with no job, armed again by hands-free, and released at the end")
     func escapeLifecycle() async {
         var h = await Harness()
         await h.startRecording()
@@ -283,7 +284,10 @@ struct DictationCoordinatorActivationTests {
 
         await h.sut.handle(.down(at: Self.pressTime))
 
-        #expect(await h.read(through: .idle) == [.starting, .error(.captureFailed(String(describing: CaptureError.noInputDevice))), .idle])
+        #expect(
+            await h.read(through: .idle) == [
+                .starting, .error(.captureFailed(String(describing: CaptureError.noInputDevice))), .idle,
+            ])
         #expect(h.hotkeys.escapeArmedCalls == [true, false])
         #expect(h.clock.pendingSleeps == 0)
     }
