@@ -12,4 +12,11 @@ extension SettingsStore {
     public func hotkeyConfiguration() -> HotkeyConfiguration {
         HotkeyConfiguration(kind: value(for: HotkeySettings.kind), combo: value(for: HotkeySettings.combo))
     }
+
+    /// Stores a hotkey. The hotkey service follows both keys and reads the pair each time, so for the moment between the two
+    /// writes it may see the new combo with the old kind; the kind goes last so that the pair is whole after it.
+    public func setHotkey(_ configuration: HotkeyConfiguration) {
+        set(configuration.combo, for: HotkeySettings.combo)
+        set(configuration.kind, for: HotkeySettings.kind)
+    }
 }

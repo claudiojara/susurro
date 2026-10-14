@@ -33,4 +33,16 @@ struct HotkeySettingsTests {
 
         #expect(store.hotkeyConfiguration() == HotkeyConfiguration(kind: .modifierOnly, combo: fn))
     }
+
+    @Test("setting a hotkey writes its kind and its combo, which are the keys the hotkey service follows")
+    func setHotkey() {
+        let store = InMemorySettingsStore()
+        let fn = HotkeyConfiguration(kind: .modifierOnly, combo: HotkeyCombo(keyCode: nil, modifiers: .function))
+
+        store.setHotkey(fn)
+
+        #expect(store.value(for: HotkeySettings.kind) == .modifierOnly)
+        #expect(store.value(for: HotkeySettings.combo) == fn.combo)
+        #expect(store.hotkeyConfiguration() == fn)
+    }
 }
