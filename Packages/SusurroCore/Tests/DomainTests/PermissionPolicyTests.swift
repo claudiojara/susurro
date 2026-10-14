@@ -13,6 +13,12 @@ struct PermissionPolicyTests {
         #expect(PermissionPolicy.required == [.microphone, .accessibility])
     }
 
+    @Test("only Microphone blocks recording: Accessibility is required but gates automatic paste only")
+    func blockingPermissions() {
+        #expect(PermissionPolicy.blocking == [.microphone])
+        #expect(PermissionPolicy.blocking.allSatisfy(PermissionPolicy.required.contains))
+    }
+
     @Test("a default setup, with a keyed hotkey and OCR off, requests only Microphone and Accessibility")
     func defaultSetup() {
         #expect(PermissionPolicy.conditional(for: PermissionNeeds()).isEmpty)
@@ -55,20 +61,36 @@ struct PermissionPolicyTests {
         let needs = PermissionNeeds()
 
         #expect(PermissionPolicy.missing(for: needs, statuses: Self.everythingGranted).isEmpty)
+        #expect(PermissionPolicy.missingRequired(statuses: Self.everythingGranted).isEmpty)
         #expect(PermissionPolicy.blocking(statuses: Self.everythingGranted).isEmpty)
         #expect(PermissionPolicy.isOnboardingComplete(statuses: Self.everythingGranted))
     }
 
     @Test(
-        "a required permission that is denied or not determined is missing, and the onboarding is not complete",
+        "a Microphone that is denied or not determined is missing, blocks recording, and the onboarding is not complete",
         arguments: [PermissionStatus.denied, .notDetermined]
     )
-    func oneMissing(status: PermissionStatus) {
+    func microphoneMissing(status: PermissionStatus) {
+        var statuses = Self.everythingGranted
+        statuses[.microphone] = status
+
+        #expect(PermissionPolicy.missing(for: PermissionNeeds(), statuses: statuses) == [.microphone])
+        #expect(PermissionPolicy.missingRequired(statuses: statuses) == [.microphone])
+        #expect(PermissionPolicy.blocking(statuses: statuses) == [.microphone])
+        #expect(!PermissionPolicy.isOnboardingComplete(statuses: statuses))
+    }
+
+    @Test(
+        "Accessibility is required but does not block: it is missing and the onboarding is not complete, yet recording is free",
+        arguments: [PermissionStatus.denied, .notDetermined]
+    )
+    func accessibilityIsRequiredButDoesNotBlock(status: PermissionStatus) {
         var statuses = Self.everythingGranted
         statuses[.accessibility] = status
 
         #expect(PermissionPolicy.missing(for: PermissionNeeds(), statuses: statuses) == [.accessibility])
-        #expect(PermissionPolicy.blocking(statuses: statuses) == [.accessibility])
+        #expect(PermissionPolicy.missingRequired(statuses: statuses) == [.accessibility])
+        #expect(PermissionPolicy.blocking(statuses: statuses).isEmpty)
         #expect(!PermissionPolicy.isOnboardingComplete(statuses: statuses))
     }
 
@@ -77,7 +99,9 @@ struct PermissionPolicyTests {
         let statuses: [Permission: PermissionStatus] = [.microphone: .granted]
 
         #expect(PermissionPolicy.missing(for: PermissionNeeds(), statuses: statuses) == [.accessibility])
-        #expect(PermissionPolicy.blocking(statuses: statuses) == [.accessibility])
+        #expect(PermissionPolicy.missingRequired(statuses: statuses) == [.accessibility])
+        #expect(PermissionPolicy.missingRequired(statuses: [:]) == [.microphone, .accessibility])
+        #expect(PermissionPolicy.blocking(statuses: [:]) == [.microphone])
     }
 
     @Test("every missing permission is listed, in the order of the policy")
@@ -134,21 +158,23 @@ struct PermissionPolicyTests {
         statuses[.screenRecording] = status
 
         #expect(PermissionPolicy.missing(for: needs, statuses: statuses) == [.screenRecording])
+        #expect(PermissionPolicy.missingRequired(statuses: statuses).isEmpty)
         #expect(PermissionPolicy.blocking(statuses: statuses).isEmpty)
         #expect(PermissionPolicy.isOnboardingComplete(statuses: statuses))
     }
 
-    @Test("a required permission blocks even while a conditional one is also missing, and is the only one that does")
-    func blockingIsRequiredOnly() {
+    @Test("Microphone blocks while Accessibility and the conditional permissions are missing too, and is the only one")
+    func onlyMicrophoneBlocks() {
         let needs = PermissionNeeds(modifierOnlyHotkey: true, ocrEnabled: true)
         let statuses: [Permission: PermissionStatus] = [
-            .microphone: .denied, .accessibility: .granted, .inputMonitoring: .denied, .screenRecording: .denied,
+            .microphone: .denied, .accessibility: .denied, .inputMonitoring: .denied, .screenRecording: .denied,
         ]
 
         #expect(
             PermissionPolicy.missing(for: needs, statuses: statuses) == [
-                .microphone, .inputMonitoring, .screenRecording,
+                .microphone, .accessibility, .inputMonitoring, .screenRecording,
             ])
+        #expect(PermissionPolicy.missingRequired(statuses: statuses) == [.microphone, .accessibility])
         #expect(PermissionPolicy.blocking(statuses: statuses) == [.microphone])
         #expect(!PermissionPolicy.isOnboardingComplete(statuses: statuses))
     }

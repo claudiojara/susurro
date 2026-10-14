@@ -84,13 +84,14 @@ public nonisolated struct OnboardingViewState: Equatable, Sendable {
     public let rows: [OnboardingRowState]
     /// On once no required permission is missing.
     public let isDoneEnabled: Bool
-    /// Why dictation is off, naming the required permissions that are missing. Nil when nothing holds it back.
-    public let dictationDisabledMessage: String?
+    /// What the missing required permissions cost: that dictation is off, that the text goes to the clipboard, or both.
+    /// Nil when none is missing.
+    public let restrictionMessage: String?
 
-    public init(rows: [OnboardingRowState], isDoneEnabled: Bool, dictationDisabledMessage: String?) {
+    public init(rows: [OnboardingRowState], isDoneEnabled: Bool, restrictionMessage: String?) {
         self.rows = rows
         self.isDoneEnabled = isDoneEnabled
-        self.dictationDisabledMessage = dictationDisabledMessage
+        self.restrictionMessage = restrictionMessage
     }
 }
 

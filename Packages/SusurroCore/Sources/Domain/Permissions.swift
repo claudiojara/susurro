@@ -52,13 +52,21 @@ public struct PermissionNeeds: Sendable, Equatable {
 /// Which permissions a setup asks for and which of them hold dictation back. It is pure, so the onboarding, the menu and
 /// the monitor read one rule.
 ///
-/// Only Microphone and Accessibility are required: while one is missing dictation is disabled and the onboarding stays
-/// open. Input Monitoring and Screen Recording are conditional: the setup asks for one only when it uses the feature
-/// that needs it (a modifier-only hotkey, OCR), and a conditional permission that is missing never gates dictation or
-/// the end of the onboarding. It leaves that one feature inactive, with an explanation.
+/// Microphone and Accessibility are required: the onboarding asks for both, stays open while one is missing, and ends
+/// only when both are granted. They do not hold dictation back alike. Microphone is needed to record, so while it is
+/// missing dictation is off. Accessibility is needed to paste automatically, so while it is missing dictation still
+/// runs and the transcript goes to the clipboard with a notice. Input Monitoring and Screen Recording are conditional:
+/// the setup asks for one only when it uses the feature that needs it (a modifier-only hotkey, OCR), and a conditional
+/// permission that is missing never gates dictation or the end of the onboarding. It leaves that one feature inactive,
+/// with an explanation.
 public enum PermissionPolicy {
-    /// Needed for dictation in every setup, in the order of `Permission.allCases`.
+    /// Needed for dictation in every setup, in the order of `Permission.allCases`. They are the onboarding's rows, and
+    /// the onboarding is complete when all of them are granted.
     public static let required: [Permission] = [.microphone, .accessibility]
+
+    /// The required permissions without which dictation cannot record: Microphone alone. Accessibility only gates the
+    /// automatic paste, so a transcript made without it goes to the clipboard.
+    public static let blocking: [Permission] = [.microphone]
 
     /// What the setup's features need beyond `required`: Input Monitoring for a modifier-only or fn hotkey, and Screen
     /// Recording when OCR is on.
@@ -85,9 +93,16 @@ public enum PermissionPolicy {
         requested(for: needs).filter { statuses[$0] != .granted }
     }
 
-    /// The required permissions that are not granted. Dictation stays disabled, with the reason, until this is empty.
-    /// A conditional permission is never in it.
+    /// The `blocking` permissions that are not granted. Dictation is off, with the reason, until this is empty. A
+    /// permission that is only required, such as Accessibility, or conditional is never in it.
     public static func blocking(statuses: [Permission: PermissionStatus]) -> [Permission] {
+        blocking.filter { statuses[$0] != .granted }
+    }
+
+    /// The required permissions that are not granted, in the order of `required`: what the onboarding still asks for,
+    /// and what the user is told dictation is missing. One that has not been read is missing. A conditional permission
+    /// is never in it.
+    public static func missingRequired(statuses: [Permission: PermissionStatus]) -> [Permission] {
         required.filter { statuses[$0] != .granted }
     }
 
@@ -95,6 +110,6 @@ public enum PermissionPolicy {
     /// come back at launch when Microphone and Accessibility are granted, and does come back as soon as one is revoked.
     /// A conditional permission, denied or never read, does not change it.
     public static func isOnboardingComplete(statuses: [Permission: PermissionStatus]) -> Bool {
-        blocking(statuses: statuses).isEmpty
+        missingRequired(statuses: statuses).isEmpty
     }
 }

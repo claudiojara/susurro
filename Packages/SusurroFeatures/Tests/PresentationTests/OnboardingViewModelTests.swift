@@ -164,7 +164,7 @@ struct OnboardingViewModelTests {
         #expect(shown.action?.kind == .request)
     }
 
-    // MARK: Done and the disabled reason
+    // MARK: Done and the restriction
 
     @Test("Done is off before the statuses are read, and on once nothing blocks dictation")
     func doneEnablesWhenNothingBlocks() async {
@@ -184,7 +184,7 @@ struct OnboardingViewModelTests {
         #expect(!bothMissing)
         #expect(!oneMissing)
         #expect(model.state.isDoneEnabled)
-        #expect(model.state.dictationDisabledMessage == nil)
+        #expect(model.state.restrictionMessage == nil)
     }
 
     @Test("a denied conditional permission leaves Done on and dictation enabled")
@@ -197,13 +197,13 @@ struct OnboardingViewModelTests {
         await rig.monitor.refresh()
 
         #expect(model.state.isDoneEnabled)
-        #expect(model.state.dictationDisabledMessage == nil)
+        #expect(model.state.restrictionMessage == nil)
         #expect(try row(.inputMonitoring, of: model).status == .denied)
         #expect(try row(.screenRecording, of: model).status == .denied)
     }
 
-    @Test("the visible reason comes from the required permissions only")
-    func reasonComesFromBlockingOnly() async {
+    @Test("the visible restriction comes from the required permissions only")
+    func restrictionComesFromRequiredOnly() async {
         let rig = Rig(
             [.microphone: .denied, .accessibility: .granted, .inputMonitoring: .denied, .screenRecording: .denied],
             needs: everything)
@@ -211,19 +211,32 @@ struct OnboardingViewModelTests {
 
         await rig.monitor.refresh()
 
-        #expect(model.state.dictationDisabledMessage == "Dictation is off until Microphone is allowed.")
+        #expect(model.state.restrictionMessage == "Dictation is off until Microphone is allowed.")
         #expect(!model.state.isDoneEnabled)
     }
 
-    @Test("the reason names both required permissions when both are missing")
-    func reasonNamesBoth() async {
+    @Test("with only Accessibility missing the banner says the text goes to the clipboard, and Done stays off")
+    func accessibilityOnlyMessage() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .denied])
+        let model = OnboardingViewModel(monitor: rig.monitor)
+
+        await rig.monitor.refresh()
+
+        #expect(model.state.restrictionMessage == "Dictated text goes to the clipboard until Accessibility is allowed.")
+        #expect(!model.state.isDoneEnabled)
+    }
+
+    @Test("the restriction says both things when both required permissions are missing")
+    func restrictionNamesBoth() async {
         let rig = Rig([.microphone: .denied, .accessibility: .denied])
         let model = OnboardingViewModel(monitor: rig.monitor)
 
         await rig.monitor.refresh()
 
         #expect(
-            model.state.dictationDisabledMessage == "Dictation is off until Microphone and Accessibility are allowed.")
+            model.state.restrictionMessage
+                == "Dictation is off until Microphone is allowed. "
+                + "Dictated text goes to the clipboard until Accessibility is allowed.")
     }
 
     // MARK: The waiting state
@@ -309,17 +322,16 @@ struct OnboardingViewModelTests {
         #expect(stale.action?.kind == .openSettings)
     }
 
-    @Test("no reason is shown before the statuses are read")
-    func noReasonBeforeTheFirstRead() async {
+    @Test("no restriction is shown before the statuses are read")
+    func noRestrictionBeforeTheFirstRead() async {
         let rig = Rig([.microphone: .denied, .accessibility: .denied])
         let model = OnboardingViewModel(monitor: rig.monitor)
-        let before = model.state.dictationDisabledMessage
+        let before = model.state.restrictionMessage
 
         await rig.monitor.refresh()
 
         #expect(before == nil)
-        #expect(
-            model.state.dictationDisabledMessage == "Dictation is off until Microphone and Accessibility are allowed.")
+        #expect(model.state.restrictionMessage?.hasPrefix("Dictation is off until Microphone is allowed.") == true)
     }
 
     // MARK: Stale grants
@@ -424,7 +436,7 @@ struct OnboardingViewModelTests {
         let model = OnboardingViewModel(monitor: rig.monitor)
         rig.monitor.start()
         await rig.clock.waitForSleeps(1)
-        let before = (model.state.isDoneEnabled, model.state.dictationDisabledMessage)
+        let before = (model.state.isDoneEnabled, model.state.restrictionMessage)
 
         rig.board.set(.microphone, to: .denied)
         rig.clock.advance(by: .seconds(1))
@@ -433,7 +445,7 @@ struct OnboardingViewModelTests {
         #expect(before.0)
         #expect(before.1 == nil)
         #expect(!model.state.isDoneEnabled)
-        #expect(model.state.dictationDisabledMessage == "Dictation is off until Microphone is allowed.")
+        #expect(model.state.restrictionMessage == "Dictation is off until Microphone is allowed.")
     }
 
     // MARK: Observation
