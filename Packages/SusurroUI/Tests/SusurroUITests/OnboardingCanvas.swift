@@ -66,6 +66,7 @@ enum OnboardingCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
     @MainActor private func screen(_ fixture: OnboardingFixtures.Screen) -> AnyView {
         AnyView(
             OnboardingScreen(
-                state: OnboardingFixtures.state(fixture), onAction: { _, _ in }, onRecheck: {}, onDone: {}))
+                state: OnboardingFixtures.state(fixture), maxHeight: nil, onAction: { _, _ in }, onRecheck: {},
+                onDone: {}))
     }
 }

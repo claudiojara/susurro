@@ -5,11 +5,16 @@ import SwiftUI
 /// change to a permission redraws the screen without anything here asking for it.
 public struct OnboardingContainer: View {
     private let model: any OnboardingViewModeling
+    private let maxHeight: CGFloat?
     private let onDone: () -> Void
 
-    /// - Parameter onDone: What the Done button does: the window that holds the screen closes itself.
-    public init(model: any OnboardingViewModeling, onDone: @escaping () -> Void) {
+    /// - Parameters:
+    ///   - maxHeight: The most the screen may take, such as the height of a small display: the checklist scrolls when it
+    ///     does not fit. Nil for as much as the content needs.
+    ///   - onDone: What the Done button does: the window that holds the screen closes itself.
+    public init(model: any OnboardingViewModeling, maxHeight: CGFloat? = nil, onDone: @escaping () -> Void) {
         self.model = model
+        self.maxHeight = maxHeight
         self.onDone = onDone
     }
 
@@ -17,6 +22,7 @@ public struct OnboardingContainer: View {
         let model = model
         OnboardingScreen(
             state: model.state,
+            maxHeight: maxHeight,
             onAction: { permission, action in Task { await Self.perform(action, for: permission, on: model) } },
             onRecheck: { Task { await model.recheck() } },
             onDone: onDone)

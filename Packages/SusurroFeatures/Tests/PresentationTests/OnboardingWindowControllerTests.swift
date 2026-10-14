@@ -201,6 +201,32 @@ struct OnboardingWindowControllerTests {
         #expect(roomy.window.frame.height > small.height)
     }
 
+    @Test("the checklist that does not fit is in a scroll view that draws: the middle of the window shows a row")
+    func scrolledChecklistIsDrawn() async {
+        let small = CGRect(x: 0, y: 40, width: 1_280, height: 520)
+        let controller = await tallController(on: { small })
+        controller.show()
+        defer { controller.close() }
+        let view = controller.window.contentView!
+
+        // The scroll view of the checklist draws on a later turn of the run loop than the window. A raised card is not the
+        // window's color, so once a row is drawn the middle of the window differs between the padding, at the edge, and the
+        // inside of the card.
+        func isCardAtTheMiddle() -> Bool {
+            guard let picture = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return false }
+            view.cacheDisplay(in: view.bounds, to: picture)
+            let scale = CGFloat(picture.pixelsWide) / view.bounds.width
+            let middle = picture.pixelsHigh / 2
+            guard let padding = picture.colorAt(x: Int(4 * scale), y: middle),
+                let card = picture.colorAt(x: Int(34 * scale), y: middle)
+            else { return false }
+            return padding != card
+        }
+        await waitUntil { isCardAtTheMiddle() }
+
+        #expect(isCardAtTheMiddle())
+    }
+
     @Test("the cap follows the display the window is shown on, and lifts when the display is tall enough")
     func capFollowsTheDisplay() async {
         let area = Box(CGRect(x: 0, y: 0, width: 1_280, height: 520))
@@ -210,6 +236,8 @@ struct OnboardingWindowControllerTests {
         let small = controller.window.frame.height
         area.frame = Self.screen
         controller.show()
+        // SwiftUI redraws on the next turn of the run loop, which is when the hosting controller resizes the window.
+        await waitUntil { controller.window.frame.height > small + 100 || !controller.window.isVisible }
         let large = controller.window.frame.height
         controller.close()
 
