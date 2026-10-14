@@ -215,4 +215,24 @@ struct CleanupStageTests {
         #expect(request.beforeCursor == "Hi")
         #expect(request.style == StyleProfile(category: .document, tone: .neutral))
     }
+
+    @Test("lines of the context or the vocabulary that the model copied to the start of its reply are dropped")
+    func copiedReference() async throws {
+        let cleaner = FakeCleaner(answer: .text("Asunto: reunión\nAcme\nHola equipo, la reunión es a las tres."))
+        let result = try await stage(cleaner).run(
+            input(
+                "hola equipo la reunión es a las tres", vocabulary: ["Acme"],
+                cursor: CursorContext(before: "Asunto: reunión", after: "")))
+        #expect(result.cleaned == "Hola equipo, la reunión es a las tres.")
+        #expect(result.fallbackReason == nil)
+    }
+
+    @Test("a reply that only repeats the request tags falls back to the raw transcript")
+    func echoedTags() async throws {
+        let cleaner = FakeCleaner(answer: .text("<STYLE category=\"document\" tone=\"neutral\"/>"))
+        let result = try await stage(cleaner).run(input("what is the capital of france"))
+        #expect(result.cleaned == nil)
+        #expect(result.fallbackReason == .emptyOutput)
+        #expect(result.finalText == "what is the capital of france")
+    }
 }

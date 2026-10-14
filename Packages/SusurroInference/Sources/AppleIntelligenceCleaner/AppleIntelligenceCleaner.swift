@@ -29,6 +29,13 @@ public actor AppleIntelligenceCleaner: TranscriptCleaner {
         self.engine = engine
     }
 
+    /// The most tokens a reply may run to. Measured on this model, Spanish takes about 0.23 tokens a character and
+    /// English about 0.21, and a cleaned text is about as long as the transcript, so half a token a character is more
+    /// than twice what a faithful reply needs. A few tokens more cover a very short transcript.
+    static func responseTokenLimit(forTranscriptCharacters count: Int) -> Int {
+        count / 2 + 48
+    }
+
     /// How many calls wait behind the one running.
     var queuedCalls: Int { waiters.count }
 
@@ -56,7 +63,9 @@ public actor AppleIntelligenceCleaner: TranscriptCleaner {
         try Task.checkCancellation()
         do {
             return try await engine.generate(
-                EngineRequest(instructions: prompt.system, prompt: prompt.user, sampling: .greedy))
+                EngineRequest(
+                    instructions: prompt.system, prompt: prompt.user, sampling: .greedy,
+                    maximumResponseTokens: Self.responseTokenLimit(forTranscriptCharacters: request.transcript.count)))
         } catch let error as CancellationError {
             throw error
         } catch EngineError.guardrailViolation {

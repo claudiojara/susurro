@@ -31,8 +31,10 @@ public enum OutputGuard {
     private static let upperLimitLong = Ratio(numerator: 2, denominator: 1)
     private static let lowerLimit = Ratio(numerator: 2, denominator: 5)
 
-    public static func evaluate(raw: String, output: String) -> Verdict {
-        let text = OutputSanitizer.sanitize(output, raw: raw)
+    /// - Parameter reference: The vocabulary terms and the lines before the cursor the model was given as reference. A
+    ///   reply that starts by repeating them is stripped of them.
+    public static func evaluate(raw: String, output: String, reference: [String] = []) -> Verdict {
+        let text = OutputSanitizer.sanitize(output, raw: raw, reference: reference)
         guard !text.isEmpty else { return .fallback(.emptyOutput) }
         guard AssistantMarkers.firstMarker(in: text, notIn: raw) == nil else { return .fallback(.assistantMarker) }
         let rawCount = raw.count

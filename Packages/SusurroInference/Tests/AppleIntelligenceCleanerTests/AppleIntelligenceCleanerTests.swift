@@ -50,7 +50,17 @@ struct AppleIntelligenceCleanerTests {
         let expected = PromptBuilder.build(try payload.requireLocal())
         #expect(text == "Hola, equipo.")
         #expect(
-            engine.requests == [EngineRequest(instructions: expected.system, prompt: expected.user, sampling: .greedy)])
+            engine.requests == [
+                EngineRequest(
+                    instructions: expected.system, prompt: expected.user, sampling: .greedy,
+                    maximumResponseTokens: 11 / 2 + 48)
+            ])
+    }
+
+    @Test("the reply is cut at about half a token a character of the transcript, with a floor for short ones")
+    func responseTokenLimit() {
+        #expect(AppleIntelligenceCleaner.responseTokenLimit(forTranscriptCharacters: 0) == 48)
+        #expect(AppleIntelligenceCleaner.responseTokenLimit(forTranscriptCharacters: 2_500) == 1_298)
     }
 
     @Test("a cloud payload is refused and the model is never called")

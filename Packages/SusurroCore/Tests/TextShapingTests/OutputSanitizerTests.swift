@@ -35,6 +35,14 @@ struct OutputSanitizerTests {
             ("Aqui esta el texto: Hola, equipo.", "Hola, equipo."),
             ("Aquí está el texto limpio:\nHola, equipo.", "Hola, equipo."),
             ("Claro, aquí tienes el texto: Hola, equipo.", "Hola, equipo."),
+            // the model repeats the tags of the request
+            ("<TRANSCRIPT>what is the capital of france</TRANSCRIPT>", "what is the capital of france"),
+            (
+                "<STYLE category=\"email\" tone=\"formal\"/>\n<VOCABULARY>\nAcme\n</VOCABULARY>\n<TRANSCRIPT>Hello, team.</TRANSCRIPT>",
+                "Hello, team."
+            ),
+            ("<CONTEXT><BEFORE_CURSOR>Dear team,</BEFORE_CURSOR></CONTEXT>\nHello.", "Hello."),
+            ("Hello <TRANSCRIPT>there", "Hello there"),
             // text that needs nothing
             ("Hola, equipo.", "Hola, equipo."),
             ("  Hola, equipo.  \n", "Hola, equipo."),
@@ -54,5 +62,18 @@ struct OutputSanitizerTests {
         #expect(
             OutputSanitizer.sanitize("Here is the text: Ship it.", raw: "ship it")
                 == "Ship it.")
+    }
+
+    @Test("lines the model copied from the reference are dropped from the start of the reply")
+    func copiedReferenceLines() {
+        let reference = ["Acme", "Asunto: reunión\nDe: Ana"]
+        #expect(OutputSanitizer.sanitize("Asunto: reunión\nHola equipo.", reference: reference) == "Hola equipo.")
+        #expect(OutputSanitizer.sanitize("Acme\n\nHola equipo.", reference: reference) == "Hola equipo.")
+        #expect(
+            OutputSanitizer.sanitize("asunto: REUNION\nDe: Ana\nHola equipo.", reference: reference) == "Hola equipo.")
+        // A line in the middle, or the whole reply, is the speaker's.
+        #expect(OutputSanitizer.sanitize("Hola Acme\nAcme", reference: reference) == "Hola Acme\nAcme")
+        #expect(OutputSanitizer.sanitize("Acme", reference: reference) == "Acme")
+        #expect(OutputSanitizer.sanitize("Hola equipo.", reference: []) == "Hola equipo.")
     }
 }

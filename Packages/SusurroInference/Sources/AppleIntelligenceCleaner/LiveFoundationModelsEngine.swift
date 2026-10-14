@@ -1,14 +1,11 @@
 import FoundationModels
 
-/// What the model is asked to produce: the cleaned text, and nothing around it. The structure keeps the model from
-/// wrapping the text in a label, though the output is sanitized anyway.
-@Generable
-struct CleanedText {
-    @Guide(description: "The cleaned text only, with no label, quotes, or explanation.")
-    var text: String
-}
-
-/// The real model. Touching it needs Apple Intelligence on this Mac, so it is covered by the manual check, not by tests.
+/// The real model. Touching it needs Apple Intelligence on this Mac, so it is covered by the opt-in `RealModelTests` and
+/// the manual check, not by the default tests.
+///
+/// The reply is plain text, not a `@Generable` structure. Measured on this model with the same instructions and the same
+/// Spanish transcript, a structured reply came back without accents, capitals, or punctuation ("queria", "reunion"),
+/// and the plain reply was correct ("Hola equipo, quería comentarles que la reunión ...").
 struct LiveFoundationModelsEngine: FoundationModelsEngine {
     func availability() -> EngineAvailability {
         switch SystemLanguageModel.default.availability {
@@ -28,13 +25,13 @@ struct LiveFoundationModelsEngine: FoundationModelsEngine {
     func generate(_ request: EngineRequest) async throws -> String {
         // A new session for each call: a dictation must not see the one before it.
         let session = LanguageModelSession(instructions: request.instructions)
-        let options =
+        let sampling: GenerationOptions.SamplingMode =
             switch request.sampling {
-            case .greedy: GenerationOptions(sampling: .greedy)
+            case .greedy: .greedy
             }
+        let options = GenerationOptions(samplingMode: sampling, maximumResponseTokens: request.maximumResponseTokens)
         do {
-            let response = try await session.respond(to: request.prompt, generating: CleanedText.self, options: options)
-            return response.content.text
+            return try await session.respond(to: request.prompt, options: options).content
         } catch let error as LanguageModelSession.GenerationError {
             throw Self.map(error)
         }

@@ -74,7 +74,8 @@ public struct CleanupStage: Sendable {
             return result(for: input, cleaned: nil, reason: FallbackReason(thrownBy: error), provider: cleaner.id)
         }
         try Task.checkCancellation()
-        switch OutputGuard.evaluate(raw: raw, output: output) {
+        let reference = input.vocabulary + [payload.contextText]
+        switch OutputGuard.evaluate(raw: raw, output: output, reference: reference) {
         case .accepted(let text):
             return result(for: input, cleaned: text, reason: nil, provider: cleaner.id)
         case .fallback(let reason):
@@ -91,5 +92,12 @@ public struct CleanupStage: Sendable {
             finalText: InsertionShaper.shape(
                 cleaned ?? input.transcript, around: input.cursor, vocabulary: input.vocabulary)
         )
+    }
+}
+
+extension CleanupPayload {
+    /// The text before the cursor that a local request carries, or none.
+    fileprivate var contextText: String {
+        if case .local(let request) = self { request.beforeCursor } else { "" }
     }
 }
