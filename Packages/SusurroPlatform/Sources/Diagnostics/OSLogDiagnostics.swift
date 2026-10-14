@@ -51,6 +51,7 @@ public struct OSLogDiagnostics: DiagnosticsLog {
             (.default, "recording \(id).caf stored and verified: \(milliseconds) ms")
         case .recordingStoreFailed(let step): (.error, "recording store failed at \(step)")
         case .historyWriteFailed(let step): (.error, "history write failed at \(step)")
+        case .voiceDetectionFailed: (.error, "voice detection failed, the recording goes to the recognizer whole")
         case .languageDriftDetected: (.default, "transcript in the wrong language, transcribing again")
         }
     }

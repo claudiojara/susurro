@@ -38,6 +38,8 @@ public enum PipelineError: Error, Sendable, Equatable {
     case timedOut(Stage)
     /// The transcript is neither in the target app nor on the clipboard.
     case notInserted(NotInsertedReason)
+    /// The selected speech provider is in the cloud and is not turned on, or has no key. Nothing was recorded.
+    case providerNotUsable(ProviderBlocker)
     /// The recording could not be written to disk and verified, so it was not transcribed. The text is the reason.
     case persistenceFailed(String)
 
@@ -60,13 +62,14 @@ public enum PipelineError: Error, Sendable, Equatable {
         case .timedOut(let stage): "timedOut.\(stage)"
         case .notInserted(let reason): "notInserted.\(reason)"
         case .persistenceFailed: "persistenceFailed"
+        case .providerNotUsable(let blocker): "providerNotUsable.\(blocker)"
         }
     }
 
     public var remedy: Remedy {
         switch self {
         case .microphoneNotGranted: .permissions
-        case .recognizerNotInstalled: .settings
+        case .recognizerNotInstalled, .providerNotUsable: .settings
         case .recognizerUnavailable(_, let retryable): retryable ? .retry : .settings
         case .captureFailed, .persistenceFailed, .recognitionFailed, .timedOut, .notInserted: .retry
         }

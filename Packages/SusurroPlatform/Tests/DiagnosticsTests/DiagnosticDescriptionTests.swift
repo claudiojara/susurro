@@ -67,6 +67,9 @@ struct DiagnosticDescriptionTests {
             ),
             (.recordingStoreFailed(step: "verify"), .error, "recording store failed at verify"),
             (.historyWriteFailed(step: "insert"), .error, "history write failed at insert"),
+            (
+                .voiceDetectionFailed, .error, "voice detection failed, the recording goes to the recognizer whole"
+            ),
             (.languageDriftDetected, .default, "transcript in the wrong language, transcribing again"),
         ])
     func descriptions(event: DiagnosticEvent, level: OSLogType, line: String) {

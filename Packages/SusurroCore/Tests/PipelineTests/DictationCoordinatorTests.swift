@@ -10,7 +10,9 @@ struct DictationCoordinatorTests {
     static func audio(_ value: Float, seconds: Double = 1) -> [Float] {
         [Float](repeating: value, count: Int(seconds * Double(AudioClip.sampleRate)))
     }
-    static let capSamples = 60 * 16_000
+    /// A short recording cap, so that a test reaches it without holding minutes of audio.
+    static let cap = Duration.seconds(2)
+    static let capSamples = 2 * AudioClip.sampleRate
     /// Presses happen away from the timestamp origin, so a hold is measured from its own press.
     static let pressTime = Duration.seconds(10)
     static let transcribed: [PipelineState] = [.transcribing(progress: nil), .inserted, .idle]
@@ -237,14 +239,14 @@ struct DictationCoordinatorTests {
     @Test("a device removed mid-recording is transcribed at once with a notice, and the text waits for the release")
     func deviceRemovedMidRecording() async {
         var h = await Harness()
-        await h.startRecording(samples: Self.audio(0.1, seconds: 4))
+        await h.startRecording(samples: Self.audio(0.1, seconds: 1.5))
         h.capture.fail(CaptureError.deviceRemoved)
         let started = await h.read(through: .transcribing(progress: nil))
         let rest = await h.release(after: 5_000)
 
         #expect(started == [.notice(.deviceDisconnected), .transcribing(progress: nil)])
         #expect(rest == [.inserted, .idle])
-        #expect(h.recognizer.transcribedClips == [AudioClip(samples: Self.audio(0.1, seconds: 4))])
+        #expect(h.recognizer.transcribedClips == [AudioClip(samples: Self.audio(0.1, seconds: 1.5))])
     }
 
     @Test("a recording is written to the store while it is captured, and the store holds it after the dictation")
@@ -311,18 +313,9 @@ struct DictationCoordinatorTests {
         #expect(h.inserter.insertedTexts.isEmpty)
     }
 
-    @Test("a press while the dictation is being transcribed is ignored, and the busy notice says so")
-    func pressWhileProcessing() async {
-        var h = await Harness(recognizer: FakeRecognizer(transcript: "uno", gated: true))
-        await h.startRecording()
-        await h.sut.handle(.up(at: Self.pressTime + .milliseconds(1200)))
-        _ = await h.read(through: .transcribing(progress: nil))
-        await h.sut.handle(.down(at: Self.pressTime + .milliseconds(1300)))
-        h.recognizer.releaseTranscription()
-
-        #expect(await h.read(through: .idle) == [.notice(.busy), .transcribing(progress: nil), .inserted, .idle])
-        #expect(h.capture.startCount == 1)
-        #expect(h.inserter.insertedTexts == ["uno"])
+    @Test("the default recording cap is ten minutes")
+    func defaultCap() {
+        #expect(DictationLimits.recordingCap == .seconds(600))
     }
 
     @Test("a duplicate press while recording is ignored and does not restart the hold")
@@ -567,21 +560,6 @@ struct DictationCoordinatorTests {
             h.recognizer.transcribedClips == [AudioClip(samples: Self.audio(0.1)), AudioClip(samples: Self.audio(0.7))])
     }
 
-    @Test("a press while the text is being inserted is ignored, and the busy notice says so")
-    func pressWhileInserting() async {
-        let inserter = FakeTextInserter(gated: true)
-        var h = await Harness(inserter: inserter)
-        await h.startRecording()
-        await h.sut.handle(.up(at: Self.pressTime + .milliseconds(1200)))
-        await inserter.entered.wait()
-        await h.sut.handle(.down(at: Self.pressTime + .milliseconds(1300)))
-        inserter.releaseInsertion()
-
-        let busy: [PipelineState] = [.notice(.busy), .transcribing(progress: nil)]
-        #expect(await h.read(through: .idle) == [.transcribing(progress: nil)] + busy + [.inserted, .idle])
-        #expect(h.capture.startCount == 1)
-    }
-
     @Test("a recognizer that throws CancellationError ends in an error, and a later press works")
     func recognizerThrowsCancellation() async {
         let cancelled = String(describing: CancellationError())
@@ -629,7 +607,7 @@ struct DictationCoordinatorTests {
         #expect(await h.read(through: .idle) == [.idle])
     }
 
-    @Test("reaching the 60 s clip cap finishes the recording and says so")
+    @Test("reaching the recording cap finishes the recording and says so")
     func clipCapFinishesRecording() async {
         var h = await Harness()
         await h.sut.handle(.down(at: Self.pressTime))

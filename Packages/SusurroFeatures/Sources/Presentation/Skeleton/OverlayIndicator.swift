@@ -89,6 +89,8 @@ public struct OverlayIndicator: Equatable, Sendable {
             case .recognizerUnavailable: "The speech model could not load."
             case .captureFailed: "Could not record."
             case .persistenceFailed: "Could not save the recording."
+            case .providerNotUsable(.notEnabled): "The selected speech provider is turned off."
+            case .providerNotUsable(.missingKey): "The selected speech provider needs a key."
             case .recognitionFailed: "Transcription failed."
             case .timedOut(.readiness): "The speech model is taking too long to load."
             case .timedOut(.capture): "The microphone did not stop in time."

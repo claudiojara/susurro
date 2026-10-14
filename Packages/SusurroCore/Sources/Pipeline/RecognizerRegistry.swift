@@ -11,13 +11,17 @@ public struct RecognizerRegistry: Sendable {
     private let defaultProvider: ASRProviderID
     private let settings: any SettingsStore
     private let credentials: any ProviderCredentials
+    private let languageProvider: ASRProviderID?
 
     /// - Parameters:
     ///   - providers: Every recognizer the app has. One of them is `defaultProvider`.
     ///   - defaultProvider: What a fresh install uses, and what a cloud failure falls back to. It runs on this Mac.
+    ///   - languageProvider: The recognizer that honors the language it is asked for, to transcribe again a clip whose
+    ///     transcript came back in the wrong one. Nil when the app has none.
     public init(
         providers: [any SpeechRecognizer],
         defaultProvider: ASRProviderID = .parakeetV3,
+        languageProvider: ASRProviderID? = nil,
         settings: any SettingsStore,
         credentials: any ProviderCredentials = NoProviderCredentials()
     ) {
@@ -25,6 +29,7 @@ public struct RecognizerRegistry: Sendable {
             providers.contains { $0.id == defaultProvider }, "The default recognizer must be one of the providers")
         self.providers = providers
         self.defaultProvider = defaultProvider
+        self.languageProvider = languageProvider
         self.settings = settings
         self.credentials = credentials
     }
@@ -38,6 +43,11 @@ public struct RecognizerRegistry: Sendable {
     /// The recognizer a cloud failure falls back to, or nil when the selected one is already the default.
     public func fallback(from failed: any SpeechRecognizer) -> (any SpeechRecognizer)? {
         failed.id == defaultProvider ? nil : defaultRecognizer
+    }
+
+    /// The recognizer that honors the language it is asked for, if the app has one.
+    public func languageFallback() -> (any SpeechRecognizer)? {
+        languageProvider.flatMap { provider($0) }
     }
 
     public func provider(_ id: ASRProviderID) -> (any SpeechRecognizer)? {

@@ -10,8 +10,12 @@ struct CoordinatorHarness {
     let recordings: FakeRecordingStore
     let recognizer: FakeRecognizer
     let inserter: FakeTextInserter
+    let history: InMemoryHistoryRepository
+    let vad: FakeVoiceActivityDetector
+    let settings: InMemorySettingsStore
     let sleeper: FakeSleeper
     let diagnostics: RecordingDiagnostics
+    let pipeline: DictationPipeline
     let sut: DictationCoordinator
     private var states: AsyncStream<PipelineState>.Iterator
 
@@ -21,24 +25,46 @@ struct CoordinatorHarness {
         recordings: FakeRecordingStore = FakeRecordingStore(),
         recognizer: FakeRecognizer = FakeRecognizer(),
         inserter: FakeTextInserter = FakeTextInserter(),
-        sleeper: FakeSleeper = FakeSleeper()
+        history: InMemoryHistoryRepository = InMemoryHistoryRepository(),
+        vad: FakeVoiceActivityDetector = FakeVoiceActivityDetector(),
+        settings: InMemorySettingsStore = InMemorySettingsStore(),
+        sleeper: FakeSleeper = FakeSleeper(),
+        recordingCap: Duration = DictationCoordinatorTests.cap
     ) async {
         self.capture = capture
         self.recordings = recordings
         self.recognizer = recognizer
         self.inserter = inserter
+        self.history = history
+        self.vad = vad
+        self.settings = settings
         self.sleeper = sleeper
         let diagnostics = RecordingDiagnostics()
         self.diagnostics = diagnostics
+        let sleep: @Sendable (Duration) async throws -> Void = { try await sleeper.sleep($0) }
+        let registry = RecognizerRegistry(providers: [recognizer], defaultProvider: recognizer.id, settings: settings)
+        let pipeline = DictationPipeline(
+            recordings: recordings,
+            history: history,
+            detector: vad,
+            runner: RecognitionRunner(
+                registry: registry, language: SettingsLanguagePreference(settings: settings),
+                diagnostics: diagnostics, sleep: sleep),
+            inserter: inserter,
+            diagnostics: diagnostics,
+            sleep: sleep
+        )
+        self.pipeline = pipeline
         let coordinator = DictationCoordinator(
             hotkeys: hotkeys,
             capture: capture,
             recordings: recordings,
-            recognizer: recognizer,
-            inserter: inserter,
+            recognizers: registry,
+            pipeline: pipeline,
             permissions: permissions,
+            recordingCap: recordingCap,
             diagnostics: diagnostics,
-            sleep: { try await sleeper.sleep($0) }
+            sleep: sleep
         )
         sut = coordinator
         states = coordinator.states.makeAsyncIterator()

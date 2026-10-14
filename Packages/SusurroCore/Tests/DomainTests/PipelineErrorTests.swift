@@ -11,6 +11,8 @@ struct PipelineErrorTests {
         #expect(PipelineError.recognizerUnavailable("model is damaged", retryable: false).remedy == .settings)
         #expect(PipelineError.captureFailed("device").remedy == .retry)
         #expect(PipelineError.persistenceFailed("disk").remedy == .retry)
+        #expect(PipelineError.providerNotUsable(.missingKey).remedy == .settings)
+        #expect(PipelineError.providerNotUsable(.notEnabled).remedy == .settings)
         #expect(PipelineError.recognitionFailed("model").remedy == .retry)
         #expect(PipelineError.timedOut(.transcription).remedy == .retry)
         #expect(PipelineError.notInserted(.clipboardChanged).remedy == .retry)
@@ -33,6 +35,8 @@ struct PipelineErrorTests {
             (.notInserted(.clipboardChanged), "notInserted.clipboardChanged"),
             (.notInserted(.clipboardWriteFailed), "notInserted.clipboardWriteFailed"),
             (.persistenceFailed(secret), "persistenceFailed"),
+            (.providerNotUsable(.missingKey), "providerNotUsable.missingKey"),
+            (.providerNotUsable(.notEnabled), "providerNotUsable.notEnabled"),
         ]
         for (error, kind) in kinds {
             #expect(error.kind == kind)

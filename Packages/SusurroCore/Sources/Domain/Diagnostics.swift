@@ -60,6 +60,8 @@ public enum DiagnosticEvent: Sendable, Equatable {
     /// A step of the durable pipeline could not reach the history. `step` is one of "insert" or "update". The
     /// dictation goes on without the record.
     case historyWriteFailed(step: String)
+    /// The voice activity detector failed, so the recording went to the recognizer whole.
+    case voiceDetectionFailed
     /// The recognizer answered in a language other than the one that was asked for, so the clip was transcribed again.
     case languageDriftDetected
 }

@@ -14,6 +14,7 @@ public final class FakeRecognizer: SpeechRecognizer {
         var script: [RecognizerReadiness]
         var calls: [Call] = []
         var options: [RecognitionOptions] = []
+        var transcribed = 0
     }
 
     /// Opened when `transcribe` is entered.
@@ -23,7 +24,8 @@ public final class FakeRecognizer: SpeechRecognizer {
     public let maxClipDuration: Duration?
     private let transport: (any NetworkTransport)?
     private let state: Mutex<State>
-    private let result: Result<String, any Error>
+    private let transcripts: [String]
+    private let failure: (any Error)?
     private let gate: Gate?
     private let prepareGate: Gate?
     private let readyAfterPrepare: Bool
@@ -37,6 +39,7 @@ public final class FakeRecognizer: SpeechRecognizer {
     public init(
         readiness: [RecognizerReadiness] = [.ready],
         transcript: String = "hello",
+        transcripts: [String]? = nil,
         failure: (any Error)? = nil,
         gated: Bool = false,
         readyAfterPrepare: Bool = false,
@@ -51,7 +54,8 @@ public final class FakeRecognizer: SpeechRecognizer {
         self.maxClipDuration = maxClipDuration
         self.transport = transport
         state = Mutex(State(script: readiness))
-        result = failure.map { .failure($0) } ?? .success(transcript)
+        self.transcripts = transcripts ?? [transcript]
+        self.failure = failure
         gate = gated ? Gate() : nil
         prepareGate = gatedPrepare ? Gate() : nil
         self.readyAfterPrepare = readyAfterPrepare
@@ -100,6 +104,11 @@ public final class FakeRecognizer: SpeechRecognizer {
             _ = try await transport.send(URLRequest(url: URL(string: "https://speech.example.invalid/transcribe")!))
         }
         await gate?.wait()
-        return RawTranscript(text: try result.get())
+        if let failure { throw failure }
+        let index = state.withLock { state in
+            defer { state.transcribed += 1 }
+            return min(state.transcribed, transcripts.count - 1)
+        }
+        return RawTranscript(text: transcripts[index])
     }
 }

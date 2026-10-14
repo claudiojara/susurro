@@ -94,6 +94,8 @@ struct OverlayIndicatorTests {
             ),
             (.captureFailed("device"), "Could not record. Hold the key to try again."),
             (.persistenceFailed("disk"), "Could not save the recording. Hold the key to try again."),
+            (.providerNotUsable(.notEnabled), "The selected speech provider is turned off. Open the Susurro menu."),
+            (.providerNotUsable(.missingKey), "The selected speech provider needs a key. Open the Susurro menu."),
             (.recognitionFailed("engine"), "Transcription failed. Hold the key to try again."),
             (.timedOut(.readiness), "The speech model is taking too long to load. Hold the key to try again."),
             (.timedOut(.capture), "The microphone did not stop in time. Hold the key to try again."),
