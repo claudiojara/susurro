@@ -39,15 +39,25 @@ jobs:
 
       # Build each package on its own so sources the app does not link are analyzed too,
       # then build the app (xcodegen + xcodebuild) for the App/ sources.
+      #
+      # The SwiftPM and Xcode manifest sandboxes are disabled under the CodeQL tracer. The tracer
+      # injects libtrace.dylib with DYLD_INSERT_LIBRARIES, so it re-runs SIP-protected system tools
+      # from a copy (SEMMLE_COPY_EXECUTABLES_ROOT). The copy of /usr/bin/sandbox-exec cannot run its
+      # arm64e slice as a non-platform binary, which fails with "Bad CPU type in executable (86)"
+      # before any manifest loads. The runner is ephemeral and builds only this repository's code.
       - name: Build packages
         run: |
           for pkg in SusurroCore SusurroPlatform SusurroInference SusurroUI SusurroFeatures; do
             echo "==> swift build: $pkg"
-            swift build --package-path "Packages/$pkg"
+            swift build --disable-sandbox --package-path "Packages/$pkg"
           done
 
       - name: Build app
-        run: make build
+        run: >-
+          make build
+          SWIFTPM_FLAGS="--disable-keychain --disable-sandbox"
+          XCODEBUILD_PACKAGE_FLAGS="-clonedSourcePackagesDirPath build/SourcePackages -disableAutomaticPackageResolution
+          -IDEPackageSupportDisableManifestSandbox=YES -IDEPackageSupportDisablePluginExecutionSandbox=YES"
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
