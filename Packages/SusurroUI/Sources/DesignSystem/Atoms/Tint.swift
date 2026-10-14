@@ -3,7 +3,7 @@
 /// nil is the plain color of text, and a button takes a `Kind` instead, because its fill, its text, and its border are
 /// a fixed set for each kind.
 public nonisolated enum Tint: CaseIterable, Sendable {
-    case neutral, accent, recording, success, warning, error
+    case neutral, accent, recording, success, warning, error, pending
 
     /// The color of a dot, the fill of a bar, and the text of a pill in this tint.
     var color: ColorToken {
@@ -14,6 +14,7 @@ public nonisolated enum Tint: CaseIterable, Sendable {
         case .success: .statusSuccess
         case .warning: .statusWarning
         case .error: .statusError
+        case .pending: .statusPending
         }
     }
 }

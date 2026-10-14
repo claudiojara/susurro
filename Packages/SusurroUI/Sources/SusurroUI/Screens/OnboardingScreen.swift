@@ -42,7 +42,7 @@ struct OnboardingScreen: View {
             }
         }
         .padding(theme.spacing(.xl))
-        .frame(width: theme.size(.onboardingWidth))
+        .frame(width: theme.layout(.onboardingWidth))
         .background(theme.swiftUIColor(.surfaceWindow))
     }
 

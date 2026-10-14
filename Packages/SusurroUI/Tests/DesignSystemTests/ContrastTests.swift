@@ -38,7 +38,7 @@ struct ContrastTests {
         let surfaces: [ColorToken] = [.surfaceWindow, .surfaceRaised, .surfaceOverlay]
         let texts: [ColorToken] = [
             .textPrimary, .textSecondary, .accentPrimary, .accentRecording, .statusSuccess, .statusWarning,
-            .statusError,
+            .statusError, .statusPending,
         ]
         for text in texts { for surface in surfaces { pairs.append((text, surface)) } }
         for fill: ColorToken in [.accentPrimary, .accentRecording, .statusError] { pairs.append((.textOnAccent, fill)) }

@@ -14,7 +14,7 @@ extension OnboardingRowStatus {
         case .granted: StatusBadge(text: "Allowed", tint: .success, symbol: "checkmark.circle.fill")
         case .notAsked: StatusBadge(text: "Not asked yet", tint: .neutral, symbol: "circle")
         case .denied: StatusBadge(text: "Not allowed", tint: .error, symbol: "xmark.circle.fill")
-        case .waiting: StatusBadge(text: "Waiting…", tint: .accent, symbol: "hourglass")
+        case .waiting: StatusBadge(text: "Waiting…", tint: .pending, symbol: "hourglass")
         case .stale: StatusBadge(text: "Needs attention", tint: .warning, symbol: "exclamationmark.triangle.fill")
         }
     }

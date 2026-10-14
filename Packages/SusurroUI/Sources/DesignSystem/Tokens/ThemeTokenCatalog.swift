@@ -39,6 +39,7 @@ public nonisolated enum ThemeTokenCatalog {
         Group(SpacingToken.self) { Set($0.spacing.keys) },
         Group(RadiusToken.self) { Set($0.radii.keys) },
         Group(SizeToken.self) { Set($0.sizes.keys) },
+        Group(LayoutToken.self) { Set($0.layout.keys) },
         Group(MotionToken.self) { Set($0.motion.keys) },
         .overlay,
     ]

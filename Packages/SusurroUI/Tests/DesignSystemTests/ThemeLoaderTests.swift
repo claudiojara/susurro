@@ -382,6 +382,17 @@ struct ThemeLoaderTests {
         #expect(expected.map { $0.0.description } == expected.map { $0.1 })
     }
 
+    @Test("the width of the onboarding is in the layout group, and a file that keeps it in sizes is told so")
+    func onboardingWidthIsLayout() {
+        let moved = ThemeLoader.load(data: Data(#"{"schemaVersion": 1, "layout": {"onboardingWidth": 500}}"#.utf8))
+        let old = ThemeLoader.load(data: Data(#"{"schemaVersion": 1, "sizes": {"onboardingWidth": 500}}"#.utf8))
+
+        #expect(moved.errors == [])
+        #expect(moved.theme.layout["onboardingWidth"] == 500)
+        #expect(old.theme == .default)
+        #expect(old.errors == [.unknownToken("sizes.onboardingWidth")])
+    }
+
     // MARK: Files on disk
 
     @Test("a file on disk loads like the same text")

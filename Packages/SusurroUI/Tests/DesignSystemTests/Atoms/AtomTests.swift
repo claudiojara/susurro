@@ -18,7 +18,7 @@ struct AtomTests {
 
     nonisolated private static let tints: [(tint: Tint, color: ColorToken)] = [
         (.neutral, .textSecondary), (.accent, .accentPrimary), (.recording, .accentRecording),
-        (.success, .statusSuccess), (.warning, .statusWarning), (.error, .statusError),
+        (.success, .statusSuccess), (.warning, .statusWarning), (.error, .statusError), (.pending, .statusPending),
     ]
 
     @Test("each tint is the color role it stands for, and every tint is in the table", arguments: tints)

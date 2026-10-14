@@ -33,7 +33,7 @@ struct OnboardingScreenTests {
         "the screen is as wide as the onboarding width of the theme, whatever the text says", arguments: [440.0, 520.0])
     func widthIsTheToken(points: Double) {
         var theme = Theme.default
-        theme.sizes[SizeToken.onboardingWidth.rawValue] = points
+        theme.layout[LayoutToken.onboardingWidth.rawValue] = points
 
         #expect(abs(width(of: screen(state(.fresh)), theme: theme) - points) < 0.01)
         #expect(abs(width(of: screen(state(.allGranted)), theme: theme) - points) < 0.01)
@@ -41,7 +41,7 @@ struct OnboardingScreenTests {
 
     @Test("the default theme gives the onboarding a width that fits its rows")
     func defaultWidth() throws {
-        #expect(try Probe.theme(.light).size(.onboardingWidth) == 440)
+        #expect(try Probe.theme(.light).layout(.onboardingWidth) == 440)
     }
 
     @Test("the banner is there when a required permission is missing, and is not when nothing is")

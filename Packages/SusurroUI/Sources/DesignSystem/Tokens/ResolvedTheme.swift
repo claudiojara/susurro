@@ -9,6 +9,7 @@ public nonisolated struct ResolvedTheme: Sendable, Equatable {
     private let spacings: [SpacingToken: Double]
     private let radii: [RadiusToken: Double]
     private let sizes: [SizeToken: Double]
+    private let layouts: [LayoutToken: Double]
     private let motions: [MotionToken: Double]
 
     /// The bundled theme in light appearance: what a view reads when nothing above it provides a theme.
@@ -30,6 +31,7 @@ public nonisolated struct ResolvedTheme: Sendable, Equatable {
         spacings = Self.table(theme.spacing)
         radii = Self.table(theme.radii)
         sizes = Self.table(theme.sizes)
+        layouts = Self.table(theme.layout)
         motions = Self.table(theme.motion)
     }
 
@@ -38,6 +40,7 @@ public nonisolated struct ResolvedTheme: Sendable, Equatable {
     public func spacing(_ token: SpacingToken) -> Double { spacings[token, orFail: token] }
     public func radius(_ token: RadiusToken) -> Double { radii[token, orFail: token] }
     public func size(_ token: SizeToken) -> Double { sizes[token, orFail: token] }
+    public func layout(_ token: LayoutToken) -> Double { layouts[token, orFail: token] }
     public func motion(_ token: MotionToken) -> Double { motions[token, orFail: token] }
 
     private static func table<T: ThemeToken, V>(_ values: [String: V]) -> [T: V] {
@@ -75,13 +78,14 @@ nonisolated extension Theme {
         return ResolvedTheme(self, appearance: appearance)
     }
 
-    /// Every number of the theme by its path: type sizes, spaces, radii, component sizes, durations, and the overlay
-    /// geometry.
+    /// Every number of the theme by its path: type sizes, spaces, radii, component sizes, screen layout, durations, and
+    /// the overlay geometry.
     private var numbers: [String: Double] {
         var numbers: [String: Double] = [:]
         for (name, value) in spacing { numbers["\(SpacingToken.group).\(name)"] = value }
         for (name, value) in radii { numbers["\(RadiusToken.group).\(name)"] = value }
         for (name, value) in sizes { numbers["\(SizeToken.group).\(name)"] = value }
+        for (name, value) in layout { numbers["\(LayoutToken.group).\(name)"] = value }
         for (name, value) in motion { numbers["\(MotionToken.group).\(name)"] = value }
         for (name, style) in typography { numbers["\(TypeToken.group).\(name).size"] = style.size }
         for (field, value) in [
