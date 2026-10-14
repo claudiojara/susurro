@@ -5,7 +5,7 @@ import Testing
 
 @Suite("Prompt builder")
 struct PromptBuilderTests {
-    private let style = StyleProfile(category: .email, tone: .formal)
+    private let style = StyleProfile(category: .email, tone: .formal, source: .default)
 
     private func local(
         transcript: String = "hola equipo", vocabulary: [String] = [], before: String = ""

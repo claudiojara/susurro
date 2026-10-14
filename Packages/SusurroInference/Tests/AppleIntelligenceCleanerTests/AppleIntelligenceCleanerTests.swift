@@ -6,7 +6,7 @@ import TextShaping
 
 @Suite("Apple Intelligence cleaner", .timeLimit(.minutes(1)))
 struct AppleIntelligenceCleanerTests {
-    private let style = StyleProfile(category: .email, tone: .formal)
+    private let style = StyleProfile(category: .email, tone: .formal, source: .default)
 
     private func local(_ transcript: String = "hola equipo") -> CleanupPayload {
         .local(

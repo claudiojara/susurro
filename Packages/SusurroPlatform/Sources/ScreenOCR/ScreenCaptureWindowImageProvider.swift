@@ -11,12 +11,12 @@ public struct ScreenCaptureWindowImageProvider: WindowImageProviding {
 
     public init() {}
 
-    public func windowImage(of app: AppIdentity) async throws -> CGImage? {
+    public func windowImage(of target: ScreenTarget) async throws -> CGImage? {
         let content = try await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
         let windows = content.windows.filter {
-            $0.owningApplication?.processID == app.processID && $0.windowLayer == 0 && $0.frame.width > 1
+            $0.owningApplication?.processID == target.app.processID && $0.windowLayer == 0 && $0.frame.width > 1
         }
-        guard let window = windows.first(where: { $0.title == app.windowTitle }) ?? windows.first else { return nil }
+        guard let window = windows.first(where: { $0.title == target.windowTitle }) ?? windows.first else { return nil }
         let filter = SCContentFilter(desktopIndependentWindow: window)
         let configuration = SCStreamConfiguration()
         let scale = min(2.0, Self.longestSide / max(window.frame.width, window.frame.height))

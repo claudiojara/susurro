@@ -188,6 +188,7 @@ struct MenuContentTests {
             microphone: .granted, accessibility: .granted, restriction: nil, readiness: .ready)
 
         #expect(off.setUpTitle == "Set up Susurro…")
+        #expect(off.setUpTitle == OnboardingCopy.title + "…")
         #expect(on.setUpTitle == nil)
     }
 }

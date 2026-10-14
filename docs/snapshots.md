@@ -64,7 +64,11 @@ steps are by hand. The onboarding (`PermissionRow`, `Banner`, `PermissionCheckli
 1. **The view** is internal, takes plain values and closures, and asks the theme for everything it paints. It is built from
    the atoms and from `.card()`. Only a container (`OnboardingContainer`) is public: it reads a view model through its
    protocol and passes the state and the steps to the screen.
-2. **Fixtures** (`Previews/OnboardingFixtures.swift`): the states the view can be in, each with the words the app uses.
+2. **Fixtures** (`Previews/OnboardingFixtures.swift`): the states the view can be in, each with the words the app uses. A
+   view writes no word of its own: every word is in the state it is given, and the code that builds the state owns them
+   (`OnboardingCopy` in `SusurroFeatures`). A package cannot read the words of the package above it, so the fixtures carry
+   them written out, and a test in that package (`OnboardingFixturesTests`) checks each fixture against what the view
+   model builds, so a change of the words cannot leave the pictures behind.
    The previews and the snapshot tests draw the same ones.
 3. **A gallery** in `Previews/Galleries.swift` and a `#Preview` in the view's file.
 4. **A canvas**, a case of `OnboardingCanvas` in `Tests/SusurroUITests`: its size is written, not measured, so that a

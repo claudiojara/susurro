@@ -12,6 +12,7 @@ struct MenuView: View {
     let onOpenSettings: (Permission) -> Void
     let onPreference: (MenuContent.Preference.Kind, Bool) -> Void
     let onQuit: () -> Void
+    var onShowHistory: () -> Void = {}
 
     var body: some View {
         if let message = content.restrictionMessage {
@@ -20,6 +21,8 @@ struct MenuView: View {
             Divider()
         }
         Text(content.hotkeyHint)
+        Divider()
+        Button("History…", action: onShowHistory)
         Divider()
         permissionRows(content.microphone)
         permissionRows(content.accessibility)

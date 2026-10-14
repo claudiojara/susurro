@@ -1,3 +1,4 @@
+import AccessibilityContext
 import AppKit
 import AppleIntelligenceCleaner
 import AudioIO
@@ -11,12 +12,14 @@ import Hotkeys
 import Permissions
 import Pipeline
 import Presentation
+import ScreenOCR
 import Settings
+import SusurroUI
 import TextInsertion
 import TextShaping
 
 extension AppEnvironment {
-    /// The graph on the real adapters: the Control+Option+D hotkey, the microphone, Parakeet, the pasteboard, the
+    /// The graph on the real adapters: the configured hotkey (Control+Option+D until the user changes it), the microphone, Parakeet, the pasteboard, the
     /// system permissions, and the log. Build it once, at launch.
     public static var live: AppEnvironment {
         AppEnvironment(Dependencies.live())
@@ -31,26 +34,33 @@ extension AppEnvironment.Dependencies {
         let diagnostics = OSLogDiagnostics()
         let permissions = SystemPermissionsChecker()
         let recognizer = ParakeetRecognizer()
-        let inserter = SimplePasteInserter(diagnostics: diagnostics)
+        let frontmost = NSWorkspaceFrontmostAppProvider()
+        let inserter = PasteTransaction(
+            pasteboard: NSPasteboardAdapter(), keystrokes: CGEventKeystrokePoster(), frontmost: frontmost,
+            diagnostics: diagnostics)
         let themes = ThemeStore(directory: themesFolder)
-        let settings = UserDefaultsSettingsStore(diagnostics: diagnostics)
         let clock = ContinuousClock()
+        let settings = UserDefaultsSettingsStore(diagnostics: diagnostics)
         let cleanup = CleanupStage(
             settings: settings,
             registry: CleanerRegistry(settings: settings, entries: [.local(AppleIntelligenceCleaner())]),
             sleep: { try await clock.sleep(for: $0) })
-        let surroundings = DictionarySurroundings(
+        let vocabulary = VocabularyPipeline(
             dictionary: DictionaryStore(settings: settings),
-            builder: VocabularyBuilder(tagger: NLTaggerEntityTagger()))
+            builder: VocabularyBuilder(tagger: NLTaggerEntityTagger()),
+            enrichment: ContextEnrichment(
+                settings: settings, permissions: permissions,
+                recognizer: VisionScreenTextRecognizer(images: ScreenCaptureWindowImageProvider()),
+                frontmost: { await MainActor.run { frontmost.current().map { ScreenTarget(app: $0) } } }))
         return AppEnvironment.Dependencies(
-            hotkeys: HotkeyService(),
+            hotkeys: HotkeyService(settings: settings, permissions: permissions),
             capture: AVAudioEngineCaptureSource(diagnostics: diagnostics),
             recognizer: recognizer,
             readinessChanges: { await recognizer.readinessChanges() },
             inserter: inserter,
             permissions: permissions,
             diagnostics: diagnostics,
-            overlay: SkeletonOverlayController(),
+            overlay: { OverlayController(model: $0, themes: $1, registry: .standard()) },
             restoreClipboardNow: { inserter.restoreForTermination() },
             settings: settings,
             onboarding: Onboarding(
@@ -60,9 +70,26 @@ extension AppEnvironment.Dependencies {
             ),
             theming: Theming(store: themes, prepare: Self.prepareThemes(for: themes)),
             clock: clock,
+            history: .live(recognizer: recognizer, sleep: { try await clock.sleep(for: $0) }),
+            frontmost: frontmost,
+            context: Self.contextPipeline(settings: settings),
             cleanup: cleanup,
-            surroundings: surroundings
+            vocabulary: vocabulary
         )
+    }
+
+    /// The text around the cursor is read through Accessibility, the style is chosen from the app and the page with the
+    /// user's style settings, and the setting "use app context" decides whether the text is read at all.
+    private static func contextPipeline(settings: UserDefaultsSettingsStore) -> ContextPipeline {
+        let resolver = StyleResolver()
+        let styles = StyleSettingsRepository(store: settings)
+        return ContextPipeline(
+            source: ContextCapture(
+                reader: AXContextReader(), useAppContext: { settings.value(for: ContextSettings.useAppContext) }),
+            resolver: resolver,
+            styleSettings: { bundleID, url in
+                styles.settings(for: resolver.candidateTargets(bundleID: bundleID, url: url))
+            })
     }
 
     /// Where the user puts theme files: `Themes` in the app's folder of Application Support.

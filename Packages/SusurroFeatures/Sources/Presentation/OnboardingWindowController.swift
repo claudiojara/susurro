@@ -8,16 +8,19 @@ import SwiftUI
 struct OnboardingWindowContent: View {
     let model: OnboardingViewModel
     let themes: ThemeModel
+    /// The most the screen may take, so that the window fits the display, or nil for no limit.
+    var maxHeight: CGFloat?
     let onDone: () -> Void
 
     var body: some View {
-        OnboardingContainer(model: model, onDone: onDone)
+        OnboardingContainer(model: model, maxHeight: maxHeight, onDone: onDone)
             .themed(themes.theme)
     }
 }
 
 /// The window of the onboarding: a titled window that can be closed, as wide as the theme says, and as tall as the
-/// screen is, which it follows when rows or troubleshooting steps come and go. This is the AppKit glue: what it shows and
+/// screen is, which it follows when rows or troubleshooting steps come and go. On a display too short for the screen the
+/// window is cut to the visible frame and the checklist scrolls (see `OnboardingScreen`). This is the AppKit glue: what it shows and
 /// when it opens are decided by the screen and the presenter, which are tested.
 @MainActor
 public final class OnboardingWindowController: OnboardingSurface {
@@ -42,13 +45,15 @@ public final class OnboardingWindowController: OnboardingSurface {
     ) {
         self.activate = activate
         self.visibleFrame = visibleFrame
-        host = NSHostingController(rootView: OnboardingWindowContent(model: model, themes: themes, onDone: {}))
+        host = NSHostingController(
+            rootView: OnboardingWindowContent(model: model, themes: themes, maxHeight: nil, onDone: {}))
         host.sizingOptions = [.preferredContentSize]
         window = NSWindow(contentViewController: host)
-        window.title = "Set up Susurro"
+        window.title = model.state.title
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
-        host.rootView = OnboardingWindowContent(model: model, themes: themes, onDone: { [weak self] in self?.close() })
+        host.rootView = OnboardingWindowContent(
+            model: model, themes: themes, maxHeight: nil, onDone: { [weak self] in self?.close() })
     }
 
     var content: OnboardingWindowContent { host.rootView }
@@ -59,10 +64,11 @@ public final class OnboardingWindowController: OnboardingSurface {
         window.makeKeyAndOrderFront(nil)
     }
 
-    /// Places the window the first time, and leaves it where the user put it after that. The window has the size of its
-    /// content before it is placed, so that it is centered by the size it will have and not by the one it has before its
-    /// first layout.
+    /// Cuts the content to the display, and places the window the first time, leaving it where the user put it after
+    /// that. The window has the size of its content before it is placed, so that it is centered by the size it will have
+    /// and not by the one it has before its first layout.
     func placeIfNeeded() {
+        capToDisplay()
         guard !hasBeenPlaced else { return }
         window.setContentSize(host.view.fittingSize)
         window.setFrameOrigin(Self.origin(of: window.frame.size, in: visibleFrame()))
@@ -71,6 +77,19 @@ public final class OnboardingWindowController: OnboardingSurface {
 
     func close() {
         window.close()
+    }
+
+    /// Limits the screen to what fits the display it opens on: the visible frame less the title bar, which is the most the
+    /// content may be for the whole window to fit. A display that is not known leaves the screen as tall as it is.
+    private func capToDisplay() {
+        let area = visibleFrame()
+        let probe = CGRect(x: 0, y: 0, width: 100, height: 100)
+        let titleBar = NSWindow.frameRect(forContentRect: probe, styleMask: window.styleMask).height - probe.height
+        let cap = area.height > titleBar ? area.height - titleBar : nil
+        guard cap != host.rootView.maxHeight else { return }
+        var content = host.rootView
+        content.maxHeight = cap
+        host.rootView = content
     }
 
     /// Where the lower left corner of a window of `size` goes in `area`: centered across it, with a third of the room left

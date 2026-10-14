@@ -1,124 +1,161 @@
 import CoreTestSupport
 import Domain
 import Pipeline
+import Synchronization
 import Testing
+import TextShaping
 
-/// The coordinator with a cleanup stage and a source of surroundings: the vocabulary reaches the recognizer and the
+/// The coordinator with a context, a vocabulary, and a cleanup stage: the vocabulary reaches the recognizer and the
 /// cleaner, the polishing state shows, and the inserted text is the cleaned one, shaped for the cursor.
 @Suite("Cleanup in the dictation flow", .timeLimit(.minutes(1)))
 struct CleanupFlowTests {
-    private static let email = StyleProfile(category: .email, tone: .formal)
+    private struct Terms: UserDictionary {
+        let list: [String]
+        func terms() -> [String] { list }
+    }
 
-    private struct Flow {
-        let recognizer: FakeRecognizer
-        let inserter = FakeTextInserter()
-        let capture = FakeAudioCaptureSource()
-        let hotkeys = FakeHotkeySource()
-        let coordinator: DictationCoordinator
-        var states: AsyncStream<PipelineState>.Iterator
+    private struct Fixture {
+        let cleaner: FakeCleaner
+        var harness: CoordinatorHarness
 
         init(
-            transcript: String = "hola equipo", cleaner: FakeCleaner?, enabled: Bool = true,
-            surroundings: DictationSurroundings
+            transcript: String = "hola equipo", cleaner: FakeCleaner = FakeCleaner(answer: .text("Hola, equipo.")),
+            enabled: Bool = true, app: AppIdentity = .mail, before: String = "Dear team,",
+            dictionary: [String] = ["Acme"], tagger: FakeEntityTagger = FakeEntityTagger(),
+            enrichment: ContextEnrichment? = nil
         ) async {
-            recognizer = FakeRecognizer(transcript: transcript)
+            self.cleaner = cleaner
             let sleeper = FakeSleeper()
-            let stage = cleaner.map { cleaner in
-                CleanupStage(
-                    isEnabled: { enabled }, cleaner: { cleaner }, sleep: { try await sleeper.sleep($0) })
-            }
-            coordinator = DictationCoordinator(
-                hotkeys: hotkeys, capture: capture, recognizer: recognizer, inserter: inserter,
-                permissions: FakePermissionsChecker(), sleep: { try await sleeper.sleep($0) }, cleanup: stage,
-                surroundings: FakeSurroundingsSource(surroundings))
-            states = coordinator.states.makeAsyncIterator()
-            _ = await states.next()
+            let settings = InMemorySettingsStore()
+            settings.set(enabled, for: CleanupSettings.enabled)
+            settings.set(cleaner.id.rawValue, for: CleanupSettings.provider)
+            let entry: CleanerRegistry.Entry =
+                cleaner.locality == .cloud ? .cloud(cleaner, isEnabled: { true }, hasKey: { true }) : .local(cleaner)
+            let stage = CleanupStage(
+                settings: settings, registry: CleanerRegistry(settings: settings, entries: [entry]),
+                sleep: { try await sleeper.sleep($0) })
+            let source = FakeContextSource(context: DictationContext(app: app, beforeCursor: before))
+            let frontmost = await MainActor.run { FakeFrontmostAppProvider(app) }
+            harness = await CoordinatorHarness(
+                recognizer: FakeRecognizer(transcript: transcript), sleeper: sleeper, frontmost: frontmost,
+                context: ContextPipeline(source: source), cleanup: stage,
+                vocabulary: VocabularyPipeline(
+                    dictionary: Terms(list: dictionary), builder: VocabularyBuilder(tagger: tagger),
+                    enrichment: enrichment))
         }
 
-        /// Dictates once and returns the states of the processing.
         mutating func dictate() async -> [PipelineState] {
-            let press = DictationCoordinatorTests.pressTime
-            await coordinator.handle(.down(at: press))
-            capture.emit(AudioChunk(samples: DictationCoordinatorTests.clip))
-            while let state = await states.next(), state != .recording(.hold) {}
-            await coordinator.handle(.up(at: press + .milliseconds(1200)))
-            var seen: [PipelineState] = []
-            while let state = await states.next() {
-                seen.append(state)
-                if state == .idle { break }
-            }
-            return seen
+            await harness.startRecording()
+            return await harness.release()
         }
     }
 
     @Test("the cleaned text is inserted, shaped for the cursor, and the overlay shows polishing")
-    func cleanedTextIsInserted() async {
-        let cleaner = FakeCleaner(answer: .text("Hola, equipo."))
-        let around = DictationSurroundings(
-            style: Self.email, vocabulary: ["Acme"], cursor: CursorContext(before: "Dear team,", after: ""))
-        var flow = await Flow(cleaner: cleaner, surroundings: around)
-        let states = await flow.dictate()
-
+    func cleanedTextIsInserted() async throws {
+        var f = await Fixture()
+        let states = await f.dictate()
         #expect(states == [.transcribing(progress: nil), .polishing, .inserted, .idle])
-        #expect(flow.inserter.insertedTexts == [" hola, equipo."])
-        let request = try? #require(cleaner.payloads.first).requireLocal()
-        #expect(request?.style == Self.email)
-        #expect(request?.vocabulary == ["Acme"])
-        #expect(request?.beforeCursor == "Dear team,")
+        #expect(f.harness.inserter.insertedTexts == [" hola, equipo."])
+
+        let request = try #require(f.cleaner.payloads.first).requireLocal()
+        #expect(request.style == StyleProfile(category: .email, tone: .formal, source: .bundle))
+        #expect(request.vocabulary == ["Acme"])
+        #expect(request.beforeCursor == "Dear team,")
     }
 
-    @Test("the recognizer receives the vocabulary")
+    @Test("the recognizer receives the dictionary and the names found around the cursor")
     func recognizerGetsVocabulary() async {
-        let around = DictationSurroundings(style: Self.email, vocabulary: ["Maria Gonzalez", "Acme"])
-        var flow = await Flow(cleaner: FakeCleaner(), surroundings: around)
-        _ = await flow.dictate()
-        #expect(flow.recognizer.transcribedOptions == [RecognitionOptions(vocabulary: ["Maria Gonzalez", "Acme"])])
+        let before = "Meeting with Maria Gonzalez about Acme tomorrow"
+        let tagger = FakeEntityTagger([before: ["Maria Gonzalez", "Acme", "Zed"]])
+        var f = await Fixture(before: before, dictionary: ["Zed", "Yara"], tagger: tagger)
+        _ = await f.dictate()
+        #expect(
+            f.harness.recognizer.transcribedOptions == [
+                RecognitionOptions(vocabulary: ["Zed", "Yara", "Maria Gonzalez", "Acme"])
+            ])
+        #expect(tagger.taggedTexts == [before])
     }
 
     @Test("a cloud cleaner gets the vocabulary and none of the context")
     func cloudCleanerGetsNoContext() async throws {
-        let cleaner = FakeCleaner(id: CleanerProviderID("cloud"), locality: .cloud, answer: .text("Hola, Acme."))
-        let around = DictationSurroundings(
-            style: Self.email, vocabulary: ["Acme"],
-            cursor: CursorContext(before: "BEFORE-SENTINEL", after: "AFTER-SENTINEL"))
-        var flow = await Flow(transcript: "hola acme", cleaner: cleaner, surroundings: around)
-        _ = await flow.dictate()
+        let cloud = FakeCleaner(id: CleanerProviderID("cloud"), locality: .cloud, answer: .text("Hola, Acme."))
+        var f = await Fixture(transcript: "hola acme", cleaner: cloud, before: "BEFORE-SENTINEL")
+        _ = await f.dictate()
 
-        let payload = try #require(cleaner.payloads.first)
-        let request = try payload.requireCloud()
-        #expect(request.vocabulary == ["Acme"])
-        let dump = String(reflecting: payload)
-        for sentinel in ["BEFORE-SENTINEL", "AFTER-SENTINEL"] { #expect(!dump.contains(sentinel)) }
-        #expect(flow.inserter.insertedTexts.count == 1)
+        let payload = try #require(cloud.payloads.first)
+        #expect(try payload.requireCloud().vocabulary == ["Acme"])
+        #expect(!String(reflecting: payload).contains("BEFORE-SENTINEL"))
+        #expect(f.harness.inserter.insertedTexts.count == 1)
     }
 
-    @Test("a cleaner that fails inserts the raw transcript and the overlay still moves on")
+    @Test("a cleaner that fails inserts the raw transcript")
     func failureInsertsRaw() async {
-        let cleaner = FakeCleaner(answer: .failure(.failed("boom")))
-        var flow = await Flow(cleaner: cleaner, surroundings: DictationSurroundings(style: Self.email))
-        let states = await flow.dictate()
+        var f = await Fixture(cleaner: FakeCleaner(answer: .failure(.failed("boom"))), before: "")
+        let states = await f.dictate()
         #expect(states == [.transcribing(progress: nil), .polishing, .inserted, .idle])
-        #expect(flow.inserter.insertedTexts == ["hola equipo"])
+        #expect(f.harness.inserter.insertedTexts == ["hola equipo"])
     }
 
     @Test("cleanup that is off inserts the transcript without a polishing state")
     func cleanupOff() async {
-        let cleaner = FakeCleaner()
-        var flow = await Flow(cleaner: cleaner, enabled: false, surroundings: DictationSurroundings(style: Self.email))
-        let states = await flow.dictate()
+        var f = await Fixture(enabled: false, before: "")
+        let states = await f.dictate()
         #expect(states == [.transcribing(progress: nil), .inserted, .idle])
-        #expect(flow.inserter.insertedTexts == ["hola equipo"])
-        #expect(cleaner.callCount == 0)
+        #expect(f.harness.inserter.insertedTexts == ["hola equipo"])
+        #expect(f.cleaner.callCount == 0)
     }
 
-    @Test("a verbatim style never reaches the cleaner")
+    @Test("a terminal dictation is verbatim and never reaches the cleaner")
     func verbatimSkipsCleaner() async {
-        let cleaner = FakeCleaner()
-        let around = DictationSurroundings(style: StyleProfile(category: .terminal, tone: .verbatim))
-        var flow = await Flow(cleaner: cleaner, surroundings: around)
-        let states = await flow.dictate()
+        let terminal = AppIdentity(processID: 300, name: "Terminal", bundleID: "com.apple.Terminal")
+        var f = await Fixture(app: terminal, before: "")
+        let states = await f.dictate()
         #expect(states == [.transcribing(progress: nil), .inserted, .idle])
-        #expect(cleaner.callCount == 0)
-        #expect(flow.inserter.insertedTexts == ["hola equipo"])
+        #expect(f.cleaner.callCount == 0)
+        #expect(f.harness.inserter.insertedTexts == ["hola equipo"])
+    }
+
+    @Test("a field with nothing around the cursor leaves the text as the cleaner wrote it")
+    func emptyFieldLeavesTextAlone() async {
+        var f = await Fixture(cleaner: FakeCleaner(answer: .text("The report.")), before: "")
+        _ = await f.dictate()
+        #expect(f.harness.inserter.insertedTexts == ["The report."])
+    }
+
+    @Test("a dictation with no vocabulary pipeline has none, and no context terms")
+    func noVocabularyPipeline() async {
+        let recognizer = FakeRecognizer()
+        var harness = await CoordinatorHarness(recognizer: recognizer)
+        await harness.startRecording()
+        _ = await harness.release()
+        #expect(recognizer.transcribedOptions == [RecognitionOptions()])
+    }
+
+    @Test("names read from the screen join the vocabulary, and the screen text itself goes nowhere else")
+    func screenNamesJoinTheVocabulary() async throws {
+        let ocrLine = "OCR-SENTINEL Acme Corp"
+        let screen = FakeScreenTextRecognizer(lines: [ocrLine])
+        let tagger = FakeEntityTagger([ocrLine: ["Acme Corp"]])
+        let settings = InMemorySettingsStore()
+        settings.set(true, for: ContextSettings.ocrEnabled)
+        let read = Gate()
+        let enrichment = ContextEnrichment(
+            settings: settings, permissions: FakePermissionsChecker([.screenRecording: .granted]), recognizer: screen,
+            frontmost: {
+                read.open()
+                return ScreenTarget(app: .mail)
+            })
+        var f = await Fixture(dictionary: [], tagger: tagger, enrichment: enrichment)
+        await f.harness.startRecording()
+        // The reading ends once the app is checked again, which is its last step.
+        await read.wait()
+        for _ in 0..<50 { await Task.yield() }
+        _ = await f.harness.release()
+
+        #expect(f.harness.recognizer.transcribedOptions == [RecognitionOptions(vocabulary: ["Acme Corp"])])
+        let payload = try #require(f.cleaner.payloads.first)
+        #expect(try payload.requireLocal().vocabulary == ["Acme Corp"])
+        #expect(!String(reflecting: payload).contains("OCR-SENTINEL"))
+        #expect(screen.recognizedTargets == [ScreenTarget(app: .mail)])
     }
 }

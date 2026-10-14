@@ -9,7 +9,7 @@ import Testing
 private struct FixedImage: WindowImageProviding {
     let image: CGImage?
 
-    func windowImage(of app: AppIdentity) async throws -> CGImage? { image }
+    func windowImage(of target: ScreenTarget) async throws -> CGImage? { image }
 }
 
 /// Draws `text` in black on white, large enough for the recognizer to read it reliably, so no picture file is bundled.
@@ -32,11 +32,11 @@ private func render(_ text: String) throws -> CGImage {
 
 @Suite("Vision screen text recognizer")
 struct VisionOCRTests {
-    private let app = AppIdentity(processID: 1, name: "Mail", bundleID: "com.apple.mail")
+    private let target = ScreenTarget(app: AppIdentity(processID: 1, name: "Mail", bundleID: "com.apple.mail"))
 
     private func recognize(_ text: String) async throws -> [String] {
         let recognizer = VisionScreenTextRecognizer(images: FixedImage(image: try render(text)))
-        return try await recognizer.recognize(windowOf: app)
+        return try await recognizer.recognize(windowOf: target)
     }
 
     @Test("a picture with Acme Corp is read on this Mac")
@@ -56,7 +56,7 @@ struct VisionOCRTests {
     @Test("a window with no picture gives no text")
     func noImage() async throws {
         let recognizer = VisionScreenTextRecognizer(images: FixedImage(image: nil))
-        #expect(try await recognizer.recognize(windowOf: app).isEmpty)
+        #expect(try await recognizer.recognize(windowOf: target).isEmpty)
     }
 
     @Test("a blank picture gives no text")

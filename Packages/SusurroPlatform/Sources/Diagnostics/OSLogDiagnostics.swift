@@ -31,6 +31,9 @@ public struct OSLogDiagnostics: DiagnosticsLog {
         case .pasteNotCompleted(let cause): (.error, "paste not completed: \(cause)")
         case .pasteboardWriteRefused: (.error, "the pasteboard refused a write")
         case .clipboardRestoreFailed: (.error, "the pasteboard refused the old contents")
+        case .clipboardNotRestored(let reason): (.default, "the old clipboard was not put back: \(reason)")
+        case .styleResolved(let category, let tone, let source):
+            (.default, "style: category=\(category) tone=\(tone) source=\(source)")
         case .clipboardRestoreAtTermination(let restored):
             (.default, restored ? "termination: the clipboard was put back" : "termination: no clipboard to put back")
         case .captureFirstBuffer(let frames, let sampleRate):

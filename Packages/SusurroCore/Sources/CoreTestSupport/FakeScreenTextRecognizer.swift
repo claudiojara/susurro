@@ -1,7 +1,7 @@
 import Domain
 import Synchronization
 
-/// A screen text recognizer with a fixed answer. It records the app of every call. A `gated` one suspends in
+/// A screen text recognizer with a fixed answer. It records the target of every call. A `gated` one suspends in
 /// `recognize` until `release()` or until it is cancelled, after signalling `entered`.
 public final class FakeScreenTextRecognizer: ScreenTextRecognizer {
     /// Opened when `recognize` is entered.
@@ -9,7 +9,7 @@ public final class FakeScreenTextRecognizer: ScreenTextRecognizer {
     private let lines: [String]
     private let failure: (any Error)?
     private let gate: Gate?
-    private let apps = Mutex<[AppIdentity]>([])
+    private let targets = Mutex<[ScreenTarget]>([])
 
     public init(lines: [String] = [], failure: (any Error)? = nil, gated: Bool = false) {
         self.lines = lines
@@ -17,14 +17,14 @@ public final class FakeScreenTextRecognizer: ScreenTextRecognizer {
         gate = gated ? Gate() : nil
     }
 
-    /// The apps `recognize` was called for, in order.
-    public var recognizedApps: [AppIdentity] { apps.withLock { $0 } }
-    public var callCount: Int { recognizedApps.count }
+    /// The targets `recognize` was called for, in order.
+    public var recognizedTargets: [ScreenTarget] { targets.withLock { $0 } }
+    public var callCount: Int { recognizedTargets.count }
 
     public func release() { gate?.open() }
 
-    public func recognize(windowOf app: AppIdentity) async throws -> [String] {
-        apps.withLock { $0.append(app) }
+    public func recognize(windowOf target: ScreenTarget) async throws -> [String] {
+        targets.withLock { $0.append(target) }
         entered.open()
         await gate?.wait()
         try Task.checkCancellation()

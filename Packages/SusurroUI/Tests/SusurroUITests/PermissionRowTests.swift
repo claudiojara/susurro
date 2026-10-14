@@ -109,9 +109,7 @@ struct PermissionRowTests {
     @Test("the reason why the permission is needed is drawn, and wraps when it is long")
     func whyIsDrawn() {
         let short = OnboardingFixtures.row(.granted)
-        let long = OnboardingRowState(
-            id: short.id, title: short.title, why: String(repeating: "Needed to hear you. ", count: 12),
-            requirement: short.requirement, status: short.status, action: short.action)
+        let long = short.with(why: String(repeating: "Needed to hear you. ", count: 12))
 
         let shortHeight = Probe.height(of: PermissionRow(short) { _ in }, width: cardWidth)
         let longHeight = Probe.height(of: PermissionRow(long) { _ in }, width: cardWidth)
@@ -122,9 +120,7 @@ struct PermissionRowTests {
     @Test("the feature note of an optional permission is drawn")
     func featureNoteIsDrawn() {
         let optional = OnboardingFixtures.row(.optional)
-        let required = OnboardingRowState(
-            id: optional.id, title: optional.title, why: optional.why, requirement: .required,
-            status: optional.status, action: optional.action)
+        let required = optional.with(requirement: .required)
 
         let withNote = Probe.height(of: PermissionRow(optional) { _ in }, width: cardWidth)
         let without = Probe.height(of: PermissionRow(required) { _ in }, width: cardWidth)
@@ -135,12 +131,8 @@ struct PermissionRowTests {
     @Test("the troubleshooting steps of a stale row are drawn, and a longer text is taller")
     func guidanceIsDrawn() {
         let stale = OnboardingFixtures.row(.stale)
-        let shortened = OnboardingRowState(
-            id: stale.id, title: stale.title, why: stale.why, requirement: stale.requirement,
-            status: .stale(guidance: "Switch it off and on."), action: stale.action)
-        let waiting = OnboardingRowState(
-            id: stale.id, title: stale.title, why: stale.why, requirement: stale.requirement, status: .waiting,
-            action: stale.action)
+        let shortened = stale.with(status: .stale(guidance: "Switch it off and on."))
+        let waiting = stale.with(status: .waiting)
 
         let long = Probe.height(of: PermissionRow(stale) { _ in }, width: cardWidth)
         let short = Probe.height(of: PermissionRow(shortened) { _ in }, width: cardWidth)
@@ -148,6 +140,26 @@ struct PermissionRowTests {
 
         #expect(none < short)
         #expect(short < long)
+    }
+
+    // MARK: Words
+
+    @Test("the row draws the status text of its state in the pill, and the title and the action as they are given")
+    func wordsComeFromTheRow() {
+        let base = OnboardingFixtures.row(.notAsked)
+        let variants: [OnboardingRowState] = [
+            base.with(statusText: "Still to do"), base.with(title: "Mic"),
+            base.with(action: .some(OnboardingAction(kind: .request, title: "Turn it on"))),
+        ]
+
+        let before = Probe.picture(of: row(.notAsked), size: canvas, scheme: .light)
+        let same = Probe.picture(of: PermissionRow(base) { _ in }, size: canvas, scheme: .light)
+
+        #expect(SnapshotSupport.differingPixels(before, same, tolerance: 0.02) == 0)
+        for variant in variants {
+            let after = Probe.picture(of: PermissionRow(variant) { _ in }, size: canvas, scheme: .light)
+            #expect(SnapshotSupport.differingPixels(before, after, tolerance: 0.02) > 40, "\(variant)")
+        }
     }
 
     // MARK: Look

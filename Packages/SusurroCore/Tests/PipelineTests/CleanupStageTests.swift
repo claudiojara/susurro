@@ -6,7 +6,7 @@ import Testing
 
 @Suite("Cleanup stage")
 struct CleanupStageTests {
-    private static let neutral = StyleProfile(category: .document, tone: .neutral)
+    private static let neutral = StyleProfile(category: .document, tone: .neutral, source: .default)
 
     private func stage(
         _ cleaner: FakeCleaner?, enabled: Bool = true, clock: ManualClock = ManualClock()
@@ -21,7 +21,7 @@ struct CleanupStageTests {
         cursor: CursorContext? = nil
     ) -> CleanupInput {
         CleanupInput(
-            transcript: transcript, style: StyleProfile(category: .document, tone: tone),
+            transcript: transcript, style: StyleProfile(category: .document, tone: tone, source: .default),
             vocabulary: vocabulary, cursor: cursor)
     }
 
@@ -213,7 +213,7 @@ struct CleanupStageTests {
         #expect(request.transcript == "hola maria")
         #expect(request.vocabulary == ["Maria"])
         #expect(request.beforeCursor == "Hi")
-        #expect(request.style == StyleProfile(category: .document, tone: .neutral))
+        #expect(request.style == StyleProfile(category: .document, tone: .neutral, source: .default))
     }
 
     @Test("lines of the context or the vocabulary that the model copied to the start of its reply are dropped")

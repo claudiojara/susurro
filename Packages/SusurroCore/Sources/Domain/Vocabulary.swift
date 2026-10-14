@@ -23,9 +23,21 @@ public enum DictionarySettings {
     public static let terms = SettingKey<[String]>.json(area: "dictionary", name: "terms", default: [])
 }
 
+/// The window a dictation goes to, as far as it is known: the app and, when the title is known, the window of that app. A
+/// reading of the screen is kept only while the frontmost target is still this one.
+public struct ScreenTarget: Sendable, Equatable {
+    public let app: AppIdentity
+    public let windowTitle: String?
+
+    public init(app: AppIdentity, windowTitle: String? = nil) {
+        self.app = app
+        self.windowTitle = windowTitle
+    }
+}
+
 /// Reads the text of a window on screen, on this Mac. Its output goes to the entity tagger and the vocabulary builder
 /// and nowhere else.
 public protocol ScreenTextRecognizer: Sendable {
-    /// The lines of text found in the frontmost window of `app`.
-    func recognize(windowOf app: AppIdentity) async throws -> [String]
+    /// The lines of text found in the frontmost window of the target's app.
+    func recognize(windowOf target: ScreenTarget) async throws -> [String]
 }

@@ -21,7 +21,7 @@ import TextShaping
     .timeLimit(.minutes(10))
 )
 struct RealModelTests {
-    private let style = StyleProfile(category: .email, tone: .formal)
+    private let style = StyleProfile(category: .email, tone: .formal, source: .default)
 
     /// The cleaner's reply, and what the guard makes of it. Nil when Apple Intelligence is not available.
     private func clean(_ transcript: String, vocabulary: [String] = []) async throws -> (

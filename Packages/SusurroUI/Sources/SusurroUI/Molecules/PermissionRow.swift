@@ -21,7 +21,7 @@ struct PermissionRow: View {
                 Icon(badge.symbol, style: .headline, tint: badge.tint)
                 TextLabel(row.title, style: .headline)
                 Spacer(minLength: theme.spacing(.sm))
-                Pill(badge.text, tint: badge.tint)
+                Pill(row.statusText, tint: badge.tint)
             }
             .accessibilityElement(children: .combine)
             TextLabel(row.why, tint: .neutral)

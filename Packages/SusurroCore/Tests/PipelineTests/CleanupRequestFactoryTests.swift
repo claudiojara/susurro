@@ -6,7 +6,7 @@ import Testing
 
 @Suite("Cleanup request factory")
 struct CleanupRequestFactoryTests {
-    private let style = StyleProfile(category: .workChat, tone: .casual)
+    private let style = StyleProfile(category: .workChat, tone: .casual, source: .default)
 
     private func input(
         transcript: String = "hola", before: String = "", vocabulary: [String] = ["Acme"]

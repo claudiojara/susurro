@@ -55,12 +55,43 @@ import SwiftUI
                 HStack(alignment: .top, spacing: theme.spacing(.lg)) {
                     ForEach(Self.screens, id: \.self) { screen in
                         OnboardingScreen(
-                            state: OnboardingFixtures.state(screen), onAction: { _, _ in }, onRecheck: {}, onDone: {})
+                            state: OnboardingFixtures.state(screen), maxHeight: nil, onAction: { _, _ in },
+                            onRecheck: {}, onDone: {})
                     }
                 }
             }
         }
     }
+
+    extension OverlayHUD {
+        struct Gallery: View {
+            @Environment(\.theme) private var theme
+
+            var body: some View {
+                VStack(spacing: theme.spacing(.sm)) {
+                    ForEach(OverlayFixtures.Fixture.allCases, id: \.self) {
+                        OverlayHUD(state: OverlayFixtures.state($0), level: OverlayFixtures.level)
+                    }
+                }
+            }
+        }
+    }
+
+    extension WaveformMeter {
+        struct Gallery: View {
+            @Environment(\.theme) private var theme
+            private static let levels = [0.0, 0.25, 0.6, 1.0]
+
+            var body: some View {
+                VStack(spacing: theme.spacing(.md)) {
+                    ForEach(Self.levels, id: \.self) { WaveformMeter(level: $0, label: "Input level") }
+                }
+            }
+        }
+    }
+
+    #Preview("OverlayHUD") { PreviewMatrix { OverlayHUD.Gallery() } }
+    #Preview("WaveformMeter") { PreviewMatrix { WaveformMeter.Gallery() } }
 
     /// A model with a fixed state, for the preview of the container.
     @MainActor

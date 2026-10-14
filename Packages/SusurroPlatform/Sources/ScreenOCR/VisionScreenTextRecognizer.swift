@@ -5,8 +5,8 @@ import Vision
 /// Where the picture of a window comes from. A seam, so the recognizer is tested with a picture made in the test and the
 /// live source (ScreenCaptureKit, which needs the Screen Recording permission) is left to the manual check.
 public protocol WindowImageProviding: Sendable {
-    /// The picture of the frontmost window of `app`, or nil when it has none to give.
-    func windowImage(of app: AppIdentity) async throws -> CGImage?
+    /// The picture of the window of the target, or nil when it has none to give.
+    func windowImage(of target: ScreenTarget) async throws -> CGImage?
 }
 
 /// Reads the text of a window with Vision, on this Mac and offline. The picture is dropped as soon as the text is read,
@@ -21,8 +21,8 @@ public struct VisionScreenTextRecognizer: ScreenTextRecognizer {
         self.images = images
     }
 
-    public func recognize(windowOf app: AppIdentity) async throws -> [String] {
-        guard let image = try await images.windowImage(of: app) else { return [] }
+    public func recognize(windowOf target: ScreenTarget) async throws -> [String] {
+        guard let image = try await images.windowImage(of: target) else { return [] }
         try Task.checkCancellation()
         return try await Task.detached(priority: .utility) { try Self.lines(in: image) }.value
     }

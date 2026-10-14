@@ -8,15 +8,17 @@ import TextShaping
 
 @Suite("OCR gating", .timeLimit(.minutes(1)))
 struct OCRGatingTests {
-    private static let mail = AppIdentity(processID: 10, name: "Mail", bundleID: "com.apple.mail", windowTitle: "Inbox")
-    private static let slack = AppIdentity(processID: 20, name: "Slack", bundleID: "com.tinyspeck.slackmacgap")
+    private static let mailApp = AppIdentity(processID: 10, name: "Mail", bundleID: "com.apple.mail")
+    private static let mail = ScreenTarget(app: mailApp, windowTitle: "Inbox")
+    private static let slack = ScreenTarget(
+        app: AppIdentity(processID: 20, name: "Slack", bundleID: "com.tinyspeck.slackmacgap"))
     private static let sentinel = "OCR-SENTINEL Acme Corp"
 
     /// The frontmost app, which a test changes while a read is under way.
     private final class Frontmost: Sendable {
-        private let app = Mutex<AppIdentity?>(OCRGatingTests.mail)
-        func set(_ app: AppIdentity?) { self.app.withLock { $0 = app } }
-        func current() -> AppIdentity? { app.withLock { $0 } }
+        private let target = Mutex<ScreenTarget?>(OCRGatingTests.mail)
+        func set(_ target: ScreenTarget?) { self.target.withLock { $0 = target } }
+        func current() -> ScreenTarget? { target.withLock { $0 } }
     }
 
     private func enrichment(
@@ -54,7 +56,7 @@ struct OCRGatingTests {
         let recognizer = FakeScreenTextRecognizer(lines: ["Acme Corp", "Maria Gonzalez"])
         let lines = await enrichment(recognizer: recognizer).screenText(for: Self.mail, isSecureField: false)
         #expect(lines == ["Acme Corp", "Maria Gonzalez"])
-        #expect(recognizer.recognizedApps == [Self.mail])
+        #expect(recognizer.recognizedTargets == [Self.mail])
     }
 
     @Test("a secure field skips OCR")
@@ -84,7 +86,7 @@ struct OCRGatingTests {
         let sut = enrichment(recognizer: recognizer, frontmost: frontmost)
         let reading = Task { await sut.screenText(for: Self.mail, isSecureField: false) }
         await recognizer.entered.wait()
-        frontmost.set(AppIdentity(processID: 10, name: "Mail", bundleID: "com.apple.mail", windowTitle: "Drafts"))
+        frontmost.set(ScreenTarget(app: Self.mailApp, windowTitle: "Drafts"))
         recognizer.release()
         #expect(await reading.value.isEmpty)
     }
@@ -125,7 +127,7 @@ struct OCRGatingTests {
         #expect(tagger.taggedTexts == [Self.sentinel])
         #expect(vocabulary == ["Acme Corp"])
 
-        let style = StyleProfile(category: .email, tone: .formal)
+        let style = StyleProfile(category: .email, tone: .formal, source: .default)
         let input = CleanupInput(
             transcript: "hola", style: style, vocabulary: vocabulary,
             cursor: CursorContext(before: "Dear", after: ""))

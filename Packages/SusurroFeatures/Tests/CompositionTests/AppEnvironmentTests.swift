@@ -35,17 +35,36 @@ struct AppEnvironmentTests {
         await f.eventually("the first read") { f.environment.monitor.hasReadStatuses }
         await f.eventually("the model to be prepared") { f.recognizer.calls.contains(.prepare) }
         await f.eventually("the window") { f.window.shown >= 1 }
-        await f.clock.waitForSleeps(1)
+        await f.clock.waitForSleeps(2)
         for _ in 0..<50 { await Task.yield() }
 
         let launches = f.diagnostics.events.filter { $0 == .appLaunched }.count
         let prepares = f.recognizer.calls.filter { $0 == .prepare }.count
         #expect(launches == 1)
         #expect(prepares == 1)
-        #expect(f.clock.pendingSleeps == 1)  // one permission poll
+        #expect(f.clock.pendingSleeps == 2)  // one permission poll and one wait of the retention job
         #expect(f.permissions.statusReads == 2)  // the two required permissions, once
         #expect(f.themePreparations.value == 1)
         #expect(f.window.shown == 1)  // one presenter
+        await f.environment.shutdown()
+    }
+
+    @Test("choosing a modifier-only hotkey adds Input Monitoring to the permissions the app asks for, and back")
+    func hotkeyKindFollowsIntoThePermissions() async {
+        let f = AppEnvironmentFixture()
+        f.environment.start()
+        await f.eventually("the first read") { f.environment.monitor.hasReadStatuses }
+        #expect(!f.environment.monitor.requested.contains(.inputMonitoring))
+
+        f.settings.set(HotkeyKind.modifierOnly, for: HotkeySettings.kind)
+        await f.eventually("Input Monitoring to be asked for") {
+            f.environment.monitor.requested.contains(.inputMonitoring)
+        }
+
+        f.settings.set(HotkeyKind.keyed, for: HotkeySettings.kind)
+        await f.eventually("Input Monitoring to be dropped") {
+            !f.environment.monitor.requested.contains(.inputMonitoring)
+        }
         await f.environment.shutdown()
     }
 

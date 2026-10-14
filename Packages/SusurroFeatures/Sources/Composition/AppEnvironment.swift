@@ -1,7 +1,9 @@
 import DesignSystem
 import Domain
+import Foundation
 import Pipeline
 import Presentation
+import SusurroUI
 
 /// The dependency graph of the app, assembled once, and what the app does at launch and at quit. The ports of the core
 /// package are the only things it knows about its parts, so the same graph runs on the live adapters (`live`) and on
@@ -52,7 +54,8 @@ public final class AppEnvironment {
         public var inserter: any TextInserter
         public var permissions: any PermissionsChecker
         public var diagnostics: any DiagnosticsLog
-        public var overlay: any OverlaySurface
+        /// Makes the overlay on the screen, which shows the view model in the theme.
+        public var overlay: @MainActor (OverlayViewModel, ThemeModel) -> any OverlaySurface
         /// Puts the user's clipboard back at once if a paste is still under way. It runs as the app terminates.
         public var restoreClipboardNow: @MainActor () -> Void
         /// The user's settings. The graph holds them for the code that will read them: the first setting is read with the
@@ -64,10 +67,18 @@ public final class AppEnvironment {
         /// troubleshooting steps, the pauses and limits of a dictation, the time an overlay indicator stays, and the
         /// delay before the model's progress shows. Tests pass a `ManualClock`.
         public var clock: any Clock<Duration>
+        /// The dictation history: where the records live, and what its screen, its retention job, and its retry use.
+        public var history: HistoryDependencies
+        /// Tells which app is in front as a dictation starts, so its text goes only to that app. Without it the text is
+        /// pasted wherever the focus is when it is ready.
+        public var frontmost: (any FrontmostAppProvider)?
+        /// Captures the context of each dictation and chooses its style. Without it no context is captured.
+        public var context: ContextPipeline?
         /// Cleans the transcript before it is inserted. Nil inserts the raw transcript.
         public var cleanup: CleanupStage?
-        /// Where the vocabulary, the style, and the text around the cursor come from. Nil means nothing is known.
-        public var surroundings: (any SurroundingsSource)?
+        /// Builds the vocabulary of each dictation from the user's dictionary, the context, and the screen. Nil gives the
+        /// recognizer and the cleaner no vocabulary.
+        public var vocabulary: VocabularyPipeline?
 
         public init(
             hotkeys: any HotkeySource,
@@ -77,14 +88,17 @@ public final class AppEnvironment {
             inserter: any TextInserter,
             permissions: any PermissionsChecker,
             diagnostics: any DiagnosticsLog,
-            overlay: any OverlaySurface,
+            overlay: @escaping @MainActor (OverlayViewModel, ThemeModel) -> any OverlaySurface,
             restoreClipboardNow: @escaping @MainActor () -> Void,
             settings: any SettingsStore,
             onboarding: Onboarding,
             theming: Theming,
             clock: any Clock<Duration> = ContinuousClock(),
+            history: HistoryDependencies = .preview(),
+            frontmost: (any FrontmostAppProvider)? = nil,
+            context: ContextPipeline? = nil,
             cleanup: CleanupStage? = nil,
-            surroundings: (any SurroundingsSource)? = nil
+            vocabulary: VocabularyPipeline? = nil
         ) {
             self.hotkeys = hotkeys
             self.capture = capture
@@ -99,8 +113,11 @@ public final class AppEnvironment {
             self.onboarding = onboarding
             self.theming = theming
             self.clock = clock
+            self.history = history
+            self.frontmost = frontmost
+            self.context = context
             self.cleanup = cleanup
-            self.surroundings = surroundings
+            self.vocabulary = vocabulary
         }
     }
 
@@ -115,12 +132,16 @@ public final class AppEnvironment {
     let onboardingModel: OnboardingViewModel
     /// The theme the app's windows are drawn in, which follows the theme store.
     let themeModel: ThemeModel
+    /// The history screen's view model, over the repository.
+    let historyModel: HistoryViewModel
+    /// What the overlay shows, over the pipeline's states.
+    let overlayModel: OverlayViewModel
 
     private let dependencies: Dependencies
     private let coordinator: DictationCoordinator
-    private let presenter: SkeletonOverlayPresenter
     private let watcher: ModelLoadWatcher
     private let onboardingPresenter: OnboardingPresenter
+    private let retention: RetentionSweeper
     private var tasks: [Task<Void, Never>] = []
     private var hasStarted = false
 
@@ -134,30 +155,48 @@ public final class AppEnvironment {
             recognizer: dependencies.recognizer,
             inserter: dependencies.inserter,
             permissions: dependencies.permissions,
+            frontmost: dependencies.frontmost,
+            context: dependencies.context,
             diagnostics: dependencies.diagnostics,
             sleep: sleep,
+            clock: clock,
             cleanup: dependencies.cleanup,
-            surroundings: dependencies.surroundings
+            vocabulary: dependencies.vocabulary
         )
-        let overlay = dependencies.overlay
-        presenter = SkeletonOverlayPresenter(sleep: sleep, display: { overlay.display($0) })
-        let presenter = presenter
+        themeModel = ThemeModel()
+        let overlayModel = OverlayViewModel(sleep: sleep, uptime: OverlayViewModel.uptime(of: clock))
+        let surface = dependencies.overlay(overlayModel, themeModel)
+        overlayModel.display = { surface.display($0) }
+        self.overlayModel = overlayModel
         watcher = ModelLoadWatcher(
-            sleep: sleep, report: { presenter.setModelProgress($0) },
-            reportUnavailable: { presenter.showModelUnavailable() })
+            sleep: sleep, report: { overlayModel.setModelProgress($0) },
+            reportUnavailable: { overlayModel.showModelUnavailable() })
         monitor = PermissionsMonitor(
             checker: dependencies.permissions, openSettings: dependencies.onboarding.openSettings, clock: clock,
+            needs: PermissionNeeds(
+                modifierOnlyHotkey: dependencies.settings.value(for: HotkeySettings.kind) == .modifierOnly),
             diagnostics: dependencies.diagnostics)
         onboardingModel = OnboardingViewModel(monitor: monitor)
-        themeModel = ThemeModel()
         let onboardingPresenter = OnboardingPresenter(
             monitor: monitor, surface: dependencies.onboarding.window(onboardingModel, themeModel))
         self.onboardingPresenter = onboardingPresenter
+        let history = dependencies.history
+        historyModel = HistoryViewModel(
+            repository: history.repository,
+            actions: HistoryActions(
+                repository: history.repository, deleter: history.deleter, clipboard: history.clipboard),
+            retries: RetryService(
+                repository: history.repository, loader: history.loader, reprocessor: history.reprocessor),
+            dates: history.dates)
+        retention = RetentionSweeper(
+            repository: history.repository, deleter: history.deleter, dates: history.dates, clock: clock)
+        let historyWindow = history.window(historyModel, themeModel)
         preferences = MenuPreferences(
             settings: dependencies.settings,
             ocr: OCRPreferenceController(settings: dependencies.settings, monitor: monitor))
         menu = MenuModel(
-            monitor: monitor, showOnboarding: { onboardingPresenter.show() }, preferences: preferences)
+            monitor: monitor, showOnboarding: { onboardingPresenter.show() }, showHistory: { historyWindow.show() },
+            preferences: preferences)
     }
 
     /// Starts the app's work: the overlay, the hotkey, the model, the permission monitor and the onboarding, and the
@@ -165,18 +204,24 @@ public final class AppEnvironment {
     public func start() {
         guard !hasStarted else { return }
         hasStarted = true
+        let launchedAt = dependencies.history.dates.now()
         dependencies.diagnostics.record(.appLaunched)
         monitor.start()
         // The overlay listens before the coordinator can publish, and the coordinator registers the hotkey when it runs.
-        run { await $0.presenter.run(states: $0.coordinator.states) }
+        run { await $0.overlayModel.run(states: $0.coordinator.states) }
+        run { await $0.overlayModel.run(levels: $0.coordinator.levels) }
+        run { await $0.overlayModel.follow($0.dependencies.settings) }
         run { await $0.coordinator.run() }
         run { await $0.watcher.run(await $0.dependencies.readinessChanges()) }
         run { await $0.menu.observe(await $0.dependencies.readinessChanges()) }
         run { await $0.logModelReadiness() }
         run { await $0.launch() }
+        run { await $0.historyModel.run() }
+        run { await $0.launchHistory(at: launchedAt) }
         run { await $0.onboardingPresenter.run() }
         run { await $0.monitor.run(activations: $0.dependencies.onboarding.activations()) }
         run { await $0.preferences.ocr.start() }
+        run { await $0.followHotkeyKind() }
         run { await $0.themeModel.follow(await $0.dependencies.theming.store.updates()) }
         // The folder is read away from the main actor, so a slow disk or a link to a volume that is not there cannot hold
         // the launch up. The bundled theme shows until the files are known.
@@ -202,11 +247,29 @@ public final class AppEnvironment {
 
     // MARK: Launch
 
+    /// A modifier-only or fn hotkey needs Input Monitoring, so the permissions the app asks for follow the hotkey the user
+    /// chooses.
+    private func followHotkeyKind() async {
+        for await kind in dependencies.settings.values(for: HotkeySettings.kind) {
+            var needs = monitor.needs
+            needs.modifierOnlyHotkey = kind == .modifierOnly
+            await monitor.setNeeds(needs)
+        }
+    }
+
     /// The model starts loading before the first press. The permissions are the monitor's and the onboarding's: the
     /// system prompts come when the user asks for a permission there, not at launch.
     private func launch() async {
         dependencies.diagnostics.record(.modelPrepareRequested)
         await dependencies.recognizer.prepare()
+    }
+
+    /// The attempts that a quit left processing are marked failed, with their audio kept so they can be retried, and then
+    /// the retention job runs: at once, and every 6 hours. Only attempts created before the launch are touched, so a
+    /// dictation that begins as the app starts is left alone.
+    private func launchHistory(at launch: Date) async {
+        _ = try? await dependencies.history.repository.failInterrupted(createdBefore: launch)
+        await retention.run()
     }
 
     private func logModelReadiness() async {

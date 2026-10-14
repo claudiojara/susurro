@@ -1,5 +1,8 @@
 public enum RecordingMode: Sendable, Equatable {
+    /// The hotkey is held down while speaking.
     case hold
+    /// Started by a double tap: it goes on after the key is released, until the hotkey is pressed again.
+    case handsFree
 }
 
 public enum NoticeKind: Sendable, Equatable {
@@ -19,11 +22,17 @@ public enum Remedy: Sendable, Equatable {
     case settings
     /// Dictate again.
     case retry
+    /// Look at the app first: the text may already be there, and dictating again would duplicate it.
+    case check
+    /// Add the API key of the cloud provider that is selected.
+    case addKey
 }
 
 public enum PipelineError: Error, Sendable, Equatable {
     case microphoneNotGranted
     case recognizerNotInstalled
+    /// The selected recognizer is a cloud provider that is not enabled or has no key.
+    case cloudKeyMissing
     /// The speech model failed to load. The text is the reason. `retryable` is false when trying again cannot help.
     case recognizerUnavailable(String, retryable: Bool)
     /// The capture failed. The text is the underlying error.
@@ -51,6 +60,7 @@ public enum PipelineError: Error, Sendable, Equatable {
         switch self {
         case .microphoneNotGranted: "microphoneNotGranted"
         case .recognizerNotInstalled: "recognizerNotInstalled"
+        case .cloudKeyMissing: "cloudKeyMissing"
         case .recognizerUnavailable: "recognizerUnavailable"
         case .captureFailed: "captureFailed"
         case .recognitionFailed: "recognitionFailed"
@@ -63,7 +73,10 @@ public enum PipelineError: Error, Sendable, Equatable {
         switch self {
         case .microphoneNotGranted: .permissions
         case .recognizerNotInstalled: .settings
+        case .cloudKeyMissing: .addKey
         case .recognizerUnavailable(_, let retryable): retryable ? .retry : .settings
+        // An insertion that timed out may have pasted the text already, so it does not invite a second dictation.
+        case .timedOut(.insertion): .check
         case .captureFailed, .recognitionFailed, .timedOut, .notInserted: .retry
         }
     }
@@ -87,8 +100,17 @@ public enum PipelineState: Sendable, Equatable {
 /// Where the coordinator hands the final text.
 public protocol TextInserter: Sendable {
     func insert(_ text: String) async -> InsertionOutcome
+    /// Inserts the text into the app the dictation started in. When another app is in front by then, the text goes to
+    /// the clipboard instead. A nil target is not checked, and an inserter that does not check ignores the target.
+    func insert(_ text: String, into target: AppIdentity?) async -> InsertionOutcome
     /// Returns once every insertion that has already returned has also finished its own clean-up, such as putting the
     /// user's clipboard back. The coordinator waits for this when it shuts down, so quitting does not leave a
     /// dictation on the clipboard. An inserter with nothing to clean up returns at once.
     func drain() async
+}
+
+extension TextInserter {
+    public func insert(_ text: String, into target: AppIdentity?) async -> InsertionOutcome {
+        await insert(text)
+    }
 }

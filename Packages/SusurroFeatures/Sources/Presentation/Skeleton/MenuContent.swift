@@ -64,7 +64,7 @@ public struct MenuContent: Equatable, Sendable {
         MenuContent(
             hotkeyHint: "Hold Control-Option-D to dictate",
             restrictionMessage: restriction?.message,
-            setUpTitle: restriction == nil ? nil : "Set up Susurro…",
+            setUpTitle: restriction == nil ? nil : "\(OnboardingCopy.title)…",
             microphone: row(.microphone, name: "Microphone", status: microphone, followUp: followUps[.microphone]),
             accessibility: row(
                 .accessibility, name: "Accessibility", status: accessibility, followUp: followUps[.accessibility]),
