@@ -40,9 +40,15 @@ public actor DictationCoordinator {
     /// The current state first, then every change. It has a single consumer, which sees every state since creation.
     public nonisolated let states: AsyncStream<PipelineState>
 
+    /// Whether a dictation is under way: a recording is being made, or one is queued or being processed. It starts
+    /// `false` and yields at each change, so Esc can be armed exactly while it is `true`. It has a single consumer.
+    public nonisolated let activity: AsyncStream<Bool>
+
     private var phase = Phase.idle
     private var published = PipelineState.idle
     private let continuation: AsyncStream<PipelineState>.Continuation
+    private let activityContinuation: AsyncStream<Bool>.Continuation
+    private var isActive = false
     private var pressedAt = Duration.zero
     /// Whether the key of the dictation that began last is still down.
     private var keyIsDown = false
@@ -92,8 +98,10 @@ public actor DictationCoordinator {
         self.diagnostics = diagnostics
         self.sleep = sleep
         (states, continuation) = AsyncStream.makeStream()
+        (activity, activityContinuation) = AsyncStream.makeStream()
         (keyUps, keyUp) = AsyncStream.makeStream()
         continuation.yield(.idle)
+        activityContinuation.yield(false)
     }
 
     /// Feeds hotkey events to `handle` until the source finishes or the task is cancelled, then shuts down.
@@ -125,6 +133,7 @@ public actor DictationCoordinator {
         await drainInserter()
         publish(.idle)
         continuation.finish()
+        activityContinuation.finish()
     }
 
     /// Gives the inserter the time to put the clipboard back. What a slow one leaves is put back as the app terminates.
@@ -427,6 +436,20 @@ public actor DictationCoordinator {
         error as? PipelineError ?? make(String(describing: error))
     }
 
+    /// Tells whether a dictation is under way now, when that has changed. Every change of the phase or of the jobs is
+    /// followed by a published state, which is where this is called from.
+    private func updateActivity() {
+        let active: Bool
+        switch phase {
+        case .starting, .capturing, .finishing: active = true
+        case .idle: active = !jobs.isEmpty
+        case .stopped: active = false
+        }
+        guard active != isActive else { return }
+        isActive = active
+        activityContinuation.yield(active)
+    }
+
     /// Shows the state of the recording in progress.
     private func show(recording state: PipelineState) {
         recordingState = state
@@ -444,15 +467,16 @@ public actor DictationCoordinator {
     private func settle(_ outcome: PipelineState? = nil) {
         guard phase != .stopped else { return }
         recordingState = nil
+        phase = .idle
         if let outcome {
             if case .error(let error) = outcome { diagnostics.record(.dictationFailed(kind: error.kind)) }
             publish(outcome)
         }
-        phase = .idle
         publish(restingState())
     }
 
     private func publish(_ state: PipelineState) {
+        updateActivity()
         guard state != published else { return }
         published = state
         continuation.yield(state)
