@@ -17,6 +17,19 @@ nonisolated enum ThemeFiles {
         return entries.filter(isThemeFile)
     }
 
+    /// The first `limit` entries of `directory` that are named like theme files, in name order, that turn out to be theme
+    /// files, and whether the folder had more entries named like them than that. Only names are looked at before the cut,
+    /// so a folder of thousands of files costs one listing and at most `limit` status calls, none of them for an entry
+    /// past the cut. An entry named like a theme file that is none (a folder named `x.json`) takes a slot.
+    static func firstURLs(in directory: URL, limit: Int) -> (urls: [URL], hasMore: Bool) {
+        let entries =
+            (try? FileManager.default.contentsOfDirectory(
+                at: directory, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)) ?? []
+        let named = entries.filter { $0.pathExtension.lowercased() == "json" }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        return (named.prefix(limit).filter(isThemeFile), named.count > limit)
+    }
+
     static func isThemeFile(_ url: URL) -> Bool {
         var info = stat()
         // `stat` follows a symlink, so a link counts as what it points to.

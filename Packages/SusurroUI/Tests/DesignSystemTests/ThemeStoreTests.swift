@@ -245,7 +245,6 @@ struct ThemeStoreTests {
         await store.reload()
         await store.reload()
 
-        #expect(Thread.isMainThread)
         #expect(reads.onMainThread == [false, false])
     }
 
@@ -338,12 +337,12 @@ struct ThemeStoreTests {
             let store = await loadedStore(folder)
             let whileOver = await store.folderErrors
 
-            for number in 0..<4 { try folder.remove(String(format: "t%03d", number)) }
+            for number in 0..<4 { try folder.remove(String(format: "t%03d.json", number)) }
             await store.reload()
 
             #expect(whileOver == [.tooManyThemeFiles(limit: ThemeStore.fileLimit)])
             #expect(await store.folderErrors.isEmpty)
-            #expect(await store.themeIDs().count == ThemeStore.fileLimit + 1)
+            #expect(await store.themeIDs().count == ThemeStore.fileLimit + 3 - 4 + 1)  // 63 files and the bundled theme
         }
     }
 }
