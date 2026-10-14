@@ -89,20 +89,39 @@ struct DictationCoordinatorTests {
 
     @Test("a recognizer that is loading records, and transcription waits for ready while showing progress")
     func loadingRecognizer() async {
-        let loading = FakeRecognizer(
-            readiness: [.loading(progress: 0.4), .loading(progress: 0.4), .loading(progress: 0.8), .ready],
-            transcript: "hola"
-        )
-        var h = await Harness(recognizer: loading)
-        await h.startRecording()
-        let states = await h.release()
+        let loading = FakeRecognizer(readiness: [.loading(progress: 0.4)], transcript: "hola")
+        let sleeper = FakeSleeper(blocksPauses: true)
+        var h = await Harness(recognizer: loading, sleeper: sleeper)
+        await h.startRecording()  // a model that is loading does not stop the recording
+        await h.sut.handle(.up(at: Self.pressTime + .milliseconds(1200)))
+        let waiting = await h.read(through: .transcribing(progress: 0.4))
 
-        // The press asks the recognizer to prepare, which is a no-op while it loads, and then reads it again.
-        #expect(states == [.transcribing(progress: nil), .transcribing(progress: 0.8)] + Self.transcribed)
-        let calls: [FakeRecognizer.Call] = [.readiness, .prepare, .readiness, .readiness, .readiness]
-        #expect(h.recognizer.calls == calls + [.transcribe(AudioClip(samples: Self.clip))])
-        #expect(h.sleeper.pauseCount == 1)
+        // The state follows the model: the dictation waits, showing the progress, and nothing is transcribed yet.
+        #expect(waiting == [.transcribing(progress: nil), .transcribing(progress: 0.4)])
+        #expect(loading.transcribedClips.isEmpty)
+        #expect(h.inserter.insertedTexts.isEmpty)
+        loading.setReadiness(.ready)
+        sleeper.fire(DictationLimits.readinessPollInterval)
+
+        #expect(await h.read(through: .idle) == Self.transcribed)
+        #expect(loading.transcribedClips == [AudioClip(samples: Self.clip)])
         #expect(h.inserter.insertedTexts == ["hola"])
+    }
+
+    @Test(
+        "a cloud provider that is not turned on, or has no key, starts no capture and says what is missing",
+        arguments: [(false, ProviderBlocker.notEnabled), (true, .missingKey)]
+    )
+    func cloudProviderNotUsable(enabled: Bool, blocker: ProviderBlocker) async {
+        let cloud = FakeRecognizer(id: ASRProviderID("cloud-fake"), locality: .cloud)
+        let settings = InMemorySettingsStore()
+        settings.set(enabled, for: RecognitionSettings.cloudEnabled(for: cloud.id))
+        var h = await Harness(recognizer: cloud, settings: settings)
+        await h.sut.handle(.down(at: .zero))
+
+        #expect(await h.read(through: .idle) == [.error(.providerNotUsable(blocker)), .idle])
+        #expect(h.capture.startCount == 0)
+        #expect(cloud.calls == [])
     }
 
     @Test("a recognizer whose load failed starts no capture, asks to try again, and is prepared again")

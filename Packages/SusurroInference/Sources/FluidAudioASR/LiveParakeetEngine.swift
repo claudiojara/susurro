@@ -72,8 +72,33 @@ actor LiveParakeetEngine: ParakeetEngine {
         isPermanent(error) ? PermanentLoadFailure(reason: error.localizedDescription) : error
     }
 
+    /// The free space a first load needs: the weights are about 0.6 GB, and the compile of the encoder writes next to them.
+    static let requiredFreeSpace: Int64 = 1_000_000_000
+
+    /// Fails with `LowDiskSpace` when the weights still have to be downloaded and the disk has too little room for
+    /// them, so the user hears why instead of a download that stops half way. Nothing is checked once the weights are on
+    /// disk, or when the free space is not known.
+    static func checkFreeSpace(modelsPresent: Bool, available: Int64?) throws {
+        guard !modelsPresent, let available, available < requiredFreeSpace else { return }
+        throw LowDiskSpace(available: available)
+    }
+
+    /// The free space of the volume that holds `directory`, which need not exist yet: the nearest folder above it does.
+    static func availableSpace(at directory: URL) -> Int64? {
+        var folder = directory
+        while !FileManager.default.fileExists(atPath: folder.path), folder.pathComponents.count > 1 {
+            folder = folder.deletingLastPathComponent()
+        }
+        let values = try? folder.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        return values?.volumeAvailableCapacityForImportantUsage
+    }
+
     func load(progress: @escaping @Sendable (Double) -> Void) async throws {
         Self.pinWeights()
+        try Self.checkFreeSpace(
+            modelsPresent: AsrModels.modelsExist(
+                at: modelsDirectory, version: .v3, encoderPrecision: Self.encoderPrecision),
+            available: Self.availableSpace(at: modelsDirectory))
         do {
             let models = try await AsrModels.downloadAndLoad(
                 to: modelsDirectory,

@@ -195,7 +195,7 @@ struct RealModelTests {
         #expect(below.text.allSatisfy { $0.isWhitespace })
     }
 
-    @Test("long clips go to the engine whole", arguments: [10, 20])
+    @Test("long clips go to the engine whole", arguments: [4, 8, 16, 20, 80])
     func longClip(repetitions: Int) async throws {
         let samples = try Self.speak(String(repeating: Self.sentence, count: repetitions))
         let (recognizer, _, _) = await Self.loadedRecognizer()
