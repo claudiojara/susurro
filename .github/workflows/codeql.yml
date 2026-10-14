@@ -39,15 +39,29 @@ jobs:
 
       # Build each package on its own so sources the app does not link are analyzed too,
       # then build the app (xcodegen + xcodebuild) for the App/ sources.
+      #
+      # Every sandbox is turned off under the CodeQL tracer. SwiftPM loads manifests, and
+      # swift-frontend runs macro plugins (swift-plugin-server), through /usr/bin/sandbox-exec. The
+      # tracer cannot start that binary on this image: the spawn fails with "Bad CPU type in
+      # executable (86)". Rosetta is installed and does not help. The runner is ephemeral and builds
+      # only this repository and its pinned dependencies.
       - name: Build packages
         run: |
           for pkg in SusurroCore SusurroPlatform SusurroInference SusurroUI SusurroFeatures; do
             echo "==> swift build: $pkg"
-            swift build --package-path "Packages/$pkg"
+            swift build --disable-sandbox --package-path "Packages/$pkg"
           done
 
+      # Same steps as `make build`, with the sandboxes off. OTHER_SWIFT_FLAGS keeps $(inherited)
+      # so the Swift settings that each package declares still apply.
       - name: Build app
-        run: make build
+        run: |
+          make bootstrap resolve SWIFTPM_FLAGS="--disable-keychain --disable-sandbox"
+          xcodebuild build -project App/Susurro.xcodeproj -scheme Susurro -destination 'platform=macOS' \
+            -derivedDataPath build -clonedSourcePackagesDirPath build/SourcePackages \
+            -disableAutomaticPackageResolution \
+            -IDEPackageSupportDisableManifestSandbox=YES -IDEPackageSupportDisablePluginExecutionSandbox=YES \
+            'OTHER_SWIFT_FLAGS=$(inherited) -disable-sandbox'
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
