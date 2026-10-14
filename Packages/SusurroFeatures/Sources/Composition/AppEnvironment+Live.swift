@@ -32,6 +32,7 @@ extension AppEnvironment.Dependencies {
         return AppEnvironment.Dependencies(
             hotkeys: HotkeyService(),
             capture: AVAudioEngineCaptureSource(diagnostics: diagnostics),
+            recordings: CAFRecordingStore(directory: { Self.recordingsFolder }, diagnostics: diagnostics),
             recognizer: recognizer,
             readinessChanges: { await recognizer.readinessChanges() },
             inserter: inserter,
@@ -47,6 +48,11 @@ extension AppEnvironment.Dependencies {
             ),
             theming: Theming(store: themes, prepare: Self.prepareThemes(for: themes))
         )
+    }
+
+    /// Where the recordings are kept: `Audio` in the app's folder of Application Support.
+    private static var recordingsFolder: URL {
+        URL.applicationSupportDirectory.appending(path: "Susurro/Audio", directoryHint: .isDirectory)
     }
 
     /// Where the user puts theme files: `Themes` in the app's folder of Application Support.

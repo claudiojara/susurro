@@ -7,6 +7,7 @@ import Pipeline
 struct CoordinatorHarness {
     let hotkeys = FakeHotkeySource()
     let capture: FakeAudioCaptureSource
+    let recordings: FakeRecordingStore
     let recognizer: FakeRecognizer
     let inserter: FakeTextInserter
     let sleeper: FakeSleeper
@@ -17,11 +18,13 @@ struct CoordinatorHarness {
     init(
         permissions: FakePermissionsChecker = FakePermissionsChecker(),
         capture: FakeAudioCaptureSource = FakeAudioCaptureSource(),
+        recordings: FakeRecordingStore = FakeRecordingStore(),
         recognizer: FakeRecognizer = FakeRecognizer(),
         inserter: FakeTextInserter = FakeTextInserter(),
         sleeper: FakeSleeper = FakeSleeper()
     ) async {
         self.capture = capture
+        self.recordings = recordings
         self.recognizer = recognizer
         self.inserter = inserter
         self.sleeper = sleeper
@@ -30,6 +33,7 @@ struct CoordinatorHarness {
         let coordinator = DictationCoordinator(
             hotkeys: hotkeys,
             capture: capture,
+            recordings: recordings,
             recognizer: recognizer,
             inserter: inserter,
             permissions: permissions,

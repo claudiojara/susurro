@@ -61,6 +61,10 @@ struct DiagnosticDescriptionTests {
                 .permissionRequestEnded(permission: .accessibility, status: .denied), .default,
                 "permission accessibility: request ended, now denied"
             ),
+            (
+                .recordingVerified(id: "ABC", milliseconds: 5_000), .default,
+                "recording ABC.caf stored and verified: 5000 ms"
+            ),
             (.recordingStoreFailed(step: "verify"), .error, "recording store failed at verify"),
             (.historyWriteFailed(step: "insert"), .error, "history write failed at insert"),
             (.languageDriftDetected, .default, "transcript in the wrong language, transcribing again"),

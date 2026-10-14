@@ -111,7 +111,7 @@ struct AppEnvironmentTests {
         f.environment.start()
         f.hotkeys.send(.down(at: Self.pressTime))
         await f.eventually("the starting indicator") { f.overlay.current == "Getting ready…" }
-        f.capture.emit(AudioChunk(samples: [0.1, 0.2, 0.3]))
+        f.capture.emit(AudioChunk(samples: [Float](repeating: 0.1, count: AudioClip.sampleRate)))
         await f.eventually("the recording indicator") { f.overlay.current == "Listening…" }
         f.hotkeys.send(.up(at: Self.pressTime + .milliseconds(1200)))
         await f.eventually("the pasted indicator") { f.overlay.current == "Pasted" }
@@ -127,7 +127,7 @@ struct AppEnvironmentTests {
         let f = AppEnvironmentFixture(recognizer: FakeRecognizer(transcript: "uno", gated: true))
         f.environment.start()
         f.hotkeys.send(.down(at: Self.pressTime))
-        f.capture.emit(AudioChunk(samples: [0.1]))
+        f.capture.emit(AudioChunk(samples: [Float](repeating: 0.1, count: AudioClip.sampleRate)))
         await f.eventually("the recording indicator") { f.overlay.current == "Listening…" }
         f.hotkeys.send(.up(at: Self.pressTime + .milliseconds(1200)))
         await f.eventually("the transcribing indicator") { f.overlay.current == "Transcribing…" }

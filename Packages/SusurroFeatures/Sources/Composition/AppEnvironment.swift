@@ -46,6 +46,8 @@ public final class AppEnvironment {
 
         public var hotkeys: any HotkeySource
         public var capture: any AudioCaptureSource
+        /// Where each recording is written while it is captured, and read back from to be transcribed.
+        public var recordings: any AudioRecordingStore
         public var recognizer: any SpeechRecognizer
         /// A new stream of the model's readiness on each call, starting with the current value.
         public var readinessChanges: @Sendable () async -> AsyncStream<RecognizerReadiness>
@@ -68,6 +70,7 @@ public final class AppEnvironment {
         public init(
             hotkeys: any HotkeySource,
             capture: any AudioCaptureSource,
+            recordings: any AudioRecordingStore,
             recognizer: any SpeechRecognizer,
             readinessChanges: @escaping @Sendable () async -> AsyncStream<RecognizerReadiness>,
             inserter: any TextInserter,
@@ -82,6 +85,7 @@ public final class AppEnvironment {
         ) {
             self.hotkeys = hotkeys
             self.capture = capture
+            self.recordings = recordings
             self.recognizer = recognizer
             self.readinessChanges = readinessChanges
             self.inserter = inserter
@@ -121,6 +125,7 @@ public final class AppEnvironment {
         coordinator = DictationCoordinator(
             hotkeys: dependencies.hotkeys,
             capture: dependencies.capture,
+            recordings: dependencies.recordings,
             recognizer: dependencies.recognizer,
             inserter: dependencies.inserter,
             permissions: dependencies.permissions,

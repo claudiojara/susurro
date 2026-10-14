@@ -68,6 +68,8 @@ struct OverlayIndicatorTests {
             ),
             (.copiedToClipboard(.pasteFailed), "Copied to the clipboard. Paste it with Command-V."),
             (.busy, "Still working on the last dictation"),
+            (.deviceDisconnected, "The microphone was disconnected. Transcribing what was recorded…"),
+            (.silentMicrophone, "The microphone seems to be silent. Check that it is not muted."),
         ]
     )
     func notices(kind: NoticeKind, message: String) {
@@ -91,6 +93,7 @@ struct OverlayIndicatorTests {
                 "The speech model could not load. Open the Susurro menu."
             ),
             (.captureFailed("device"), "Could not record. Hold the key to try again."),
+            (.persistenceFailed("disk"), "Could not save the recording. Hold the key to try again."),
             (.recognitionFailed("engine"), "Transcription failed. Hold the key to try again."),
             (.timedOut(.readiness), "The speech model is taking too long to load. Hold the key to try again."),
             (.timedOut(.capture), "The microphone did not stop in time. Hold the key to try again."),
@@ -115,6 +118,7 @@ struct OverlayIndicatorTests {
         let secret = "the user said hunter2"
         let errors: [PipelineError] = [
             .recognizerUnavailable(secret, retryable: true), .captureFailed(secret), .recognitionFailed(secret),
+            .persistenceFailed(secret),
         ]
 
         for error in errors {

@@ -72,6 +72,10 @@ public struct OverlayIndicator: Equatable, Sendable {
                 ("doc.on.clipboard", "Copied to the clipboard. Paste it with Command-V.")
             case .busy:
                 ("hourglass", "Still working on the last dictation")
+            case .deviceDisconnected:
+                ("mic.slash", "The microphone was disconnected. Transcribing what was recorded…")
+            case .silentMicrophone:
+                ("mic.slash", "The microphone seems to be silent. Check that it is not muted.")
             }
         return OverlayIndicator(tone: .warning, symbol: symbol, message: message, progress: nil)
     }
@@ -84,6 +88,7 @@ public struct OverlayIndicator: Equatable, Sendable {
             case .recognizerNotInstalled: "The speech model is missing."
             case .recognizerUnavailable: "The speech model could not load."
             case .captureFailed: "Could not record."
+            case .persistenceFailed: "Could not save the recording."
             case .recognitionFailed: "Transcription failed."
             case .timedOut(.readiness): "The speech model is taking too long to load."
             case .timedOut(.capture): "The microphone did not stop in time."

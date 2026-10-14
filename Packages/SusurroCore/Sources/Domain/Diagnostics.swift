@@ -53,6 +53,8 @@ public enum DiagnosticEvent: Sendable, Equatable {
     case permissionGuidanceShown(permission: Permission)
     /// A request to the system for the permission returned, and a read after it found the permission in `status`.
     case permissionRequestEnded(permission: Permission, status: PermissionStatus)
+    /// A recording was written and read back. `id` names the file (`<id>.caf`) and `milliseconds` is its length.
+    case recordingVerified(id: String, milliseconds: Int)
     /// A recording could not be written or verified. `step` is one of "begin", "write", or "verify".
     case recordingStoreFailed(step: String)
     /// A step of the durable pipeline could not reach the history. `step` is one of "insert" or "update". The

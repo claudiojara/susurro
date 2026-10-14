@@ -17,6 +17,7 @@ extension AppEnvironment.Dependencies {
         AppEnvironment.Dependencies(
             hotkeys: FakeHotkeySource(),
             capture: FakeAudioCaptureSource(),
+            recordings: FakeRecordingStore(),
             recognizer: FakeRecognizer(transcript: transcript),
             readinessChanges: { AsyncStream { $0.yield(.ready) } },
             inserter: FakeTextInserter(),

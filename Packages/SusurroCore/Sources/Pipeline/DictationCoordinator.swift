@@ -1,8 +1,9 @@
 import Domain
 
-/// Runs one hold-to-talk dictation at a time: key down records, key up transcribes the whole clip and inserts the
-/// text. A hold that runs into the recording cap is transcribed at once, and its text waits for the release before it
-/// goes in. A press while a dictation is recording or processing is ignored, and one that finds it processing says so
+/// Runs one hold-to-talk dictation at a time: key down records, key up transcribes the recording and inserts the
+/// text. The recording is written to disk as it is captured (`RecordingSession`) and is transcribed only once the file
+/// has been read back. A hold that runs into the recording cap, or a device that goes away mid-recording, is
+/// transcribed at once, and its text waits for the release before it goes in. A press while a dictation is recording or processing is ignored, and one that finds it processing says so
 /// with a busy notice. Every wait is bounded, and so is the whole of the processing, so the coordinator always returns
 /// to idle.
 public actor DictationCoordinator {
@@ -15,15 +16,15 @@ public actor DictationCoordinator {
         case stopped  // after shutdown()
     }
 
-    private enum FinishReason {
+    private enum FinishReason: Equatable {
         case released(heldFor: Duration)
         case capReached
+        case deviceRemoved
     }
-
-    private static let capSampleCount = Int(DictationLimits.recordingCap / .seconds(1)) * AudioClip.sampleRate
 
     private let hotkeys: any HotkeySource
     private let capture: any AudioCaptureSource
+    private let recordings: any AudioRecordingStore
     private let recognizer: any SpeechRecognizer
     private let inserter: any TextInserter
     private let permissions: any PermissionsChecker
@@ -43,10 +44,9 @@ public actor DictationCoordinator {
     private var keyUps: AsyncStream<Void>
     private var keyUp: AsyncStream<Void>.Continuation
     private var pendingRelease: Duration?
-    private var samples: [Float] = []
-    private var receivedAudio = false
-    private var captureFailure: String?
-    private var captureTask: Task<Void, Never>?
+    /// The recording in progress, from the moment its capture starts until it is finished or abandoned.
+    private var session: RecordingSession?
+    private var sessionEvents: Task<Void, Never>?
     private var processTask: Task<Void, Never>?
     /// The stage of the dictation being processed, which a cap that runs out names in its error.
     private var processingStage = PipelineError.Stage.readiness
@@ -61,6 +61,7 @@ public actor DictationCoordinator {
     public init(
         hotkeys: any HotkeySource,
         capture: any AudioCaptureSource,
+        recordings: any AudioRecordingStore,
         recognizer: any SpeechRecognizer,
         inserter: any TextInserter,
         permissions: any PermissionsChecker,
@@ -69,6 +70,7 @@ public actor DictationCoordinator {
     ) {
         self.hotkeys = hotkeys
         self.capture = capture
+        self.recordings = recordings
         self.recognizer = recognizer
         self.inserter = inserter
         self.permissions = permissions
@@ -95,18 +97,17 @@ public actor DictationCoordinator {
             let wasRecording = phase == .capturing || phase == .finishing
             let processing = processTask
             phase = .stopped
-            captureTask?.cancel()
+            sessionEvents?.cancel()
             processing?.cancel()
-            samples = []
             shutdownTask = Task { await self.finishShutdown(wasRecording: wasRecording, processing: processing) }
         }
         await shutdownTask?.value
     }
 
     private func finishShutdown(wasRecording: Bool, processing: Task<Void, Never>?) async {
-        if wasRecording { await abandonCapture() }
+        if wasRecording { await abandonRecording() }
         await processing?.value
-        captureTask = nil
+        sessionEvents = nil
         processTask = nil
         await drainInserter()
         publish(.idle)
@@ -144,31 +145,34 @@ public actor DictationCoordinator {
             try await checkStartPreconditions()
             guard phase == .starting else { return }  // shut down meanwhile
             publish(.starting)
-            let stream = try await startCapture()
-            guard phase == .starting else { return await abandonCapture() }  // shut down meanwhile
-            samples = []
-            receivedAudio = false
-            captureFailure = nil
+            let started = try await startRecording()
+            guard phase == .starting else { return await abandon(started) }  // shut down meanwhile
+            session = started
             phase = .capturing
-            captureTask = Task { await self.consume(stream) }
+            sessionEvents = Task { await self.consume(started.events) }
             if let release = pendingRelease { await released(at: release) }
         } catch {
             settle(.error(Self.pipelineError(from: error, otherwise: PipelineError.captureFailed)))
         }
     }
 
-    /// Starts the capture within its limit. One that has not started in time is told to stop, in case it starts late
+    /// Starts the recording within its limit. One that has not started in time is told to stop, in case it starts late
     /// and would otherwise keep the microphone open for nobody.
-    private func startCapture() async throws -> AsyncThrowingStream<AudioChunk, Error> {
+    private func startRecording() async throws -> RecordingSession {
+        let started = RecordingSession(
+            capture: capture, store: recordings, maximumDuration: DictationLimits.recordingCap,
+            diagnostics: diagnostics)
         do {
-            return try await withDeadline(DictationLimits.captureStartTimeout, stage: .capture, sleep: sleep) {
-                [capture] in
-                try await capture.start()
+            try await withDeadline(DictationLimits.captureStartTimeout, stage: .capture, sleep: sleep) {
+                try await started.start()
             }
         } catch PipelineError.timedOut(.capture) {
-            await abandonCapture()
+            await abandon(started)
             throw PipelineError.timedOut(.capture)
+        } catch RecordingFailure.persistence {
+            throw PipelineError.persistenceFailed("the recording could not be opened")
         }
+        return started
     }
 
     /// A press that finds the last dictation still being processed gets no recording, so it says so. The state that was
@@ -214,24 +218,20 @@ public actor DictationCoordinator {
         }
     }
 
-    private func consume(_ stream: AsyncThrowingStream<AudioChunk, Error>) async {
-        do {
-            for try await chunk in stream { receive(chunk) }
-        } catch {
-            // The samples captured so far stay in the clip. If none arrived, the release reports this failure.
-            captureFailure = String(describing: error)
-            diagnostics.record(.captureStreamFailed(errorType: String(describing: type(of: error))))
-        }
-    }
-
-    private func receive(_ chunk: AudioChunk) {
-        if !receivedAudio, phase == .capturing {
-            receivedAudio = true
-            publish(.recording(.hold))
-        }
-        samples.append(contentsOf: chunk.samples)
-        if samples.count >= Self.capSampleCount, beginFinishing(reason: .capReached) != nil {
-            diagnostics.record(.recordingCapReached)
+    /// Reacts to what the recording reports: the first buffer is the moment recording shows, and the cap or a device
+    /// that went away finish it.
+    private func consume(_ events: AsyncStream<RecordingSession.Event>) async {
+        for await event in events {
+            switch event {
+            case .ready:
+                if phase == .capturing { publish(.recording(.hold)) }
+            case .level:
+                break
+            case .limitReached:
+                if beginFinishing(reason: .capReached) != nil { diagnostics.record(.recordingCapReached) }
+            case .deviceRemoved:
+                beginFinishing(reason: .deviceRemoved)
+            }
         }
     }
 
@@ -243,45 +243,59 @@ public actor DictationCoordinator {
         return Task { await self.finishRecording(reason) }
     }
 
-    /// Stops capture, waits for the buffered chunks, then discards the clip or starts processing it.
+    /// Stops the capture, waits for the buffered chunks, and has the recording written out and verified. Then it
+    /// discards a hold that was too short, or starts processing the recording.
     private func finishRecording(_ reason: FinishReason) async {
+        guard let recording = session else { return settle() }
+        if case .released(let heldFor) = reason, heldFor < DictationLimits.minimumHold {
+            await abandon(recording)
+            session = nil
+            guard phase == .finishing else { return }  // shut down meanwhile
+            return settle()
+        }
+        let result: RecordingResult
         do {
-            try await withDeadline(DictationLimits.captureStopTimeout, stage: .capture, sleep: sleep) {
-                [capture, captureTask] in
-                await capture.stop()
-                await captureTask?.value
+            result = try await withDeadline(DictationLimits.captureStopTimeout, stage: .capture, sleep: sleep) {
+                await recording.finish()
             }
         } catch {
-            captureTask?.cancel()
+            await abandon(recording)
+            session = nil
             return settle(.error(Self.pipelineError(from: error, otherwise: PipelineError.captureFailed)))
         }
         guard phase == .finishing else { return }  // shut down meanwhile
-        captureTask = nil
-        let clip = AudioClip(samples: samples)
-        samples = []
+        session = nil
+        sessionEvents = nil
 
-        switch reason {
-        case .released(let heldFor):
-            guard heldFor >= DictationLimits.minimumHold else { return settle() }
-            guard !clip.samples.isEmpty else {
-                return settle(.error(.captureFailed(captureFailure ?? "no audio was captured")))
-            }
-        case .capReached:
-            publish(.notice(.capReached))
+        switch result {
+        case .tooShort:
+            return settle()
+        case .failed(.persistence):
+            return settle(.error(.persistenceFailed("the recording could not be saved")))
+        case .failed(.capture(let message)):
+            return settle(.error(.captureFailed(message)))
+        case .recorded(let verified, let notice):
+            if reason == .capReached { publish(.notice(.capReached)) }
+            if let notice { publish(.notice(notice)) }
+            phase = .processing
+            publish(.transcribing(progress: nil))
+            processTask = Task { await self.process(verified) }
         }
-        phase = .processing
-        publish(.transcribing(progress: nil))
-        processTask = Task { await self.process(clip) }
     }
 
-    /// Best effort: a capture that does not stop in time is abandoned. It runs in an unstructured task, so a caller
-    /// that is already cancelled still stops the capture.
-    private func abandonCapture() async {
+    /// Best effort: a recording whose capture does not stop in time is abandoned. It runs in an unstructured task, so a
+    /// caller that is already cancelled still stops the capture. The file it wrote is deleted.
+    private func abandonRecording() async {
+        let abandoned = session
+        session = nil
+        if let abandoned { await abandon(abandoned) }
+    }
+
+    private func abandon(_ recording: RecordingSession) async {
         await Task {
             do {
                 try await withDeadline(DictationLimits.captureStopTimeout, stage: .capture, sleep: sleep) {
-                    [capture] in
-                    await capture.stop()
+                    await recording.abort()
                 }
             } catch {
                 diagnostics.record(.captureStopAbandoned)
@@ -289,16 +303,16 @@ public actor DictationCoordinator {
         }.value
     }
 
-    /// Runs the processing of one clip inside the total cap. The work returns the state to end on and does not settle
-    /// the cycle itself, so work that the cap abandons cannot settle it after the cap has.
-    private func process(_ clip: AudioClip) async {
+    /// Runs the processing of one recording inside the total cap. The work returns the state to end on and does not
+    /// settle the cycle itself, so work that the cap abandons cannot settle it after the cap has.
+    private func process(_ recording: VerifiedRecording) async {
         processingStage = .readiness
         processingCapRanOut = false
         do {
             let outcome = try await withDeadline(
                 DictationLimits.processingCap, stageAtExpiry: { await self.capRanOut() }, sleep: sleep
             ) {
-                try await self.transcribeAndInsert(clip)
+                try await self.transcribeAndInsert(recording)
             }
             settle(outcome)
         } catch {
@@ -314,7 +328,13 @@ public actor DictationCoordinator {
         return processingStage
     }
 
-    private func transcribeAndInsert(_ clip: AudioClip) async throws -> PipelineState {
+    private func transcribeAndInsert(_ recording: VerifiedRecording) async throws -> PipelineState {
+        let clip: AudioClip
+        do {
+            clip = try await recordings.load(recording)
+        } catch {
+            throw PipelineError.persistenceFailed("the recording could not be read back")
+        }
         try await waitUntilRecognizerIsReady()
         processingStage = .transcription
         let transcript = try await withDeadline(
