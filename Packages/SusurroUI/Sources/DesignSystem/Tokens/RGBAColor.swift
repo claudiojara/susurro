@@ -18,6 +18,19 @@ public nonisolated struct RGBAColor: Hashable, Sendable, Codable {
     /// What stands in for a color that cannot be read, where the rest of its theme is still being checked.
     public static let placeholder = RGBAColor(red: 0, green: 0, blue: 0)
 
+    /// This color painted over `background`, as the eye sees it: opaque paint hides what is under it, a translucent one
+    /// takes a share of each. The result is translucent when both are.
+    public func composited(over background: RGBAColor) -> RGBAColor {
+        let alpha = self.alpha + background.alpha * (1 - self.alpha)
+        guard alpha > 0 else { return RGBAColor(red: 0, green: 0, blue: 0, alpha: 0) }
+        func blend(_ top: Double, _ bottom: Double) -> Double {
+            (top * self.alpha + bottom * background.alpha * (1 - self.alpha)) / alpha
+        }
+        return RGBAColor(
+            red: blend(red, background.red), green: blend(green, background.green),
+            blue: blend(blue, background.blue), alpha: alpha)
+    }
+
     /// Reads `#RRGGBB` or `#RRGGBBAA`, in either case. Anything else is nil.
     public init?(hex: String) {
         guard hex.hasPrefix("#") else { return nil }

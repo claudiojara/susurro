@@ -18,8 +18,8 @@ public enum SnapshotSupport {
     /// (macOS 27.0.1) differs in a few hundredths to a tenth of a percent of the pixels, at the edges of letters. At
     /// 99.99 % five of the six pictures failed, at 99.9 % none. A view smaller than 0.1 % of its canvas could hide in
     /// that, so a gallery of small views uses a small canvas.
-    static let precision: Float = 0.999
-    static let perceptualPrecision: Float = 0.98
+    public static let precision: Float = 0.999
+    public static let perceptualPrecision: Float = 0.98
 
     /// `view` centered on a canvas of `size` that has the window color of `theme`, with a margin, in the appearance
     /// `scheme`.
@@ -53,6 +53,29 @@ public enum SnapshotSupport {
             preconditionFailure("SwiftUI drew no picture of the view.")
         }
         return image
+    }
+
+    /// The size, in points, that `view` takes when nothing limits it: what a canvas has to hold, before its margin. The
+    /// views are laid out as a picture lays them out, with the theme and the appearance of the test.
+    public static func idealSize<V: View>(of view: V, theme: Theme = .default, scheme: ColorScheme) -> CGSize {
+        let measured =
+            view
+            .fixedSize()
+            .themed(theme, override: scheme == .dark ? .dark : .light)
+            .environment(\.motionEnabled, false)
+            .environment(\.locale, Locale(identifier: "en_US"))
+            .environment(\.layoutDirection, .leftToRight)
+            .environment(\.legibilityWeight, .regular)
+        let renderer = ImageRenderer(content: measured)
+        renderer.scale = scale
+        var size = CGSize.zero
+        renderer.render { rendered, _ in size = rendered }
+        return size
+    }
+
+    /// The margin between the edge of a canvas and what is drawn on it.
+    public static func margin(of theme: Theme = .default) -> CGFloat {
+        CGFloat((try? theme.resolved(for: .light).spacing(.lg)) ?? 0)
     }
 
     public static func pngData<V: View>(
@@ -94,6 +117,57 @@ public enum SnapshotSupport {
         return CGRect(
             x: Double(columns.lowerBound) / scale, y: Double(rows.lowerBound) / scale,
             width: Double(columns.count) / scale, height: Double(rows.count) / scale)
+    }
+
+    /// How far the closest pixel of the picture is from `color`, as the largest difference in any channel, from 0 to 1.
+    /// Zero means a pixel has exactly that color. Text and icons are anti-aliased, so only the pixels inside a stroke have
+    /// the color of the text: this finds out whether the text was painted in it. `region`, in points from the top left,
+    /// limits the search, for a color that the background has too.
+    public static func closestDistance(in image: CGImage, to color: RGBAColor, region: CGRect? = nil) -> Double {
+        let bytes = rgba(of: image)
+        let columns = region.map { Int($0.minX * scale)..<min(Int($0.maxX * scale), image.width) } ?? 0..<image.width
+        let rows = region.map { Int($0.minY * scale)..<min(Int($0.maxY * scale), image.height) } ?? 0..<image.height
+        var closest = 1.0
+        for row in rows {
+            for column in columns {
+                let found = Self.color(in: bytes, width: image.width, column: column, row: row)
+                closest = min(
+                    closest,
+                    max(abs(found.red - color.red), abs(found.green - color.green), abs(found.blue - color.blue)))
+            }
+        }
+        return closest
+    }
+
+    /// How many pixels differ between two pictures of the same size by more than `tolerance` in some channel (from 0 to
+    /// 1). This is the count a snapshot compares with its tolerance, so it says whether a change would be seen.
+    public static func differingPixels(_ first: CGImage, _ second: CGImage, tolerance: Double) -> Int {
+        precondition(first.width == second.width && first.height == second.height, "The pictures differ in size.")
+        let a = rgba(of: first)
+        let b = rgba(of: second)
+        var count = 0
+        for index in stride(from: 0, to: a.count, by: 4) {
+            let differs = (0..<4).contains { abs(Double(a[index + $0]) - Double(b[index + $0])) / 255 > tolerance }
+            if differs { count += 1 }
+        }
+        return count
+    }
+
+    /// The change in red, green, and blue, each from -1 to 1, of every pixel that differs between two pictures of the same
+    /// size, going from `first` to `second`. The pixels that are the same are left out.
+    public static func pixelChanges(from first: CGImage, to second: CGImage) -> [(
+        red: Double, green: Double, blue: Double
+    )] {
+        precondition(first.width == second.width && first.height == second.height, "The pictures differ in size.")
+        let a = rgba(of: first)
+        let b = rgba(of: second)
+        var changes: [(red: Double, green: Double, blue: Double)] = []
+        for index in stride(from: 0, to: a.count, by: 4)
+        where (0..<3).contains(where: { a[index + $0] != b[index + $0] }) {
+            func change(_ offset: Int) -> Double { (Double(b[index + offset]) - Double(a[index + offset])) / 255 }
+            changes.append((change(0), change(1), change(2)))
+        }
+        return changes
     }
 
     /// The bytes of a picture as red, green, blue, and alpha, four to a pixel, row after row from the top.

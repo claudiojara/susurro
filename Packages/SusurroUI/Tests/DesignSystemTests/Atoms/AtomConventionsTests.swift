@@ -5,62 +5,37 @@ import Testing
 /// it names the text VoiceOver says. A convention that is only in a review is gone by the next atom.
 @Suite("Atom conventions")
 struct AtomConventionsTests {
-    private let atoms = PackageLayout.sources("DesignSystem").appendingPathComponent("Atoms")
-
-    /// The `public init(...)` signatures of an atom, one text each.
-    private func initializers(of file: URL) throws -> [String] {
-        let source = try String(contentsOf: file, encoding: .utf8)
-        let signature = /public init\([^{]*\{/
-        return source.matches(of: signature).map { String($0.output) }
-    }
-
-    private func atomFiles() throws -> [URL] {
-        let all = try FileManager.default.contentsOfDirectory(at: atoms, includingPropertiesForKeys: nil)
-        return all.filter { file in
-            let source = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
-            return source.contains("public struct") && source.contains(": View")
-        }.sorted { $0.lastPathComponent < $1.lastPathComponent }
-    }
-
     @Test("the atoms are found, each with a public initializer")
     func atomsAreFound() throws {
-        let files = try atomFiles()
-        #expect(
-            files.map(\.lastPathComponent) == [
-                "ActionButton.swift", "Icon.swift", "LevelBar.swift", "Pill.swift", "StatusDot.swift",
-                "TextLabel.swift",
-            ])
-        for file in files {
-            #expect(try !initializers(of: file).isEmpty, "\(file.lastPathComponent) has no public init")
-        }
+        let atoms = try AtomSources.atoms()
+        #expect(atoms.map(\.name) == ["ActionButton", "Icon", "LevelBar", "Pill", "StatusDot", "TextLabel"])
+        for atom in atoms { #expect(!atom.initializers.isEmpty, "\(atom.name) has no public init") }
     }
 
     @Test("no atom is colored with a color token: a color is a Tint")
     func atomsTakeATint() throws {
-        for file in try atomFiles() {
-            for signature in try initializers(of: file) {
-                #expect(!signature.contains("ColorToken"), "\(file.lastPathComponent) takes a ColorToken: \(signature)")
+        for atom in try AtomSources.atoms() {
+            for signature in atom.initializers {
+                #expect(!signature.contains("ColorToken"), "\(atom.name) takes a ColorToken: \(signature)")
             }
         }
     }
 
     @Test("the text VoiceOver says is always the argument labeled label")
     func voiceOverTextIsLabeled() throws {
-        for file in try atomFiles() {
-            for signature in try initializers(of: file) {
-                #expect(
-                    !signature.contains("_ label"), "\(file.lastPathComponent) takes an unlabeled label: \(signature)")
+        let atoms = try AtomSources.atoms()
+        for atom in atoms {
+            for signature in atom.initializers {
+                #expect(!signature.contains("_ label"), "\(atom.name) takes an unlabeled label: \(signature)")
             }
         }
-        let withLabel = try atomFiles().filter { file in
-            try initializers(of: file).contains { $0.contains("label:") }
-        }
-        #expect(withLabel.map(\.lastPathComponent) == ["Icon.swift", "LevelBar.swift", "StatusDot.swift"])
+        let withLabel = atoms.filter { atom in atom.initializers.contains { $0.contains("label:") } }
+        #expect(withLabel.map(\.name) == ["Icon", "LevelBar", "StatusDot"])
     }
 
     @Test("the gallery of an atom that takes a Tint shows every Tint")
     func galleriesShowEveryTint() throws {
-        let galleries = try String(contentsOf: atoms.appendingPathComponent("AtomGalleries.swift"), encoding: .utf8)
+        let galleries = try AtomSources.text(of: "AtomGalleries.swift")
         for atom in ["TextLabel", "Icon", "Pill", "StatusDot", "LevelBar"] {
             let start = try #require(galleries.range(of: "extension \(atom) {"), "no gallery for \(atom)")
             let rest = galleries[start.upperBound...]
