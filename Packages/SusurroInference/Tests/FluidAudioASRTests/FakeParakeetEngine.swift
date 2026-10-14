@@ -8,6 +8,7 @@ final class FakeParakeetEngine: ParakeetEngine {
     struct Transcription: Equatable, Sendable {
         let samples: [Float]
         let language: String?
+        var boost: [String] = []
     }
 
     /// What one call to `load` does: report these fractions, optionally wait for `releaseLoad()`, then finish or fail.
@@ -67,9 +68,9 @@ final class FakeParakeetEngine: ParakeetEngine {
         if let failure = plan.failure { throw failure }
     }
 
-    func transcribe(_ samples: [Float], language: String?) async throws -> String {
+    func transcribe(_ samples: [Float], language: String?, boost: [String]) async throws -> String {
         state.withLock { state in
-            state.transcriptions.append(Transcription(samples: samples, language: language))
+            state.transcriptions.append(Transcription(samples: samples, language: language, boost: boost))
             state.active += 1
             state.peakActive = max(state.peakActive, state.active)
         }

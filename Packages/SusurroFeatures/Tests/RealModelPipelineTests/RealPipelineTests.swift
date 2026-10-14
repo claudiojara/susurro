@@ -292,29 +292,49 @@ struct RealPipelineTests {
 
     // MARK: 8a.9 A dictionary term
 
+    /// Dictates `clip` with `terms` until the text holds `term`: the model that rescores arrives in the background after
+    /// the first dictation that has terms, and until then the text is the one Parakeet writes alone. Gives the last text
+    /// when the term never comes.
+    private static func dictate(
+        _ clip: AudioClip, with terms: [String], until term: String, on parakeet: ParakeetRecognizer
+    ) async throws -> String {
+        var text = ""
+        for _ in 0..<60 {
+            text = try await parakeet.transcribe(
+                clip, options: RecognitionOptions(language: "es", vocabulary: terms, boostTerms: terms)
+            ).text
+            if text.contains(term) { break }
+            try await Task.sleep(for: .seconds(2))
+        }
+        return text
+    }
+
     @Test(
-        "a dictionary term does not change what Parakeet writes: the speech spec lets a recognizer without biasing ignore it"
+        "a dictionary term makes Parakeet write the name it otherwise mangles, alone and among fifty terms"
     )
-    func parakeetIgnoresTheTerm() async throws {
+    func dictionaryTermBiasesParakeet() async throws {
         let parakeet = try await Self.loadedParakeet()
         let term = "Kaelthorn"
         let speech = try SpokenClip.speak("Mañana tengo una reunión con Kaelthorn para revisar el contrato.")
         let clip = AudioClip(samples: SpokenClip.silence(seconds: 0.3) + speech + SpokenClip.silence(seconds: 0.3))
 
         let plain = try await parakeet.transcribe(clip, options: RecognitionOptions(language: "es")).text
-        let hinted = try await parakeet.transcribe(
+        let boosted = try await Self.dictate(clip, with: [term], until: term, on: parakeet)
+        let crowded = try await Self.dictate(
+            clip, with: [term] + (1...49).map { "Término \($0)" }, until: term, on: parakeet)
+        // Vocabulary terms that are not in the dictionary are not boosted, so they cannot change the text.
+        let contextOnly = try await parakeet.transcribe(
             clip, options: RecognitionOptions(language: "es", vocabulary: [term])
         ).text
-        let crowded = try await parakeet.transcribe(
-            clip, options: RecognitionOptions(language: "es", vocabulary: [term] + (1...49).map { "Término \($0)" })
-        ).text
         print(
-            "REAL-WORLD 8a.9 Parakeet without the term: \"\(plain)\"; with it: \"\(hinted)\"; with it among 50: \"\(crowded)\""
+            "REAL-WORLD 8a.9 Parakeet without the term: \"\(plain)\"; boosted with it: \"\(boosted)\"; boosted with it among 50: \"\(crowded)\"; with it only as context: \"\(contextOnly)\""
         )
 
-        // The clip is one the model gets wrong without help, and the term does not help it.
+        // The clip is one the model gets wrong without help, and the dictionary term fixes it.
         #expect(!plain.contains(term))
-        #expect(hinted == plain && crowded == plain)
+        #expect(boosted.contains(term))
+        #expect(crowded.contains(term))
+        #expect(contextOnly == plain)
     }
 
     @Test("a dictionary term reaches the final text only when the cleaner fixes a near miss with it")

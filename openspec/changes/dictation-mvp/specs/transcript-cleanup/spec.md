@@ -50,7 +50,7 @@ A request to a cloud provider MUST contain only the transcript, vocabulary terms
 
 ### Requirement: Vocabulary
 
-Vocabulary MUST merge the user dictionary (highest priority), proper nouns extracted locally from field text and selection, and proper nouns extracted from OCR text when enabled. It MUST be deduplicated case-insensitively and bounded (default 50 terms, 40 characters each), with dictionary terms never dropped for context terms. Nothing MUST be extracted for secure fields. The user MUST be able to add, edit, and remove dictionary terms, persisted across launches.
+Vocabulary MUST merge the user dictionary (highest priority), proper nouns extracted locally from field text and selection, and proper nouns extracted from OCR text when enabled. It MUST be deduplicated case-insensitively and bounded (default 50 terms, 40 characters each), with dictionary terms never dropped for context terms. Nothing MUST be extracted for secure fields. The user MUST be able to add, edit, and remove dictionary terms, persisted across launches. The dictionary also reaches the recognizer, which rescores its transcript against it (see Speech Recognition, Vocabulary biasing); the terms found in the context do not.
 
 #### Scenario: Extraction
 

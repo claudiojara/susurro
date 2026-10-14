@@ -97,7 +97,9 @@ public actor ParakeetRecognizer: SpeechRecognizer {
         // A turn handed over at the moment of cancellation arrives as a normal wake-up.
         try Task.checkCancellation()
         do {
-            return RawTranscript(text: try await engine.transcribe(clip.samples, language: options.language))
+            return RawTranscript(
+                text: try await engine.transcribe(
+                    clip.samples, language: options.language, boost: options.boostTerms))
         } catch let error as CancellationError {
             throw error
         } catch let error as RecognitionError {

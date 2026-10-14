@@ -55,6 +55,12 @@ struct VocabularyJob: Sendable {
         task?.cancel()
     }
 
+    /// The user's dictionary alone, as the vocabulary holds it (trimmed, without repeats, within the limits), for the
+    /// recognizer to rescore against. The names around the cursor and on the screen are not in it.
+    var dictionaryTerms: [String] {
+        pipeline.builder.build(VocabularySources(dictionary: pipeline.dictionary.terms()))
+    }
+
     /// The vocabulary now. The dictionary is always in it. The names around the cursor are in it when the context was
     /// captured, and the names on the screen when the reading has finished. Nothing is extracted from a secure field.
     func terms(for context: DictationContext?) -> [String] {

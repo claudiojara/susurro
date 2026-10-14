@@ -53,7 +53,7 @@ struct ParakeetMappingTests {
         #expect(engine.transcriptions.map(\.language) == [expected])
     }
 
-    @Test("vocabulary terms are ignored without an error")
+    @Test("vocabulary terms that are not boost terms are ignored without an error")
     func vocabularyIsIgnored() async throws {
         let engine = FakeParakeetEngine()
         let recognizer = await ParakeetRecognizer.ready(engine: engine)
@@ -66,6 +66,30 @@ struct ParakeetMappingTests {
         #expect(biased == plain)
         #expect(engine.transcriptions.count == 2)
         #expect(engine.transcriptions[0] == engine.transcriptions[1])
+    }
+
+    @Test("the dictionary terms reach the engine to boost, and the rest of the vocabulary does not")
+    func boostTermsReachTheEngine() async throws {
+        let engine = FakeParakeetEngine()
+        let recognizer = await ParakeetRecognizer.ready(engine: engine)
+        let clip = AudioClip.ramp(samples: engine.minimumSampleCount)
+        let dictionary = ["Kaelthorn", "González"]
+        let options = RecognitionOptions(vocabulary: dictionary + ["Acme"], boostTerms: dictionary)
+
+        _ = try await recognizer.transcribe(clip, options: options)
+
+        #expect(engine.transcriptions.map(\.boost) == [dictionary])
+    }
+
+    @Test("a dictation with no dictionary asks the engine to boost nothing")
+    func noBoostTerms() async throws {
+        let engine = FakeParakeetEngine()
+        let recognizer = await ParakeetRecognizer.ready(engine: engine)
+        let clip = AudioClip.ramp(samples: engine.minimumSampleCount)
+
+        _ = try await recognizer.transcribe(clip, options: RecognitionOptions(vocabulary: ["Acme"]))
+
+        #expect(engine.transcriptions.map(\.boost) == [[]])
     }
 
     @Test("an engine error becomes a recognition error", arguments: ["boom", "model is corrupt"])

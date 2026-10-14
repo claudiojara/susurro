@@ -58,10 +58,11 @@ struct RecognitionRunnerTests {
             readiness: readiness, transcript: text, failure: failure, id: .parakeetV3, maxClipDuration: limit)
     }
 
-    private static func run(_ rig: Rig, vocabulary: [String] = [], progress: Progress = Progress()) async throws
-        -> RecognitionOutcome
-    {
-        try await rig.runner.run(clip, vocabulary: vocabulary, progress: { progress.report($0) })
+    private static func run(
+        _ rig: Rig, vocabulary: [String] = [], boostTerms: [String] = [], progress: Progress = Progress()
+    ) async throws -> RecognitionOutcome {
+        try await rig.runner.run(
+            clip, vocabulary: vocabulary, boostTerms: boostTerms, progress: { progress.report($0) })
     }
 
     // MARK: Language and vocabulary
@@ -86,6 +87,18 @@ struct RecognitionRunnerTests {
 
         #expect(outcome.text == "hecho")
         #expect(recognizer.receivedOptions.map(\.vocabulary) == [terms])
+    }
+
+    @Test("the terms to boost reach the provider apart from the vocabulary, and are none unless the caller names them")
+    func boostTerms() async throws {
+        let recognizer = Self.parakeet()
+        let rig = Rig([recognizer])
+
+        _ = try await Self.run(rig, vocabulary: ["Acme", "Kaelthorn"])
+        _ = try await Self.run(rig, vocabulary: ["Acme", "Kaelthorn"], boostTerms: ["Kaelthorn"])
+
+        #expect(recognizer.receivedOptions.map(\.boostTerms) == [[], ["Kaelthorn"]])
+        #expect(recognizer.receivedOptions.map(\.vocabulary) == [["Acme", "Kaelthorn"], ["Acme", "Kaelthorn"]])
     }
 
     // MARK: Results

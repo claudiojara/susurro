@@ -22,7 +22,7 @@ public struct RecognitionOutcome: Sendable, Equatable {
 /// Turns a clip into a raw transcript with the recognizer the registry selects.
 ///
 /// - It waits for a model that is still loading, reporting its progress.
-/// - It passes the pinned language (or none, for automatic detection) and the vocabulary.
+/// - It passes the pinned language (or none, for automatic detection), the vocabulary, and the dictionary terms to boost.
 /// - It splits a clip that is longer than the recognizer takes, and bounds each call with a timeout.
 /// - When a cloud recognizer fails, it tries the default local one once and says which one wrote the text.
 /// - When the user wants the language guaranteed and the transcript comes back in another one, it transcribes the clip
@@ -51,10 +51,14 @@ public struct RecognitionRunner: Sendable {
         self.sleep = sleep
     }
 
-    /// - Parameter progress: Told the progress of the model's load while the clip waits for it, and nil when it is ready.
+    /// - Parameters:
+    ///   - vocabulary: Every term worth favoring: the dictionary and the names found around the cursor and on screen.
+    ///   - boostTerms: The dictionary alone, for a recognizer that rescores its transcript against known terms.
+    ///   - progress: Told the progress of the model's load while the clip waits for it, and nil when it is ready.
     public func run(
         _ clip: AudioClip,
         vocabulary: [String] = [],
+        boostTerms: [String] = [],
         progress: @escaping @Sendable (Double?) async -> Void
     ) async throws -> RecognitionOutcome {
         let waiter = ReadinessWaiter(sleep: sleep)
@@ -62,7 +66,7 @@ public struct RecognitionRunner: Sendable {
         try await waiter.wait(for: selected, report: progress)
 
         let mode = language.mode()
-        let options = RecognitionOptions(language: mode.pinnedLanguage, vocabulary: vocabulary)
+        let options = RecognitionOptions(language: mode.pinnedLanguage, vocabulary: vocabulary, boostTerms: boostTerms)
         var used = selected
         var reason: String?
         var text: String
