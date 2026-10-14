@@ -64,6 +64,9 @@ public final class AppEnvironment {
         /// troubleshooting steps, the pauses and limits of a dictation, the time an overlay indicator stays, and the
         /// delay before the model's progress shows. Tests pass a `ManualClock`.
         public var clock: any Clock<Duration>
+        /// Tells which app is in front as a dictation starts, so its text goes only to that app. Without it the text is
+        /// pasted wherever the focus is when it is ready.
+        public var frontmost: (any FrontmostAppProvider)?
 
         public init(
             hotkeys: any HotkeySource,
@@ -78,7 +81,8 @@ public final class AppEnvironment {
             settings: any SettingsStore,
             onboarding: Onboarding,
             theming: Theming,
-            clock: any Clock<Duration> = ContinuousClock()
+            clock: any Clock<Duration> = ContinuousClock(),
+            frontmost: (any FrontmostAppProvider)? = nil
         ) {
             self.hotkeys = hotkeys
             self.capture = capture
@@ -93,6 +97,7 @@ public final class AppEnvironment {
             self.onboarding = onboarding
             self.theming = theming
             self.clock = clock
+            self.frontmost = frontmost
         }
     }
 
@@ -124,6 +129,7 @@ public final class AppEnvironment {
             recognizer: dependencies.recognizer,
             inserter: dependencies.inserter,
             permissions: dependencies.permissions,
+            frontmost: dependencies.frontmost,
             diagnostics: dependencies.diagnostics,
             sleep: sleep
         )

@@ -27,6 +27,7 @@ public actor DictationCoordinator {
     private let recognizer: any SpeechRecognizer
     private let inserter: any TextInserter
     private let permissions: any PermissionsChecker
+    private let frontmost: (any FrontmostAppProvider)?
     private let diagnostics: any DiagnosticsLog
     private let sleep: @Sendable (Duration) async throws -> Void
 
@@ -48,6 +49,8 @@ public actor DictationCoordinator {
     private var captureFailure: String?
     private var captureTask: Task<Void, Never>?
     private var processTask: Task<Void, Never>?
+    /// The app that was in front when the key went down, which the text is pasted into and no other.
+    private var dictationTarget: AppIdentity?
     /// The stage of the dictation being processed, which a cap that runs out names in its error.
     private var processingStage = PipelineError.Stage.readiness
     /// Whether the total cap ran out on the dictation being processed, as opposed to the limit of one of its stages.
@@ -56,6 +59,8 @@ public actor DictationCoordinator {
     private var shutdownTask: Task<Void, Never>?
 
     /// - Parameters:
+    ///   - frontmost: Tells which app is in front as the key goes down. Without it the text is pasted wherever the focus
+    ///     is when the transcript is ready.
     ///   - diagnostics: Where failures that would otherwise be swallowed are reported. They carry no text.
     ///   - sleep: Paces readiness checks and times out the waits. Tests pass a fake.
     public init(
@@ -64,6 +69,7 @@ public actor DictationCoordinator {
         recognizer: any SpeechRecognizer,
         inserter: any TextInserter,
         permissions: any PermissionsChecker,
+        frontmost: (any FrontmostAppProvider)? = nil,
         diagnostics: any DiagnosticsLog = NoDiagnostics(),
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
@@ -72,6 +78,7 @@ public actor DictationCoordinator {
         self.recognizer = recognizer
         self.inserter = inserter
         self.permissions = permissions
+        self.frontmost = frontmost
         self.diagnostics = diagnostics
         self.sleep = sleep
         (states, continuation) = AsyncStream.makeStream()
@@ -140,6 +147,7 @@ public actor DictationCoordinator {
         pendingRelease = nil
         keyIsDown = true
         (keyUps, keyUp) = AsyncStream.makeStream()
+        dictationTarget = await frontmost?.current()
         do {
             try await checkStartPreconditions()
             guard phase == .starting else { return }  // shut down meanwhile
@@ -325,9 +333,10 @@ public actor DictationCoordinator {
         guard !transcript.text.allSatisfy(\.isWhitespace) else { return .notice(.noSpeech) }
         processingStage = .insertion
         try await waitForKeyRelease()
+        let target = dictationTarget
         let outcome = try await withDeadline(DictationLimits.insertionTimeout, stage: .insertion, sleep: sleep) {
             [inserter] in
-            await inserter.insert(transcript.text)
+            await inserter.insert(transcript.text, into: target)
         }
         switch outcome {
         case .inserted: return .inserted

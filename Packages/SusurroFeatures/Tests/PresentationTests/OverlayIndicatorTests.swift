@@ -95,7 +95,10 @@ struct OverlayIndicatorTests {
             (.timedOut(.readiness), "The speech model is taking too long to load. Hold the key to try again."),
             (.timedOut(.capture), "The microphone did not stop in time. Hold the key to try again."),
             (.timedOut(.transcription), "Transcription took too long. Hold the key to try again."),
-            (.timedOut(.insertion), "Pasting took too long. Hold the key to try again."),
+            (
+                .timedOut(.insertion),
+                "Pasting took too long. The text may already be there. Check the app before you dictate again."
+            ),
             (
                 .notInserted(.clipboardChanged),
                 "Not pasted: the clipboard changed meanwhile. Hold the key to try again."

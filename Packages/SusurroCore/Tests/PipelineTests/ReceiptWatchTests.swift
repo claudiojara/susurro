@@ -1,6 +1,6 @@
 import Testing
 
-@testable import TextInsertion
+@testable import Pipeline
 
 @Suite("Receipt watch")
 struct ReceiptWatchTests {

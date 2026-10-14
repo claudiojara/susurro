@@ -1,5 +1,5 @@
 import AppKit
-import Synchronization
+import Domain
 
 /// The transcript as a promise on the pasteboard. The text is supplied only when an app asks for it, so the first
 /// request is the receipt that a paste reached the app. The pasteboard asks only for the first read and serves later
@@ -7,15 +7,14 @@ import Synchronization
 /// count, is what covers an app that reads the text again.
 final class PromisedText: NSObject, NSPasteboardItemDataProvider, Sendable {
     private let text: String
-    private let reads = Mutex(0)
+    /// The count of requests for the text.
+    let receipts: ReadReceipts
 
-    init(_ text: String) {
+    init(_ text: String, receipts: ReadReceipts = ReadReceipts()) {
         self.text = text
+        self.receipts = receipts
         super.init()
     }
-
-    /// How many times an app has asked for the text.
-    var receipts: Int { reads.withLock { $0 } }
 
     // The pasteboard calls this on whichever thread the request arrives, which is not documented, so the count is
     // guarded by a lock.
@@ -28,6 +27,6 @@ final class PromisedText: NSObject, NSPasteboardItemDataProvider, Sendable {
         // One that does is not a read of the text: it provides nothing and does not count as a receipt.
         guard type == .string else { return }
         item.setString(text, forType: .string)
-        reads.withLock { $0 += 1 }
+        receipts.record()
     }
 }

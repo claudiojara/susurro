@@ -16,14 +16,45 @@ struct KeystrokePosterTests {
         trusted: Bool = true,
         held: CGEventFlags = [],
         makeEvent: @escaping PasteChord.MakeEvent = PasteChord.privateSourceEvent,
+        keyCode: CGKeyCode = PasteChord.ansiVKeyCode,
         into posted: Posted = Posted()
     ) -> CGEventKeystrokePoster {
         CGEventKeystrokePoster(
             isTrusted: { trusted },
             heldFlags: { held },
             post: { posted.events.append($0) },
-            makeEvent: makeEvent
+            makeEvent: makeEvent,
+            pasteKeyCode: { keyCode }
         )
+    }
+
+    @Test("the V key is the one the layout in use puts it on, so Dvorak differs from QWERTY")
+    func keyCodeComesFromTheLayout() throws {
+        let qwerty = Posted()
+        let dvorak = Posted()
+
+        try poster(keyCode: 9, into: qwerty).postPaste()
+        try poster(keyCode: 47, into: dvorak).postPaste()
+
+        let codes = { (posted: Posted) in posted.events.map { $0.getIntegerValueField(.keyboardEventKeycode) } }
+        #expect(codes(qwerty) == [9, 9])
+        #expect(codes(dvorak) == [47, 47])
+    }
+
+    @Test("the key is looked up for every paste, because the layout can change")
+    func lookedUpEachTime() throws {
+        var lookups = 0
+        let sut = CGEventKeystrokePoster(
+            isTrusted: { true }, heldFlags: { [] }, post: { _ in },
+            pasteKeyCode: {
+                lookups += 1
+                return 9
+            })
+
+        try sut.postPaste()
+        try sut.postPaste()
+
+        #expect(lookups == 2)
     }
 
     @Test("a trusted process posts the V key down and up with only Command")

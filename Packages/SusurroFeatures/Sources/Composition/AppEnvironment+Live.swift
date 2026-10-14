@@ -7,6 +7,7 @@ import FluidAudioASR
 import Foundation
 import Hotkeys
 import Permissions
+import Pipeline
 import Presentation
 import Settings
 import TextInsertion
@@ -27,7 +28,10 @@ extension AppEnvironment.Dependencies {
         let diagnostics = OSLogDiagnostics()
         let permissions = SystemPermissionsChecker()
         let recognizer = ParakeetRecognizer()
-        let inserter = SimplePasteInserter(diagnostics: diagnostics)
+        let frontmost = NSWorkspaceFrontmostAppProvider()
+        let inserter = PasteTransaction(
+            pasteboard: NSPasteboardAdapter(), keystrokes: CGEventKeystrokePoster(), frontmost: frontmost,
+            diagnostics: diagnostics)
         let themes = ThemeStore(directory: themesFolder)
         return AppEnvironment.Dependencies(
             hotkeys: HotkeyService(),
@@ -45,7 +49,8 @@ extension AppEnvironment.Dependencies {
                 openSettings: { NSWorkspace.shared.open(permissions.settingsURL(for: $0)) },
                 activations: Self.applicationActivations
             ),
-            theming: Theming(store: themes, prepare: Self.prepareThemes(for: themes))
+            theming: Theming(store: themes, prepare: Self.prepareThemes(for: themes)),
+            frontmost: frontmost
         )
     }
 
