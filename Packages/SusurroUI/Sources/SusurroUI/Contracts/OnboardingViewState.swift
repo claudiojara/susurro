@@ -20,9 +20,17 @@ public nonisolated enum OnboardingRowStatus: Equatable, Sendable {
     case denied
     /// The user was asked to act, in a prompt or in System Settings, and nothing has changed yet.
     case waiting
-    /// Still not allowed a while after the user came back from System Settings, so the grant may be stale and the
-    /// troubleshooting steps are shown.
-    case stale
+    /// Still not allowed a while after the user came back from System Settings, so the grant may be stale. `guidance`
+    /// holds the troubleshooting steps that fit the permission.
+    case stale(guidance: String)
+}
+
+/// Whether a permission holds dictation back.
+public nonisolated enum OnboardingRequirement: Equatable, Sendable {
+    case required
+    /// Never holds dictation or the Done button back. `featureNote` says which feature the permission is for, and that
+    /// dictation works without it.
+    case optional(featureNote: String)
 }
 
 /// The one step a row offers.
@@ -49,34 +57,25 @@ public nonisolated struct OnboardingRowState: Equatable, Sendable, Identifiable 
     public let title: String
     /// Why the app needs the permission.
     public let why: String
-    /// An optional permission never holds dictation or the Done button back.
-    public let isOptional: Bool
-    /// Which feature an optional permission is for, and that dictation works without it. Nil for a required one.
-    public let featureNote: String?
+    public let requirement: OnboardingRequirement
     public let status: OnboardingRowStatus
     /// Nil when there is nothing to do: the permission is granted, or a prompt is up.
     public let action: OnboardingAction?
-    /// The troubleshooting steps. Present only when the status is `stale`.
-    public let staleGuidance: String?
 
     public init(
         id: OnboardingPermission,
         title: String,
         why: String,
-        isOptional: Bool,
-        featureNote: String?,
+        requirement: OnboardingRequirement,
         status: OnboardingRowStatus,
-        action: OnboardingAction?,
-        staleGuidance: String?
+        action: OnboardingAction?
     ) {
         self.id = id
         self.title = title
         self.why = why
-        self.isOptional = isOptional
-        self.featureNote = featureNote
+        self.requirement = requirement
         self.status = status
         self.action = action
-        self.staleGuidance = staleGuidance
     }
 }
 

@@ -48,11 +48,9 @@ public final class OnboardingViewModel: OnboardingViewModeling {
             id: OnboardingPermission(permission),
             title: permission.displayName,
             why: OnboardingCopy.why(permission),
-            isOptional: !PermissionPolicy.required.contains(permission),
-            featureNote: OnboardingCopy.featureNote(permission),
+            requirement: OnboardingCopy.requirement(permission),
             status: status,
-            action: action,
-            staleGuidance: status == .stale ? OnboardingCopy.staleGuidance : nil
+            action: action
         )
     }
 
@@ -65,7 +63,8 @@ public final class OnboardingViewModel: OnboardingViewModeling {
         switch monitor.followUps[permission] {
         case .requesting: return (.waiting, nil)
         case .sentToSettings: return (.waiting, OnboardingCopy.openSettingsAction)
-        case .stale: return (.stale, OnboardingCopy.openSettingsAction)
+        case .stale:
+            return (.stale(guidance: OnboardingCopy.staleGuidance(permission)), OnboardingCopy.openSettingsAction)
         case nil: break
         }
         guard reading == .denied else { return (.notAsked, OnboardingCopy.requestAction(permission)) }

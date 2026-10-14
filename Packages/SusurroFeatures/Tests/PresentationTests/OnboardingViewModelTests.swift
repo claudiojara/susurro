@@ -108,7 +108,7 @@ struct OnboardingViewModelTests {
     func optionalWithoutAFeature() {
         let requirement = OnboardingCopy.requirement(.inputMonitoring, features: [:])
 
-        #expect(requirement == .optional(featureNote: "Optional: dictation works without it."))
+        #expect(requirement == .optional(featureNote: "Optional: Dictation works without it."))
     }
 
     // MARK: Status and action
