@@ -557,6 +557,31 @@ struct PermissionsMonitorTests {
         #expect(rig.monitor.followUps == [.accessibility: .sentToSettings, .microphone: .sentToSettings])
     }
 
+    @Test("opening System Settings for a permission that was never asked opens the pane and follows nothing")
+    func settingsForNotDeterminedFollowsNothing() async {
+        let rig = Rig([.microphone: .notDetermined, .accessibility: .denied])
+        await rig.monitor.refresh()
+
+        rig.monitor.openSettings(for: .microphone)
+        let neverAsked = rig.monitor.followUps
+        rig.monitor.openSettings(for: .accessibility)
+
+        #expect(rig.panes.opened == [.microphone, .accessibility])
+        #expect(neverAsked.isEmpty)
+        // A refusal is followed, so the same call does not lose its follow-up for a denied permission.
+        #expect(rig.monitor.followUps == [.accessibility: .sentToSettings])
+    }
+
+    @Test("a permission that was never read counts as never asked, so a trip to System Settings follows nothing")
+    func settingsForUnreadFollowsNothing() {
+        let rig = Rig([.microphone: .denied])
+
+        rig.monitor.openSettings(for: .microphone)
+
+        #expect(rig.panes.opened == [.microphone])
+        #expect(rig.monitor.followUps.isEmpty)
+    }
+
     @Test("a request can be made again once the first one is over")
     func requestCanBeRepeated() async {
         let rig = Rig([.microphone: .granted, .accessibility: .denied])

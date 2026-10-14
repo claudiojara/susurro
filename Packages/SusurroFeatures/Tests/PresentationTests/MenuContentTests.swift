@@ -14,39 +14,95 @@ struct MenuContentTests {
     }
 
     @Test(
-        "the microphone row says whether it is allowed, and offers System Settings unless it is",
+        "the microphone row says whether it is allowed, and offers the step that fits unless it is",
         arguments: [
-            (PermissionStatus.granted, "Microphone: allowed", true, nil as String?),
-            (.denied, "Microphone: not allowed", false, "Open System Settings for Microphone…"),
-            (.notDetermined, "Microphone: not decided yet", false, "Open System Settings for Microphone…"),
+            (PermissionStatus.granted, "Microphone: allowed", true, nil as PermissionStep.Action?, nil as String?),
+            (.denied, "Microphone: not allowed", false, .openSettings, "Open System Settings for Microphone…"),
+            (.notDetermined, "Microphone: not decided yet", false, .request, "Allow Microphone…"),
         ]
     )
-    func microphoneRow(status: PermissionStatus, title: String, isGranted: Bool, action: String?) {
+    func microphoneRow(
+        status: PermissionStatus, title: String, isGranted: Bool, kind: PermissionStep.Action?, actionTitle: String?
+    ) {
         let row = MenuContent.make(microphone: status, accessibility: .granted, restriction: nil, readiness: .ready)
             .microphone
 
         #expect(row.permission == .microphone)
         #expect(row.title == title)
         #expect(row.isGranted == isGranted)
-        #expect(row.settingsActionTitle == action)
+        #expect(row.action?.kind == kind)
+        #expect(row.action?.title == actionTitle)
     }
 
     @Test(
-        "the Accessibility row says whether it is allowed, and offers System Settings unless it is",
+        "the Accessibility row says whether it is allowed, and asks first because denied may mean never asked",
         arguments: [
-            (PermissionStatus.granted, "Accessibility: allowed", true, nil as String?),
-            (.denied, "Accessibility: not allowed", false, "Open System Settings for Accessibility…"),
-            (.notDetermined, "Accessibility: not decided yet", false, "Open System Settings for Accessibility…"),
+            (PermissionStatus.granted, "Accessibility: allowed", true, nil as PermissionStep.Action?, nil as String?),
+            (.denied, "Accessibility: not allowed", false, .request, "Allow Accessibility…"),
+            (.notDetermined, "Accessibility: not decided yet", false, .request, "Allow Accessibility…"),
         ]
     )
-    func accessibilityRow(status: PermissionStatus, title: String, isGranted: Bool, action: String?) {
+    func accessibilityRow(
+        status: PermissionStatus, title: String, isGranted: Bool, kind: PermissionStep.Action?, actionTitle: String?
+    ) {
         let row = MenuContent.make(microphone: .granted, accessibility: status, restriction: nil, readiness: .ready)
             .accessibility
 
         #expect(row.permission == .accessibility)
         #expect(row.title == title)
         #expect(row.isGranted == isGranted)
-        #expect(row.settingsActionTitle == action)
+        #expect(row.action?.kind == kind)
+        #expect(row.action?.title == actionTitle)
+    }
+
+    @Test("a permission nobody has decided on offers to allow it, not to open System Settings")
+    func notDecidedOffersAllow() {
+        let content = MenuContent.make(
+            microphone: .notDetermined, accessibility: .notDetermined, restriction: nil, readiness: .ready)
+
+        #expect(
+            content.microphone.action == MenuContent.PermissionRow.Action(kind: .request, title: "Allow Microphone…"))
+        #expect(
+            content.accessibility.action
+                == MenuContent.PermissionRow.Action(kind: .request, title: "Allow Accessibility…"))
+    }
+
+    @Test("a refusal offers System Settings for Microphone, and a request first for Accessibility")
+    func deniedOffersSettings() {
+        let content = MenuContent.make(
+            microphone: .denied, accessibility: .denied, restriction: nil, readiness: .ready)
+        let afterTheRequest = MenuContent.make(
+            microphone: .denied, accessibility: .denied, followUps: [.accessibility: .sentToSettings],
+            restriction: nil, readiness: .ready)
+
+        #expect(
+            content.microphone.action
+                == MenuContent.PermissionRow.Action(
+                    kind: .openSettings, title: "Open System Settings for Microphone…"))
+        #expect(
+            content.accessibility.action
+                == MenuContent.PermissionRow.Action(kind: .request, title: "Allow Accessibility…"))
+        #expect(
+            afterTheRequest.accessibility.action
+                == MenuContent.PermissionRow.Action(
+                    kind: .openSettings, title: "Open System Settings for Accessibility…"))
+    }
+
+    @Test(
+        "a follow-up changes the step as it does in the onboarding: nothing while the prompt is up, Settings after",
+        arguments: [
+            (nil as PermissionsMonitor.FollowUp?, PermissionStep.Action.request),
+            (.requesting, nil),
+            (.sentToSettings, .openSettings),
+            (.stale, .openSettings),
+        ]
+    )
+    func followUpChangesTheStep(followUp: PermissionsMonitor.FollowUp?, expected: PermissionStep.Action?) {
+        let content = MenuContent.make(
+            microphone: .notDetermined, accessibility: .granted,
+            followUps: followUp.map { [.microphone: $0] } ?? [:], restriction: nil, readiness: .ready)
+
+        #expect(content.microphone.action?.kind == expected)
     }
 
     @Test(
