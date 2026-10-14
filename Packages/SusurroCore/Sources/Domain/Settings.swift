@@ -48,7 +48,7 @@ extension SettingKey where Value: SettingStorable {
             name: name,
             defaultValue: defaultValue,
             encoder: { $0 },
-            decoder: { $0 as? Value }
+            decoder: { StoredScalar.read($0, as: Value.self) }
         )
     }
 }
@@ -61,7 +61,7 @@ extension SettingKey where Value: RawRepresentable, Value.RawValue: SettingStora
             name: name,
             defaultValue: defaultValue,
             encoder: { $0.rawValue },
-            decoder: { ($0 as? Value.RawValue).flatMap(Value.init(rawValue:)) }
+            decoder: { StoredScalar.read($0, as: Value.RawValue.self).flatMap(Value.init(rawValue:)) }
         )
     }
 }
