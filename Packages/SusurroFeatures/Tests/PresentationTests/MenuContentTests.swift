@@ -111,4 +111,17 @@ struct MenuContentTests {
 
         #expect(content.disabledMessage == nil)
     }
+
+    @Test("while dictation is off the menu offers to set Susurro up, and otherwise it does not")
+    func setUpItem() throws {
+        let reason = try #require(DictationDisabledReason(blocking: [.accessibility]))
+
+        let off = MenuContent.make(
+            microphone: .granted, accessibility: .denied, disabledReason: reason, readiness: .ready)
+        let on = MenuContent.make(
+            microphone: .granted, accessibility: .granted, disabledReason: nil, readiness: .ready)
+
+        #expect(off.setUpTitle == "Set up Susurro…")
+        #expect(on.setUpTitle == nil)
+    }
 }

@@ -21,6 +21,22 @@ final class SpyOverlay: OverlaySurface {
     }
 }
 
+/// An onboarding window that counts how many times it was shown, and keeps what it was built from.
+@MainActor
+final class SpyOnboardingWindow: OnboardingSurface {
+    private(set) var shown = 0
+    private(set) var model: OnboardingViewModel?
+    private(set) var themes: ThemeModel?
+
+    func show() { shown += 1 }
+
+    func built(from model: OnboardingViewModel, _ themes: ThemeModel) -> SpyOnboardingWindow {
+        self.model = model
+        self.themes = themes
+        return self
+    }
+}
+
 /// Counts calls from code that is not on the main actor.
 final class Counter: Sendable {
     private let count = Mutex(0)
@@ -73,6 +89,7 @@ final class AppEnvironmentFixture {
     let activations = AsyncStream.makeStream(of: Void.self)
     let clock = ManualClock()
     let settings = InMemorySettingsStore()
+    let window = SpyOnboardingWindow()
     let themes: ThemeStore
     /// How many times the environment asked for the themes folder to be watched.
     let themeWatches = Counter()
@@ -101,6 +118,7 @@ final class AppEnvironmentFixture {
         let activations = activations.stream
         let sleeper = sleeper
         let themeWatches = themeWatches
+        let window = window
         environment = AppEnvironment(
             AppEnvironment.Dependencies(
                 hotkeys: hotkeys,
@@ -114,6 +132,7 @@ final class AppEnvironmentFixture {
                 openSettings: { [unowned self] in openedSettings.append($0) },
                 activations: { activations },
                 restoreClipboardNow: { [unowned self] in clipboardRestores += 1 },
+                onboardingWindow: { window.built(from: $0, $1) },
                 settings: settings,
                 themes: themes,
                 watchThemes: { themeWatches.increment() },
