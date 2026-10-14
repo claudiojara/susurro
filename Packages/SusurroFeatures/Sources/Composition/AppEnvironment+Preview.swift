@@ -23,12 +23,15 @@ extension AppEnvironment.Dependencies {
             permissions: FakePermissionsChecker([.microphone: .granted, .accessibility: .granted]),
             diagnostics: NoDiagnostics(),
             overlay: NoOverlay(),
-            openSettings: { _ in },
-            activations: { AsyncStream { _ in } },
             restoreClipboardNow: {},
-            onboardingWindow: { _, _ in NoOnboardingWindow() },
             settings: InMemorySettingsStore(),
-            themes: ThemeStore(directory: .temporaryDirectory.appending(path: "susurro-preview-themes"))
+            onboarding: Onboarding(
+                window: { _, _ in NoOnboardingWindow() },
+                openSettings: { _ in },
+                activations: { AsyncStream { _ in } }
+            ),
+            theming: Theming(
+                store: ThemeStore(directory: .temporaryDirectory.appending(path: "susurro-preview-themes")))
         )
     }
 }

@@ -12,6 +12,8 @@ public nonisolated enum ThemeError: Error, Sendable, Equatable, CustomStringConv
     case unreadable(file: String, reason: String)
     /// The theme in use is a file that is no longer there.
     case themeNotFound(String)
+    /// The themes folder has more theme files than are read. The first ones by name are used and the rest are not read.
+    case tooManyThemeFiles(limit: Int)
     /// A token of the catalog has no value. `String` is the token as `group.name`.
     case missingToken(String)
     /// A color points at a palette entry that does not exist.
@@ -31,6 +33,8 @@ public nonisolated enum ThemeError: Error, Sendable, Equatable, CustomStringConv
             "Cannot read \(file): \(reason)"
         case .themeNotFound(let id):
             "There is no theme named \(id)."
+        case .tooManyThemeFiles(let limit):
+            "The themes folder has more than \(limit) theme files, so only the first \(limit) by name are used."
         case .missingToken(let key):
             "The theme does not define \(key)."
         case .missingPaletteKey(let token, let paletteKey):

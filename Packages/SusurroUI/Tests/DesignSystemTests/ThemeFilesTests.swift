@@ -91,4 +91,33 @@ struct ThemeFilesTests {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("absent-\(UUID().uuidString)")
         #expect(ThemeFiles.urls(in: url) == [])
     }
+
+    @Test("the first theme files by name are listed, and the rest are only counted as more")
+    func firstFiles() throws {
+        try withFolder { folder in
+            for name in ["d", "b", "a", "c"] { try folder.write("\(name).json", themeText(ofSize: 40)) }
+            try folder.write("notes.txt", "not a theme")
+            try folder.makeFolder("a-folder.json")
+
+            let some = ThemeFiles.firstURLs(in: folder.url, limit: 3)
+            let all = ThemeFiles.firstURLs(in: folder.url, limit: 5)
+            let exact = ThemeFiles.firstURLs(in: folder.url, limit: 4)
+
+            // The folder named a-folder.json takes a slot: it is only found to be no file when it is looked at.
+            #expect(some.urls.map(\.lastPathComponent) == ["a.json", "b.json"])
+            #expect(some.hasMore)
+            #expect(all.urls.map(\.lastPathComponent) == ["a.json", "b.json", "c.json", "d.json"])
+            #expect(!all.hasMore)
+            #expect(exact.urls.count == 3)
+            #expect(exact.hasMore)
+        }
+    }
+
+    @Test("a folder that is missing has no first files")
+    func missingFolderFirstFiles() {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("absent-\(UUID().uuidString)")
+        let none = ThemeFiles.firstURLs(in: url, limit: 3)
+        #expect(none.urls == [])
+        #expect(!none.hasMore)
+    }
 }

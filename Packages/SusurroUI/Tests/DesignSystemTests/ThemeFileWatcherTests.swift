@@ -104,6 +104,7 @@
             try await withWatcher { watched in
                 try watched.folder.writeTheme("night", spacingMD: 14)
                 let store = ThemeStore(directory: watched.folder.url, activeID: "night")
+                await store.reload()
                 var updates = await store.updates().makeAsyncIterator()
                 _ = await updates.next()
                 let sleeper = watched.sleeper

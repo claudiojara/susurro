@@ -28,8 +28,6 @@ extension AppEnvironment.Dependencies {
         let permissions = SystemPermissionsChecker()
         let recognizer = ParakeetRecognizer()
         let inserter = SimplePasteInserter(diagnostics: diagnostics)
-        // The folder exists, empty, so that the user has a place to put a theme and the watcher has something to watch.
-        try? FileManager.default.createDirectory(at: themesFolder, withIntermediateDirectories: true)
         let themes = ThemeStore(directory: themesFolder)
         return AppEnvironment.Dependencies(
             hotkeys: HotkeyService(),
@@ -40,13 +38,14 @@ extension AppEnvironment.Dependencies {
             permissions: permissions,
             diagnostics: diagnostics,
             overlay: SkeletonOverlayController(),
-            openSettings: { NSWorkspace.shared.open(permissions.settingsURL(for: $0)) },
-            activations: Self.applicationActivations,
             restoreClipboardNow: { inserter.restoreForTermination() },
-            onboardingWindow: { OnboardingWindowController(model: $0, themes: $1) },
             settings: UserDefaultsSettingsStore(diagnostics: diagnostics),
-            themes: themes,
-            watchThemes: Self.themeWatcher(for: themes)
+            onboarding: Onboarding(
+                window: { OnboardingWindowController(model: $0, themes: $1) },
+                openSettings: { NSWorkspace.shared.open(permissions.settingsURL(for: $0)) },
+                activations: Self.applicationActivations
+            ),
+            theming: Theming(store: themes, prepare: Self.prepareThemes(for: themes))
         )
     }
 
@@ -55,13 +54,19 @@ extension AppEnvironment.Dependencies {
         URL.applicationSupportDirectory.appending(path: "Susurro/Themes", directoryHint: .isDirectory)
     }
 
-    /// Hot reload of the themes folder, in debug builds. The watcher is kept alive by the closure that starts it.
-    private static func themeWatcher(for themes: ThemeStore) -> @Sendable () async -> Void {
+    /// Creates the themes folder, empty, so that the user has a place to put a theme and the watcher has something to
+    /// watch, and in debug builds starts the hot reload of the folder. The watcher is kept alive by the closure that
+    /// starts it. The closure runs away from the main actor, since the folder is the user's and may be slow to answer.
+    private static func prepareThemes(for themes: ThemeStore) -> @Sendable () async -> Void {
+        let folder = themesFolder
         #if DEBUG
-            let watcher = ThemeFileWatcher(directory: themesFolder) { await themes.reload() }
-            return { await watcher.start() }
+            let watcher = ThemeFileWatcher(directory: folder) { await themes.reload() }
+            return {
+                try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+                await watcher.start()
+            }
         #else
-            return {}
+            return { try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true) }
         #endif
     }
 

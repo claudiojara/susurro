@@ -1,6 +1,7 @@
 import CoreTestSupport
 import DesignSystem
 import Domain
+import Pipeline
 import Testing
 
 @testable import Composition
@@ -43,7 +44,7 @@ struct AppEnvironmentTests {
         #expect(prepares == 1)
         #expect(f.clock.pendingSleeps == 1)  // one permission poll
         #expect(f.permissions.statusReads == 2)  // the two required permissions, once
-        #expect(f.themeWatches.value == 1)
+        #expect(f.themePreparations.value == 1)
         #expect(f.window.shown == 1)  // one presenter
         await f.environment.shutdown()
     }
@@ -98,8 +99,8 @@ struct AppEnvironmentTests {
     func windowIsBuiltFromTheEnvironment() {
         let f = AppEnvironmentFixture()
 
-        #expect(f.window.model === f.environment.onboarding)
-        #expect(f.window.themes === f.environment.themes)
+        #expect(f.window.model === f.environment.onboardingModel)
+        #expect(f.window.themes === f.environment.themeModel)
     }
 
     // MARK: Dictation through the whole graph
@@ -117,8 +118,7 @@ struct AppEnvironmentTests {
 
         #expect(f.inserter.insertedTexts == ["hola"])
         #expect(f.overlay.messages == ["Getting ready…", "Listening…", "Transcribing…", "Pasted"])
-        f.sleeper.fire(OverlayTiming.standard.inserted)
-        await f.eventually("the overlay to hide") { f.overlay.current == nil }
+        await f.advance(by: OverlayTiming.standard.inserted, until: "the overlay to hide") { f.overlay.current == nil }
         await f.environment.shutdown()
     }
 
@@ -150,6 +150,27 @@ struct AppEnvironmentTests {
         await f.environment.shutdown()
     }
 
+    @Test("one clock paces the whole graph: a limit of the coordinator, the poll, and the hold of the overlay")
+    func oneClockPacesTheGraph() async {
+        let f = AppEnvironmentFixture(capture: FakeAudioCaptureSource(gatesStart: true))
+        f.environment.start()
+        await f.eventually("the first read") { f.environment.monitor.hasReadStatuses }
+        f.hotkeys.send(.down(at: Self.pressTime))
+        await f.eventually("the starting indicator") { f.overlay.current == "Getting ready…" }
+        let readsBefore = f.permissions.statusReads
+
+        await f.advance(by: DictationLimits.captureStartTimeout, until: "the capture limit") {
+            f.overlay.current != "Getting ready…"
+        }
+        let error = f.overlay.current
+        await f.eventually("a read of the permissions") { f.permissions.statusReads > readsBefore }
+        await f.advance(by: OverlayTiming.standard.error, until: "the overlay to hide") { f.overlay.current == nil }
+
+        #expect(error == "The microphone did not stop in time. Hold the key to try again.")
+        f.capture.releaseStart()
+        await f.environment.shutdown()
+    }
+
     // MARK: Model progress
 
     @Test("the model's readiness reaches the menu, the overlay after the delay, and the log")
@@ -158,8 +179,9 @@ struct AppEnvironmentTests {
         f.environment.start()
         f.readiness.publish(.loading(progress: 0.4))
         await f.eventually("the menu line") { f.environment.menu.content.modelLine == "Speech model: preparing… 40%" }
-        f.sleeper.fire(ModelLoadWatcher.standardDelay)
-        await f.eventually("the overlay progress") { f.overlay.current == "Preparing the speech model… 40%" }
+        await f.advance(by: ModelLoadWatcher.standardDelay, until: "the overlay progress") {
+            f.overlay.current == "Preparing the speech model… 40%"
+        }
 
         f.readiness.publish(.ready)
         await f.eventually("the model to be ready") { f.environment.menu.content.modelLine == "Speech model: ready" }
@@ -174,15 +196,15 @@ struct AppEnvironmentTests {
         let f = AppEnvironmentFixture()
         f.environment.start()
         f.readiness.publish(.loading(progress: 0.4))
-        f.sleeper.fire(ModelLoadWatcher.standardDelay)
-        await f.eventually("the overlay progress") { f.overlay.current == "Preparing the speech model… 40%" }
+        await f.advance(by: ModelLoadWatcher.standardDelay, until: "the overlay progress") {
+            f.overlay.current == "Preparing the speech model… 40%"
+        }
 
         f.readiness.publish(.unavailable("offline", retryable: true))
         await f.eventually("the warning") {
             f.overlay.current == "Speech model unavailable. Open the Susurro menu for details."
         }
-        f.sleeper.fire(OverlayTiming.standard.error)
-        await f.eventually("the overlay to hide") { f.overlay.current == nil }
+        await f.advance(by: OverlayTiming.standard.error, until: "the overlay to hide") { f.overlay.current == nil }
         await f.environment.shutdown()
     }
 
@@ -268,7 +290,7 @@ struct AppEnvironmentTests {
         f.environment.start()
         await f.eventually("the first read") { f.environment.monitor.hasReadStatuses }
 
-        let state = f.environment.onboarding.state
+        let state = f.environment.onboardingModel.state
 
         #expect(state.rows.map(\.id) == [.microphone, .accessibility])
         #expect(state.rows.map(\.status) == [.granted, .denied])
@@ -310,12 +332,12 @@ struct AppEnvironmentTests {
         let f = AppEnvironmentFixture(themeFiles: ["ocean.json": #"{"schemaVersion": 1, "name": "Ocean"}"#])
         defer { f.removeThemeFolder() }
         f.environment.start()
-        await f.eventually("the bundled theme") { f.environment.themes.theme == .default }
+        await f.eventually("the bundled theme") { f.environment.themeModel.theme == .default }
 
         await f.themes.select("ocean")
-        await f.eventually("the theme file") { f.environment.themes.theme.name == "Ocean" }
+        await f.eventually("the theme file") { f.environment.themeModel.theme.name == "Ocean" }
 
-        #expect(f.environment.themes.errors.isEmpty)
+        #expect(f.environment.themeModel.errors.isEmpty)
         await f.environment.shutdown()
     }
 
@@ -324,23 +346,27 @@ struct AppEnvironmentTests {
         let f = AppEnvironmentFixture(themeFiles: ["broken.json": #"{"schemaVersion": 1, "colours": {}}"#])
         defer { f.removeThemeFolder() }
         f.environment.start()
-        await f.eventually("the bundled theme") { f.environment.themes.theme == .default }
+        await f.eventually("the bundled theme") { f.environment.themeModel.theme == .default }
 
         await f.themes.select("broken")
-        await f.eventually("the errors") { !f.environment.themes.errors.isEmpty }
+        await f.eventually("the errors") { !f.environment.themeModel.errors.isEmpty }
 
-        #expect(f.environment.themes.theme == .default)
+        #expect(f.environment.themeModel.theme == .default)
         await f.environment.shutdown()
     }
 
-    @Test("the environment holds the settings store it was given")
-    func settingsStore() {
-        let f = AppEnvironmentFixture()
-        let key = SettingKey(area: "test", name: "flag", default: false)
+    @Test("the themes folder is read at launch: a theme chosen before then shows once the folder is read")
+    func themesAreReadAtLaunch() async {
+        let f = AppEnvironmentFixture(themeFiles: ["ocean.json": #"{"schemaVersion": 1, "name": "Ocean"}"#])
+        defer { f.removeThemeFolder() }
+        await f.themes.select("ocean")
+        let beforeLaunch = f.environment.themeModel.theme
 
-        f.environment.settings.set(true, for: key)
+        f.environment.start()
+        await f.eventually("the theme file") { f.environment.themeModel.theme.name == "Ocean" }
 
-        #expect(f.settings.value(for: key))
+        #expect(beforeLaunch == .default)
+        await f.environment.shutdown()
     }
 
     // MARK: Shutdown
@@ -394,6 +420,6 @@ struct AppEnvironmentTests {
         #expect(await dependencies.permissions.status(.microphone) == .granted)
         #expect(await dependencies.permissions.status(.accessibility) == .granted)
         #expect(await dependencies.recognizer.readiness() == .ready)
-        #expect(await dependencies.themes.current.theme == .default)
+        #expect(await dependencies.theming.store.current.theme == .default)
     }
 }

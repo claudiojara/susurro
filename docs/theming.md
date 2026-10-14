@@ -96,6 +96,11 @@ Views read `@Environment(\.theme)`, a `ResolvedTheme` with the light or dark val
 publishes it through `updates()`; an observer that is slow to read is given only the latest theme, not every one it
 missed.
 
+A new store reads nothing: it holds the bundled theme and does no file work on the caller's thread. `reload()` reads the
+folder on a background queue (the app calls it at launch, so a folder that is slow to answer cannot hold the launch up),
+and a read that finishes after a newer one is dropped. At most 64 theme files are read, the first ones by name;
+`folderErrors` says when there were more, with `ThemeError.tooManyThemeFiles`.
+
 In debug builds `ThemeFileWatcher` calls `store.reload()` when a file in the folder changes, which is hot reload. The
 folder does not have to exist: the watcher looks for it every two seconds until it does, and again if it is removed.
 Failures to watch a file are logged (subsystem `dev.claudiojara.susurro`, category `ThemeFileWatcher`) and `state` says

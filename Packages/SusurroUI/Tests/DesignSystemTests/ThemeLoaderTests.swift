@@ -374,6 +374,10 @@ struct ThemeLoaderTests {
             (.unknownToken("spacing.huge"), "spacing.huge is not a key of the theme."),
             (.unreadable(file: "night.json", reason: "No such file."), "Cannot read night.json: No such file."),
             (.themeNotFound("night"), "There is no theme named night."),
+            (
+                .tooManyThemeFiles(limit: 64),
+                "The themes folder has more than 64 theme files, so only the first 64 by name are used."
+            ),
         ]
         #expect(expected.map { $0.0.description } == expected.map { $0.1 })
     }
