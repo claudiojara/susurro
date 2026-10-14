@@ -19,6 +19,28 @@ public struct MenuContent: Equatable, Sendable {
         public let action: Action?
     }
 
+    /// A switch in the menu: clean up the text, use the app's context, use screen text.
+    public struct Preference: Equatable, Sendable {
+        public enum Kind: Hashable, Sendable {
+            case cleanup
+            case appContext
+            case screenText
+        }
+
+        public let kind: Kind
+        public let title: String
+        public let isOn: Bool
+        /// Why the switch has no effect although it is on, or nil.
+        public let note: String?
+
+        public init(kind: Kind, title: String, isOn: Bool, note: String?) {
+            self.kind = kind
+            self.title = title
+            self.isOn = isOn
+            self.note = note
+        }
+    }
+
     /// The reason a failed load gives is cut to this many characters.
     private static let longestReason = 80
 
@@ -31,11 +53,13 @@ public struct MenuContent: Equatable, Sendable {
     public let microphone: PermissionRow
     public let accessibility: PermissionRow
     public let modelLine: String
+    /// The switches, below the permissions. None while the app has no preferences to show.
+    public let preferences: [Preference]
 
     static func make(
         microphone: PermissionStatus, accessibility: PermissionStatus,
         followUps: [Permission: PermissionsMonitor.FollowUp] = [:], restriction: DictationRestriction?,
-        readiness: RecognizerReadiness
+        readiness: RecognizerReadiness, preferences: [Preference] = []
     ) -> MenuContent {
         MenuContent(
             hotkeyHint: "Hold Control-Option-D to dictate",
@@ -44,7 +68,8 @@ public struct MenuContent: Equatable, Sendable {
             microphone: row(.microphone, name: "Microphone", status: microphone, followUp: followUps[.microphone]),
             accessibility: row(
                 .accessibility, name: "Accessibility", status: accessibility, followUp: followUps[.accessibility]),
-            modelLine: modelLine(for: readiness)
+            modelLine: modelLine(for: readiness),
+            preferences: preferences
         )
     }
 

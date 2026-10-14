@@ -41,7 +41,8 @@ struct VocabularyBuilderTests {
         ])
         let builder = VocabularyBuilder(tagger: tagger, maxTerms: 4)
         let terms = builder.build(
-            Self.sources(dictionary: ["D1"], before: "before", after: "after", selection: "selection", screenText: ["screen"]))
+            Self.sources(
+                dictionary: ["D1"], before: "before", after: "after", selection: "selection", screenText: ["screen"]))
         #expect(terms == ["D1", "B1", "A1", "S1"])
     }
 

@@ -9,12 +9,19 @@ import Observation
 public final class MenuModel {
     @ObservationIgnored private let monitor: PermissionsMonitor
     @ObservationIgnored private let showOnboarding: @MainActor () -> Void
+    @ObservationIgnored private let preferences: MenuPreferences?
     private var readiness = RecognizerReadiness.loading(progress: 0)
 
-    /// - Parameter showOnboarding: Opens the onboarding window, for the item that sets Susurro up.
-    public init(monitor: PermissionsMonitor, showOnboarding: @escaping @MainActor () -> Void = {}) {
+    /// - Parameters:
+    ///   - showOnboarding: Opens the onboarding window, for the item that sets Susurro up.
+    ///   - preferences: The switches the menu shows. Without them the menu has none.
+    public init(
+        monitor: PermissionsMonitor, showOnboarding: @escaping @MainActor () -> Void = {},
+        preferences: MenuPreferences? = nil
+    ) {
         self.monitor = monitor
         self.showOnboarding = showOnboarding
+        self.preferences = preferences
     }
 
     /// What the menu shows now. It reads the monitor's statuses, which are observable, so a view that reads it is drawn
@@ -25,7 +32,12 @@ public final class MenuModel {
             accessibility: monitor.statuses[.accessibility] ?? .notDetermined,
             followUps: monitor.followUps,
             restriction: monitor.restriction,
-            readiness: readiness)
+            readiness: readiness, preferences: preferences?.items ?? [])
+    }
+
+    /// Flips one of the switches in the menu.
+    public func setPreference(_ kind: MenuContent.Preference.Kind, to value: Bool) async {
+        await preferences?.set(kind, to: value)
     }
 
     /// Follows the readiness of the speech model until the stream ends.

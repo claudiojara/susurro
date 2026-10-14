@@ -1,8 +1,8 @@
 import CoreTestSupport
 import Domain
 import Synchronization
-import TextShaping
 import Testing
+import TextShaping
 
 @testable import Pipeline
 
@@ -39,7 +39,8 @@ struct OCRGatingTests {
         #expect(recognizer.callCount == 0)
     }
 
-    @Test("OCR that is on without Screen Recording skips silently", arguments: [PermissionStatus.denied, .notDetermined])
+    @Test(
+        "OCR that is on without Screen Recording skips silently", arguments: [PermissionStatus.denied, .notDetermined])
     func permissionMissing(status: PermissionStatus) async {
         let recognizer = FakeScreenTextRecognizer(lines: [Self.sentinel])
         let lines = await enrichment(screenRecording: status, recognizer: recognizer).screenText(

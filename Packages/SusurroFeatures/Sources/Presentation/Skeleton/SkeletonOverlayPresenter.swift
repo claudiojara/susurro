@@ -81,7 +81,7 @@ public final class SkeletonOverlayPresenter {
         switch state {
         case .starting, .recording, .error, .notice(.busy): true
         case .inserted, .notice: isHoldingBusyNotice
-        case .idle, .transcribing: false
+        case .idle, .transcribing, .polishing: false
         }
     }
 

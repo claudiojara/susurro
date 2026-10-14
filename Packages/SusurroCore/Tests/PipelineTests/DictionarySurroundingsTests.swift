@@ -1,7 +1,7 @@
 import CoreTestSupport
 import Domain
-import TextShaping
 import Testing
+import TextShaping
 
 @testable import Pipeline
 

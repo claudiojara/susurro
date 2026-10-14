@@ -9,7 +9,8 @@ let package = Package(
         .library(
             name: "SusurroPlatform",
             targets: [
-                "Permissions", "Hotkeys", "AudioIO", "TextInsertion", "Diagnostics", "Settings", "EntityTagging", "ScreenOCR",
+                "Permissions", "Hotkeys", "AudioIO", "TextInsertion", "Diagnostics", "Settings", "EntityTagging",
+                "ScreenOCR",
             ]
         )
     ],

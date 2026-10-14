@@ -1,15 +1,19 @@
 import AppKit
+import AppleIntelligenceCleaner
 import AudioIO
 import DesignSystem
 import Diagnostics
 import Domain
+import EntityTagging
 import FluidAudioASR
 import Foundation
 import Hotkeys
 import Permissions
+import Pipeline
 import Presentation
 import Settings
 import TextInsertion
+import TextShaping
 
 extension AppEnvironment {
     /// The graph on the real adapters: the Control+Option+D hotkey, the microphone, Parakeet, the pasteboard, the
@@ -29,6 +33,15 @@ extension AppEnvironment.Dependencies {
         let recognizer = ParakeetRecognizer()
         let inserter = SimplePasteInserter(diagnostics: diagnostics)
         let themes = ThemeStore(directory: themesFolder)
+        let settings = UserDefaultsSettingsStore(diagnostics: diagnostics)
+        let clock = ContinuousClock()
+        let cleanup = CleanupStage(
+            settings: settings,
+            registry: CleanerRegistry(settings: settings, entries: [.local(AppleIntelligenceCleaner())]),
+            sleep: { try await clock.sleep(for: $0) })
+        let surroundings = DictionarySurroundings(
+            dictionary: DictionaryStore(settings: settings),
+            builder: VocabularyBuilder(tagger: NLTaggerEntityTagger()))
         return AppEnvironment.Dependencies(
             hotkeys: HotkeyService(),
             capture: AVAudioEngineCaptureSource(diagnostics: diagnostics),
@@ -39,13 +52,16 @@ extension AppEnvironment.Dependencies {
             diagnostics: diagnostics,
             overlay: SkeletonOverlayController(),
             restoreClipboardNow: { inserter.restoreForTermination() },
-            settings: UserDefaultsSettingsStore(diagnostics: diagnostics),
+            settings: settings,
             onboarding: Onboarding(
                 window: { OnboardingWindowController(model: $0, themes: $1) },
                 openSettings: { NSWorkspace.shared.open(permissions.settingsURL(for: $0)) },
                 activations: Self.applicationActivations
             ),
-            theming: Theming(store: themes, prepare: Self.prepareThemes(for: themes))
+            theming: Theming(store: themes, prepare: Self.prepareThemes(for: themes)),
+            clock: clock,
+            cleanup: cleanup,
+            surroundings: surroundings
         )
     }
 

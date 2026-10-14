@@ -64,6 +64,10 @@ public final class AppEnvironment {
         /// troubleshooting steps, the pauses and limits of a dictation, the time an overlay indicator stays, and the
         /// delay before the model's progress shows. Tests pass a `ManualClock`.
         public var clock: any Clock<Duration>
+        /// Cleans the transcript before it is inserted. Nil inserts the raw transcript.
+        public var cleanup: CleanupStage?
+        /// Where the vocabulary, the style, and the text around the cursor come from. Nil means nothing is known.
+        public var surroundings: (any SurroundingsSource)?
 
         public init(
             hotkeys: any HotkeySource,
@@ -78,7 +82,9 @@ public final class AppEnvironment {
             settings: any SettingsStore,
             onboarding: Onboarding,
             theming: Theming,
-            clock: any Clock<Duration> = ContinuousClock()
+            clock: any Clock<Duration> = ContinuousClock(),
+            cleanup: CleanupStage? = nil,
+            surroundings: (any SurroundingsSource)? = nil
         ) {
             self.hotkeys = hotkeys
             self.capture = capture
@@ -93,6 +99,8 @@ public final class AppEnvironment {
             self.onboarding = onboarding
             self.theming = theming
             self.clock = clock
+            self.cleanup = cleanup
+            self.surroundings = surroundings
         }
     }
 
@@ -101,6 +109,8 @@ public final class AppEnvironment {
     // The rest is internal: the tests read it, and the app does not need it.
     /// What the app knows about the permissions: the menu, the onboarding, and the overlay read it.
     let monitor: PermissionsMonitor
+    /// The switches in the menu: cleanup, app context, and screen text.
+    let preferences: MenuPreferences
     /// The onboarding screen's view model, over the monitor.
     let onboardingModel: OnboardingViewModel
     /// The theme the app's windows are drawn in, which follows the theme store.
@@ -125,7 +135,9 @@ public final class AppEnvironment {
             inserter: dependencies.inserter,
             permissions: dependencies.permissions,
             diagnostics: dependencies.diagnostics,
-            sleep: sleep
+            sleep: sleep,
+            cleanup: dependencies.cleanup,
+            surroundings: dependencies.surroundings
         )
         let overlay = dependencies.overlay
         presenter = SkeletonOverlayPresenter(sleep: sleep, display: { overlay.display($0) })
@@ -141,7 +153,11 @@ public final class AppEnvironment {
         let onboardingPresenter = OnboardingPresenter(
             monitor: monitor, surface: dependencies.onboarding.window(onboardingModel, themeModel))
         self.onboardingPresenter = onboardingPresenter
-        menu = MenuModel(monitor: monitor, showOnboarding: { onboardingPresenter.show() })
+        preferences = MenuPreferences(
+            settings: dependencies.settings,
+            ocr: OCRPreferenceController(settings: dependencies.settings, monitor: monitor))
+        menu = MenuModel(
+            monitor: monitor, showOnboarding: { onboardingPresenter.show() }, preferences: preferences)
     }
 
     /// Starts the app's work: the overlay, the hotkey, the model, the permission monitor and the onboarding, and the
@@ -160,6 +176,7 @@ public final class AppEnvironment {
         run { await $0.launch() }
         run { await $0.onboardingPresenter.run() }
         run { await $0.monitor.run(activations: $0.dependencies.onboarding.activations()) }
+        run { await $0.preferences.ocr.start() }
         run { await $0.themeModel.follow(await $0.dependencies.theming.store.updates()) }
         // The folder is read away from the main actor, so a slow disk or a link to a volume that is not there cannot hold
         // the launch up. The bundled theme shows until the files are known.

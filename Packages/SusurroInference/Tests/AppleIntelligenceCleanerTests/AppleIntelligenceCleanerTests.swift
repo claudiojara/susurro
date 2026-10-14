@@ -1,6 +1,6 @@
 import Domain
-import TextShaping
 import Testing
+import TextShaping
 
 @testable import AppleIntelligenceCleaner
 
@@ -49,7 +49,8 @@ struct AppleIntelligenceCleanerTests {
 
         let expected = PromptBuilder.build(try payload.requireLocal())
         #expect(text == "Hola, equipo.")
-        #expect(engine.requests == [EngineRequest(instructions: expected.system, prompt: expected.user, sampling: .greedy)])
+        #expect(
+            engine.requests == [EngineRequest(instructions: expected.system, prompt: expected.user, sampling: .greedy)])
     }
 
     @Test("a cloud payload is refused and the model is never called")
@@ -90,7 +91,10 @@ struct AppleIntelligenceCleanerTests {
         _ = try await [first.value, second.value, third.value]
 
         #expect(engine.peakActive == 1)
-        #expect(engine.requests.map { $0.prompt.contains("<TRANSCRIPT>one<") ? "one" : $0.prompt.contains(">two<") ? "two" : "three" } == ["one", "two", "three"])
+        #expect(
+            engine.requests.map {
+                $0.prompt.contains("<TRANSCRIPT>one<") ? "one" : $0.prompt.contains(">two<") ? "two" : "three"
+            } == ["one", "two", "three"])
     }
 
     @Test("a cancelled call leaves the queue at once")

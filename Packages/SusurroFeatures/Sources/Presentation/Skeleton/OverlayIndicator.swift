@@ -33,6 +33,8 @@ public struct OverlayIndicator: Equatable, Sendable {
             modelLoading(progress: progress)
         case .transcribing(nil):
             OverlayIndicator(tone: .neutral, symbol: "waveform", message: "Transcribing…", progress: nil)
+        case .polishing:
+            OverlayIndicator(tone: .neutral, symbol: "sparkles", message: "Polishing…", progress: nil)
         case .inserted:
             OverlayIndicator(tone: .success, symbol: "checkmark.circle.fill", message: "Pasted", progress: nil)
         case .notice(let kind):
@@ -88,6 +90,7 @@ public struct OverlayIndicator: Equatable, Sendable {
             case .timedOut(.readiness): "The speech model is taking too long to load."
             case .timedOut(.capture): "The microphone did not stop in time."
             case .timedOut(.transcription): "Transcription took too long."
+            case .timedOut(.cleanup): "Cleanup took too long."
             case .timedOut(.insertion): "Pasting took too long."
             case .notInserted(.clipboardChanged): "Not pasted: the clipboard changed meanwhile."
             case .notInserted(.clipboardWriteFailed): "The text could not be pasted or copied."

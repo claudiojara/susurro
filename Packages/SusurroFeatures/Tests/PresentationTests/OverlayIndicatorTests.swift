@@ -16,6 +16,7 @@ struct OverlayIndicatorTests {
             (PipelineState.starting, OverlayIndicator.Tone.neutral, "Getting ready…"),
             (.recording(.hold), .recording, "Listening…"),
             (.transcribing(progress: nil), .neutral, "Transcribing…"),
+            (.polishing, .neutral, "Polishing…"),
             (.inserted, .success, "Pasted"),
         ]
     )
