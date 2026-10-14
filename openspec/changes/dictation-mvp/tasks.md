@@ -477,7 +477,7 @@ Slices 2–9 were delivered together in #68 (fast track, strict TDD, no per-PR r
 - [x] 2d.6 GREEN: Dismissal scheduling in `OverlayViewModel` with an injectable `OverlayTiming` (success, notice, error).
 - [x] 2d.7 RED: `Packages/SusurroUI/Tests/SusurroUITests/OverlayPlacementTests.swift`. Two screens with the focused window on the second give a frame on the second screen, horizontally centered, at the bottom by default or the top by setting. With no focused window it uses the main screen. Geometry comes from the Theme. [OVL Placement: Multi-screen]
 - [x] 2d.8 GREEN: `Sources/SusurroUI/Overlay/OverlayPlacement.swift` (pure function).
-- [ ] 2d.9 REFACTOR: Share the dismissal timer helper with the future notice flow.
+- [ ] 2d.9 REFACTOR: Share the dismissal timer helper with the future notice flow. Not done: there is no second flow to share with. Notices, the inserted indicator, errors, and the model warning already hold and dismiss through the one `OverlayViewModel.hold(for:)`, so an extracted helper would have a single caller. Do it when a second dismissal flow appears.
 
 ### PR 2e: Themed overlay UI, variants, panel host (~550)
 
@@ -730,9 +730,10 @@ Slices 2–9 were delivered together in #68 (fast track, strict TDD, no per-PR r
 - [x] 9c.1 RED: `Packages/SusurroFeatures/Tests/PresentationTests/SettingsViewModelTests.swift`. Provider selection persists across relaunch and shows readiness or a missing-key reason [ASR: Default and optional providers]. Language is auto or pinned. A modifier-only hotkey without Input Monitoring reports the missing permission and offers a request [ACT: Modifier-only without permission]. The Secure Event Input warning surfaces [ACT: Secure input active]. Toggles for app context (default on), OCR (reusing `OCRPreferenceController`), and cleanup. Overlay edge (default bottom) and variant; an unknown variant falls back with an error [THM: Unknown variant].
 - [x] 9c.2 GREEN: `Sources/SusurroUI/Contracts/SettingsViewState.swift` and `SettingsViewModeling`; `Presentation/SettingsViewModel.swift`.
 - [x] 9c.3 RED: Snapshots for `ShortcutBadge`, `ProviderRow`, and the General, Providers, and Hotkey sections in light and dark.
-- [ ] 9c.4 GREEN: Molecules, organisms, `SettingsScreen`, `SettingsContainer`. The hotkey recorder is injected as a view slot from Composition because SusurroUI imports no Platform module.
+- [x] 9c.4 GREEN: Molecules, organisms, `SettingsScreen`, `SettingsContainer`. The hotkey recorder is injected as a view slot from Composition because SusurroUI imports no Platform module. Delivered: `HotkeyCapture` and `HotkeyValidation` (Core), `NSEventHotkeyCaptureSource` and `SystemShortcuts` (Platform), `HotkeyRecorder` and `HotkeyRecorderContainer` (UI), `HotkeyRecorderViewModel` (Features), filled in `AppEnvironment+Live`.
 - [x] 9c.5 GREEN: Menu "Settings..." window.
 - [x] 9c.6 REFACTOR: Token lint green; no duplicated section scaffolding. Also move the copy of the onboarding and of the disabled reason (`OnboardingCopy`, `DictationDisabledReason.message`) into string catalogs with the rest of the user-facing text (deferred from the 1e review).
+- [ ] 9c.7 VERIFY: `make run`, Settings, Hotkey tab, Change shortcut. The current hotkey (Control+Option+D) is heard by the recorder and does not start a dictation. A keyed shortcut with Control, fn alone, and a chord such as Control+Option are accepted and the dictation hotkey follows at once, without a relaunch (a chord and fn after Input Monitoring is allowed). Shift+D, Command+Space, and a single modifier key are refused with a message and the recorder keeps listening; Esc and Cancel give up. Closing the window or leaving the tab while it listens gives the global hotkey back. Restore default brings Control+Option+D back.
 
 ### PR 9d: Settings: style table, overrides, dictionary, appearance (~500)
 
