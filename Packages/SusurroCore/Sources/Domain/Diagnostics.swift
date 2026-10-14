@@ -38,6 +38,13 @@ public enum DiagnosticEvent: Sendable, Equatable {
     case modelPrepareRequested
     /// The speech model changed state. `state` is one of "loading", "ready", "unavailable", or "notInstalled".
     case modelReadiness(String)
+    /// A setting was not saved because its value has no stored form. `key` is the storage name of the setting's key; the
+    /// value is never recorded.
+    case settingNotStored(key: String)
+    /// A setting held something that does not read as the type of its key, so its default was used. `key` is the
+    /// storage name of the setting's key; what it held is never recorded. It is recorded each time the key is read,
+    /// until the key is set or removed.
+    case settingUnreadable(key: String)
     /// The status of the two required permissions once the launch prompts were answered. Each is "granted", "denied",
     /// or "notDetermined".
     case launchPermissions(microphone: String, accessibility: String)

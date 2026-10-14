@@ -1,3 +1,4 @@
+import CoreTestSupport
 import Domain
 import Testing
 
@@ -63,6 +64,11 @@ struct SettingsStoreTests {
         }
     }
 
+    @Test("a number is never read as another kind of number", arguments: StoreKind.allCases, Coercion.all)
+    func numbersAreNotCoerced(kind: StoreKind, coercion: Coercion) async {
+        await kind.withStore { store in coercion.check(store) }
+    }
+
     @Test(
         "a set emits the name of the key it changed, in order, and a read emits nothing", arguments: StoreKind.allCases)
     func changesFollowTheSets(kind: StoreKind) async {
@@ -107,5 +113,162 @@ struct SettingsStoreTests {
             #expect(await changes.next() == SettingChange(name: "speech.language"))
             #expect(store.value(for: SampleKeys.picky) == kept)
         }
+    }
+
+    @Test(
+        "removing a key brings back its default, leaves the other keys alone, and announces the key",
+        arguments: StoreKind.allCases)
+    func remove(kind: StoreKind) async {
+        await kind.withStore { store in
+            store.set(30, for: SampleKeys.retentionDays)
+            store.set(.top, for: SampleKeys.overlayEdge)
+            store.set(SampleCombo(keyCode: 40, modifiers: ["command"]), for: SampleKeys.combo)
+            store.set("es", for: SampleKeys.language)
+            var changes = store.changes().makeAsyncIterator()
+
+            store.remove(SampleKeys.retentionDays)
+            store.remove(SampleKeys.overlayEdge)
+            store.remove(SampleKeys.combo)
+
+            #expect(store.value(for: SampleKeys.retentionDays) == 7)
+            #expect(store.value(for: SampleKeys.overlayEdge) == .bottom)
+            #expect(store.value(for: SampleKeys.combo) == SampleKeys.defaultCombo)
+            #expect(store.value(for: SampleKeys.language) == "es")
+            #expect(await changes.next() == SettingChange(name: "history.retentionDays"))
+            #expect(await changes.next() == SettingChange(name: "overlay.edge"))
+            #expect(await changes.next() == SettingChange(name: "hotkey.combo"))
+        }
+    }
+
+    @Test(
+        "a key nobody set can be removed, and a removed key can be set again",
+        arguments: StoreKind.allCases)
+    func removeAKeyThatIsNotThere(kind: StoreKind) async {
+        await kind.withStore { store in
+            var changes = store.changes().makeAsyncIterator()
+
+            store.remove(SampleKeys.language)
+            #expect(store.value(for: SampleKeys.language) == "auto")
+            store.set("en", for: SampleKeys.language)
+
+            #expect(await changes.next() == SettingChange(name: "speech.language"))
+            #expect(await changes.next() == SettingChange(name: "speech.language"))
+            #expect(store.value(for: SampleKeys.language) == "en")
+        }
+    }
+
+    @Test("removing a key clears a value that the key cannot read", arguments: StoreKind.allCases)
+    func removeClearsAnUnreadableValue(kind: StoreKind) async {
+        let asText = SettingKey<String>(area: "general", name: "launchAtLogin", default: "fallback")
+        await kind.withStore { store in
+            store.set(false, for: SampleKeys.launchAtLogin)
+
+            store.remove(asText)
+
+            #expect(store.value(for: SampleKeys.launchAtLogin) == true)
+        }
+    }
+
+    @Test("a value with no stored form is reported by the name of its key, never by its content")
+    func unstorableValueIsReported() async {
+        let diagnostics = RecordingDiagnostics()
+        for kind in StoreKind.allCases {
+            await kind.withStore(diagnostics: diagnostics) { store in
+                store.set(SamplePicky(storable: false, label: "private-words"), for: SampleKeys.picky)
+                store.set("es", for: SampleKeys.language)
+                store.set(SamplePicky(storable: true, label: "private-words"), for: SampleKeys.picky)
+            }
+        }
+
+        #expect(diagnostics.events == Array(repeating: .settingNotStored(key: "debug.picky"), count: 2))
+        #expect(!String(describing: diagnostics.events).contains("private-words"))
+    }
+
+    @Test("a stored value that is not the type of its key is reported by the name of the key, and each time it is read")
+    func unreadableValueIsReported() async {
+        let asText = SettingKey<String>(area: "general", name: "launchAtLogin", default: "fallback")
+        for kind in StoreKind.allCases {
+            let diagnostics = RecordingDiagnostics()
+            await kind.withStore(diagnostics: diagnostics) { store in
+                store.set(false, for: SampleKeys.launchAtLogin)
+                store.set(30, for: SampleKeys.retentionDays)
+
+                _ = store.value(for: SampleKeys.launchAtLogin)
+                _ = store.value(for: SampleKeys.retentionDays)
+                _ = store.value(for: SampleKeys.language)
+                #expect(diagnostics.events.isEmpty)
+
+                _ = store.value(for: asText)
+                _ = store.value(for: asText)
+                #expect(
+                    diagnostics.events == Array(repeating: .settingUnreadable(key: "general.launchAtLogin"), count: 2))
+            }
+        }
+    }
+
+    @Test("when the store goes away, the change stream ends instead of waiting forever", arguments: StoreKind.allCases)
+    func changesEndWithTheStore(kind: StoreKind) async {
+        let scratch = ScratchDefaults()
+        defer { scratch.remove() }
+        var store: (any SettingsStore)? = kind.make(scratch: scratch)
+        var changes = store?.changes().makeAsyncIterator()
+        store?.set("es", for: SampleKeys.language)
+
+        store = nil
+
+        #expect(await changes?.next() == SettingChange(name: "speech.language"))
+        #expect(await changes?.next() == nil)
+    }
+
+    @Test(
+        "the values of a key follow its sets and removals, typed, and skip the other keys",
+        arguments: StoreKind.allCases)
+    func valuesFollowTheKey(kind: StoreKind) async {
+        await kind.withStore { store in
+            var days = store.values(for: SampleKeys.retentionDays).makeAsyncIterator()
+            var edges = store.values(for: SampleKeys.overlayEdge).makeAsyncIterator()
+
+            store.set(30, for: SampleKeys.retentionDays)
+            #expect(await days.next() == 30)
+
+            store.set("es", for: SampleKeys.language)
+            store.set(.top, for: SampleKeys.overlayEdge)
+            store.set(45, for: SampleKeys.retentionDays)
+            #expect(await days.next() == 45)
+            #expect(await edges.next() == .top)
+
+            store.remove(SampleKeys.retentionDays)
+            #expect(await days.next() == 7)
+        }
+    }
+
+    @Test(
+        "a value is read when the consumer takes it, so it is never older than the last set",
+        arguments: StoreKind.allCases)
+    func valuesAreReadFresh(kind: StoreKind) async {
+        await kind.withStore { store in
+            var days = store.values(for: SampleKeys.retentionDays).makeAsyncIterator()
+
+            store.set(1, for: SampleKeys.retentionDays)
+            store.set(2, for: SampleKeys.retentionDays)
+
+            #expect(await days.next() == 2)
+        }
+    }
+
+    @Test(
+        "a stream of values ends when the store goes away, and does not keep the store alive",
+        arguments: StoreKind.allCases)
+    func valuesEndWithTheStore(kind: StoreKind) async {
+        let scratch = ScratchDefaults()
+        defer { scratch.remove() }
+        var store: (any SettingsStore)? = kind.make(scratch: scratch)
+        weak var released = store
+        var days = store?.values(for: SampleKeys.retentionDays).makeAsyncIterator()
+
+        store = nil
+
+        #expect(released == nil)
+        #expect(await days?.next() == nil)
     }
 }

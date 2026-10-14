@@ -5,17 +5,17 @@ import Synchronization
 /// deadline order, and sleeps with the same deadline in the order they were called. Like `Task.sleep`, a sleep throws
 /// `CancellationError` when its task is cancelled, and removes itself from the clock.
 ///
+/// Which test double to use for time:
+/// - `ManualClock`, for code that takes a `Clock`, when the test must decide when a timer fires, or show that it has
+///   not fired yet: the code sleeps on it and the test advances it.
+/// - `SteppedClock` (in the text insertion tests), for code that takes a `Clock`, when it should run through its
+///   sleeps without waiting and the test only reads which sleeps it asked for and how far the time moved.
+/// - `FakeSleeper`, for code that takes a `sleep` closure instead of a clock.
+///
 /// A test that starts the code under test waits with `waitForSleeps(_:)` until the sleep has been suspended, and only
 /// then advances, so the advance cannot run before the sleep it is meant to end.
 public final class ManualClock: Clock, Sendable {
-    public struct Instant: InstantProtocol {
-        /// The time since the clock was created.
-        public let offset: Duration
-
-        public func advanced(by duration: Duration) -> Instant { Instant(offset: offset + duration) }
-        public func duration(to other: Instant) -> Duration { other.offset - offset }
-        public static func < (lhs: Instant, rhs: Instant) -> Bool { lhs.offset < rhs.offset }
-    }
+    public typealias Instant = TestInstant
 
     private struct Waiter {
         let call: Int
@@ -68,8 +68,11 @@ public final class ManualClock: Clock, Sendable {
         for waiter in due { waiter.continuation.resume() }
     }
 
-    /// Suspends until `total` sleeps have been suspended on this clock since it was created. It returns at once for
-    /// sleeps that already happened, so a test that advances step by step passes the running total each time.
+    /// Suspends until `total` sleeps have been suspended on this clock since it was created, the ones that are over
+    /// included. The count is the running total and not "this many more", so it returns at once for sleeps that already
+    /// happened, and a sleep that is suspended before the call is not missed. To wait for the next sleep, read
+    /// `suspendedSleeps` before starting the code under test and pass that plus one; a test that advances step by step
+    /// passes the next total each time.
     public func waitForSleeps(_ total: Int) async {
         let gate = state.withLock { state -> Gate? in
             if state.suspended >= total { return nil }

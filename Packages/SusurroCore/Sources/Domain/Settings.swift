@@ -1,6 +1,20 @@
 import Foundation
 import Synchronization
 
+/// A setting key whatever its value type, for code that handles a list of keys, as a check that none share a name.
+public protocol AnySettingKey: Sendable {
+    var storageName: String { get }
+}
+
+/// A part of a key name: the area or the name.
+enum SettingKeyPart {
+    /// Whether `part` can be one. A dot would let two different keys be stored under one name (`a.b` and `c` against `a`
+    /// and `b.c`), and an empty part would hide that a key lacks an area or a name.
+    static func isValid(_ part: String) -> Bool {
+        !part.isEmpty && !part.contains(".")
+    }
+}
+
 /// A type a setting can hold as it is stored, one that a property list keeps as itself.
 public protocol SettingStorable: Sendable {}
 extension Bool: SettingStorable {}
@@ -13,8 +27,9 @@ extension String: SettingStorable {}
 ///
 /// A key is named by its area, the part of the app the setting belongs to (`hotkey`, `overlay`, `history`), and its
 /// name in camel case, and is stored as `<area>.<name>`. Declaring the two parts apart is what keeps every key in that
-/// form.
-public struct SettingKey<Value: Sendable>: Sendable {
+/// form. Neither part may be empty or contain a dot, so that no two keys share a storage name by accident; a key that
+/// breaks the rule stops the app where it is declared.
+public struct SettingKey<Value: Sendable>: Sendable, AnySettingKey {
     public let storageName: String
     public let defaultValue: Value
     private let encoder: @Sendable (Value) -> (any Sendable)?
@@ -27,6 +42,10 @@ public struct SettingKey<Value: Sendable>: Sendable {
         encoder: @escaping @Sendable (Value) -> (any Sendable)?,
         decoder: @escaping @Sendable (Any) -> Value?
     ) {
+        precondition(
+            SettingKeyPart.isValid(area), "A setting key needs an area that is not empty and has no dot: \(area)")
+        precondition(
+            SettingKeyPart.isValid(name), "A setting key needs a name that is not empty and has no dot: \(name)")
         storageName = "\(area).\(name)"
         self.defaultValue = defaultValue
         self.encoder = encoder
@@ -48,7 +67,7 @@ extension SettingKey where Value: SettingStorable {
             name: name,
             defaultValue: defaultValue,
             encoder: { $0 },
-            decoder: { $0 as? Value }
+            decoder: { StoredScalar.read($0, as: Value.self) }
         )
     }
 }
@@ -61,7 +80,7 @@ extension SettingKey where Value: RawRepresentable, Value.RawValue: SettingStora
             name: name,
             defaultValue: defaultValue,
             encoder: { $0.rawValue },
-            decoder: { ($0 as? Value.RawValue).flatMap(Value.init(rawValue:)) }
+            decoder: { StoredScalar.read($0, as: Value.RawValue.self).flatMap(Value.init(rawValue:)) }
         )
     }
 }
@@ -79,7 +98,28 @@ extension SettingKey where Value: Codable {
     }
 }
 
-/// A setting that was set, named by the `storageName` of its key. A subscriber reads the key again for the new value.
+extension SettingKey {
+    /// The value for the stored form a store holds under this key, or nil when it holds none. A stored form that does
+    /// not read as a `Value` gives the default and is recorded in `diagnostics`, by the name of the key and never by what
+    /// it holds.
+    public func value(stored: Any?, reportingTo diagnostics: any DiagnosticsLog) -> Value {
+        guard let stored else { return defaultValue }
+        if let value = decode(stored) { return value }
+        diagnostics.record(.settingUnreadable(key: storageName))
+        return defaultValue
+    }
+
+    /// The stored form of a value. A value with no stored form gives nil and is recorded in `diagnostics`, by the name
+    /// of the key and never by the value.
+    public func storedForm(of value: Value, reportingTo diagnostics: any DiagnosticsLog) -> (any Sendable)? {
+        let stored = encode(value)
+        if stored == nil { diagnostics.record(.settingNotStored(key: storageName)) }
+        return stored
+    }
+}
+
+/// A setting that was set or removed, named by the `storageName` of its key. A subscriber reads the key again for the
+/// new value, or uses `SettingsStore.values(for:)`, which does it.
 public struct SettingChange: Sendable, Equatable {
     public let name: String
 
@@ -89,15 +129,45 @@ public struct SettingChange: Sendable, Equatable {
 }
 
 /// The user's settings, one value per key. Reading never fails: a key nobody set, or one that holds something that is
-/// not its type, gives the key's default, and a damaged key cannot affect another.
-public protocol SettingsStore: Sendable {
+/// not its type, gives the key's default, and a damaged key cannot affect another. What a store would otherwise swallow
+/// is recorded in its `DiagnosticsLog`, by key name only: a value that cannot be stored, which `set` leaves out, and a
+/// stored value that cannot be read, which reads as the default.
+///
+/// A store is a class: a stream made from it must be able to hold it weakly, so that a stream a consumer keeps does not
+/// keep the store alive.
+public protocol SettingsStore: AnyObject, Sendable {
     func value<Value>(for key: SettingKey<Value>) -> Value
     func set<Value>(_ value: Value, for key: SettingKey<Value>)
-    /// Each call returns a stream of its own, which gets the sets made after the call.
+    /// Deletes what the key holds, so it reads as its default again, as if nobody had set it. Storing the default is not
+    /// a removal: the key would then hold a value of its own that a later change of the default would not reach. It
+    /// clears a value the key cannot read too. The key is announced even when it held nothing.
+    func remove<Value>(_ key: SettingKey<Value>)
+    /// Each call returns a stream of its own, which gets the sets and removals made after the call.
     func changes() -> AsyncStream<SettingChange>
 }
 
-/// Hands each change to every subscriber. The stores that implement `SettingsStore` share it.
+extension SettingsStore {
+    /// The value of `key` each time the key is set or removed, as a `Value`, so a consumer never compares key names.
+    /// A value is read when the consumer takes it, never when the change was made, so it is not older than the last
+    /// change. Other keys are skipped.
+    ///
+    /// The stream does not begin with the current value, which `value(for:)` gives. The subscription starts when this
+    /// is called, so a change made after the call is not missed whichever of the two the caller runs first. The stream
+    /// ends when the store goes away; it does not keep the store alive.
+    public func values<Value>(for key: SettingKey<Value>) -> AsyncStream<Value> {
+        var changes = changes().makeAsyncIterator()
+        let name = key.storageName
+        return AsyncStream(unfolding: { [weak self] in
+            while let change = await changes.next() {
+                guard change.name == name else { continue }
+                return self?.value(for: key)
+            }
+            return nil
+        })
+    }
+}
+
+/// Hands each change to every subscriber, and ends every stream when it is released. The stores that implement `SettingsStore` share it.
 public final class SettingChangeBroadcaster: Sendable {
     private struct State {
         var nextID = 0
@@ -107,6 +177,12 @@ public final class SettingChangeBroadcaster: Sendable {
     private let state = Mutex(State())
 
     public init() {}
+
+    deinit {
+        // The streams end instead of waiting for a change that can no longer come. What they already hold is delivered.
+        let subscribers = state.withLock { Array($0.subscribers.values) }
+        for subscriber in subscribers { subscriber.finish() }
+    }
 
     var subscriberCount: Int { state.withLock { $0.subscribers.count } }
 
