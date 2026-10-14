@@ -24,7 +24,15 @@ public enum DictationLimits {
     public static let captureStartTimeout = Duration.seconds(6)
     /// How long stopping the capture and delivering its last chunks may take.
     public static let captureStopTimeout = Duration.seconds(5)
+    /// How long one call to a recognizer may take, at the least. A call on a longer clip gets a tenth of the clip's
+    /// length if that is more (see `transcriptionTimeout(forClip:)`).
     public static let transcriptionTimeout = Duration.seconds(30)
+    /// How long one call to a recognizer may take on a clip of this length: `transcriptionTimeout`, or a tenth of the
+    /// clip when that is longer. The speech model runs at about eighty times real time (ADR 0013), so the floor
+    /// covers every clip a Mac handles quickly, and a slower Mac does not fail a ten-minute dictation on a fixed limit.
+    public static func transcriptionTimeout(forClip duration: Duration) -> Duration {
+        max(transcriptionTimeout, duration * 0.1)
+    }
     public static let insertionTimeout = Duration.seconds(10)
     /// How long the text of a hold that ran into the recording cap waits for the key to come up. Pasting while the
     /// hotkey's modifiers are down fails, and the text would end up on the clipboard instead. It is long enough for a

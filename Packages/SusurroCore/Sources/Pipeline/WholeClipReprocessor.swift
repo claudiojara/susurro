@@ -12,7 +12,7 @@ public struct WholeClipReprocessor: DictationReprocessing {
     /// - Parameters:
     ///   - providerID: The name the record keeps as the provider that wrote the text.
     ///   - sleep: Pauses for a duration, on the app's clock. The transcription is abandoned if it takes longer than
-    ///     `DictationLimits.transcriptionTimeout`.
+    ///     `DictationLimits.transcriptionTimeout(forClip:)`.
     public init(
         recognizer: any SpeechRecognizer, providerID: ASRProviderID? = nil,
         sleep: @escaping @Sendable (Duration) async throws -> Void
@@ -34,7 +34,7 @@ public struct WholeClipReprocessor: DictationReprocessing {
         let transcript: RawTranscript
         do {
             transcript = try await withDeadline(
-                DictationLimits.transcriptionTimeout, stage: .transcription, sleep: sleep
+                DictationLimits.transcriptionTimeout(forClip: clip.duration), stage: .transcription, sleep: sleep
             ) {
                 try await recognizer.transcribe(clip, options: RecognitionOptions())
             }

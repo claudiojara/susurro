@@ -112,7 +112,7 @@ public struct RecognitionRunner: Sendable {
         do {
             return try await ChunkedTranscriber(limit: recognizer.maxClipDuration).transcribe(clip) { piece in
                 try await withDeadline(
-                    DictationLimits.transcriptionTimeout, stage: .transcription, sleep: sleep
+                    DictationLimits.transcriptionTimeout(forClip: piece.duration), stage: .transcription, sleep: sleep
                 ) {
                     try await recognizer.transcribe(piece, options: options)
                 }
