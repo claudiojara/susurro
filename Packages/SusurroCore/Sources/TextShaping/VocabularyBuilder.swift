@@ -34,8 +34,8 @@ public struct VocabularySources: Sendable, Equatable {
 /// The list is deduplicated without regard to case, so the spelling of the higher priority wins, and it is bounded
 /// (50 terms of at most 40 characters by default). The dictionary comes first, so context terms never push it out.
 public struct VocabularyBuilder: Sendable {
-    public static let defaultMaxTerms = 50
-    public static let defaultMaxTermLength = 40
+    public static let defaultMaxTerms = VocabularyLimits.maxTerms
+    public static let defaultMaxTermLength = VocabularyLimits.maxTermLength
 
     private let tagger: any EntityTagger
     private let maxTerms: Int
