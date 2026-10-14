@@ -27,7 +27,7 @@ down to a single field of a token. This file changes the accent in light and dar
 | `colors` | For each color token, the name of a palette entry. |
 | `typography` | `size` in points, `weight` (`regular`, `medium`, `semibold`, `bold`), `design` (`standard`, `rounded`, `monospaced`, `serif`). |
 | `spacing`, `radii` | Points. |
-| `sizes` | Points: the fixed dimension of a component (`statusDot` is the diameter of a status dot, `levelBar` the thickness of a level bar). |
+| `sizes` | Points: the fixed dimension of a component (`statusDot` is the diameter of a status dot, `levelBar` the thickness of a level bar, `onboardingWidth` the width of the onboarding screen). |
 | `motion` | Durations in seconds, and `springResponse` and `springDamping`. |
 | `overlay` | `width`, `cornerRadius`, `offset` (points from the screen edge), `edge` (`top` or `bottom`). |
 

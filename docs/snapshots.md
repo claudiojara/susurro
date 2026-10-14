@@ -56,6 +56,26 @@ folder and fails, naming the step, until all of these are done:
 6. **The list of atoms** in `AtomConventionsTests.atomsAreFound`.
 7. **The references.** Put the label `record-snapshots` on the pull request and read the new pictures.
 
+## Adding a view above the atoms
+
+Molecules, organisms, and screens (`Sources/SusurroUI/Molecules`, `Organisms`, `Screens`) are not found by a test, so these
+steps are by hand. The onboarding (`PermissionRow`, `Banner`, `PermissionChecklist`, `OnboardingScreen`) is the example.
+
+1. **The view** is internal, takes plain values and closures, and asks the theme for everything it paints. It is built from
+   the atoms and from `.card()`. Only a container (`OnboardingContainer`) is public: it reads a view model through its
+   protocol and passes the state and the steps to the screen.
+2. **Fixtures** (`Previews/OnboardingFixtures.swift`): the states the view can be in, each with the words the app uses.
+   The previews and the snapshot tests draw the same ones.
+3. **A gallery** in `Previews/Galleries.swift` and a `#Preview` in the view's file.
+4. **A canvas**, a case of `OnboardingCanvas` in `Tests/SusurroUITests`: its size is written, not measured, so that a
+   picture has the same size on every macOS, and `OnboardingCanvasTests` keeps it within 24 points of what the view needs.
+5. **Size and pixel tests** for what the view is made of: a part adds height, a tint is the one of the status, a button is
+   filled or quiet, a width or a gap is the theme's. A screen is a large canvas that lets a hundred pixels differ, which
+   hides a recolored pill, so these tests (`PermissionRowTests`, `OnboardingScreenTests`) are the ones that say what is in
+   the picture. Each one was checked against a mutant of the view.
+6. **A snapshot test** in `OnboardingSnapshotTests` for each canvas, in light and dark.
+7. **The references**: put the label `record-snapshots` on the pull request.
+
 ## Recording
 
 Only the CI image records. `make snapshots` never writes a file: a missing reference fails the test. Recording is the

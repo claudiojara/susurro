@@ -56,6 +56,8 @@ public nonisolated enum SizeToken: String, ThemeToken {
     case statusDot
     /// The thickness of a level bar.
     case levelBar
+    /// The width of the onboarding screen.
+    case onboardingWidth
 
     public static var group: String { "sizes" }
 }

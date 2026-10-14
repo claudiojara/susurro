@@ -19,4 +19,65 @@ import SwiftUI
         }
     }
 
+    extension Banner {
+        struct Gallery: View {
+            @Environment(\.theme) private var theme
+
+            var body: some View {
+                VStack(spacing: theme.spacing(.sm)) {
+                    Banner(OnboardingFixtures.shortBanner)
+                    Banner(OnboardingFixtures.longBanner)
+                }
+            }
+        }
+    }
+
+    extension PermissionChecklist {
+        struct Gallery: View {
+            @Environment(\.theme) private var theme
+
+            var body: some View {
+                VStack(spacing: theme.spacing(.lg)) {
+                    ForEach(OnboardingFixtures.Screen.allCases, id: \.self) { screen in
+                        PermissionChecklist(OnboardingFixtures.rows(screen)) { _, _ in }
+                    }
+                }
+            }
+        }
+    }
+
+    extension OnboardingScreen {
+        struct Gallery: View {
+            @Environment(\.theme) private var theme
+            private static let screens: [OnboardingFixtures.Screen] = [.fresh, .allGranted, .stale]
+
+            var body: some View {
+                HStack(alignment: .top, spacing: theme.spacing(.lg)) {
+                    ForEach(Self.screens, id: \.self) { screen in
+                        OnboardingScreen(
+                            state: OnboardingFixtures.state(screen), onAction: { _, _ in }, onRecheck: {}, onDone: {})
+                    }
+                }
+            }
+        }
+    }
+
+    /// A model with a fixed state, for the preview of the container.
+    @MainActor
+    private final class PreviewModel: OnboardingViewModeling {
+        let state: OnboardingViewState
+
+        init(_ state: OnboardingViewState) {
+            self.state = state
+        }
+
+        func request(_ permission: OnboardingPermission) async {}
+        func openSettings(_ permission: OnboardingPermission) {}
+        func recheck() async {}
+    }
+
+    #Preview("OnboardingContainer") {
+        PreviewMatrix { OnboardingContainer(model: PreviewModel(OnboardingFixtures.state(.fresh)), onDone: {}) }
+    }
+
 #endif

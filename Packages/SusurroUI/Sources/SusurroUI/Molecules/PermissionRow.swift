@@ -16,7 +16,6 @@ struct PermissionRow: View {
 
     var body: some View {
         let badge = row.status.badge
-        let card = RoundedRectangle(cornerRadius: theme.radius(.md), style: .continuous)
         VStack(alignment: .leading, spacing: theme.spacing(.sm)) {
             HStack(spacing: theme.spacing(.sm)) {
                 Icon(badge.symbol, style: .headline, tint: badge.tint)
@@ -36,9 +35,7 @@ struct PermissionRow: View {
                 ActionButton(action.title, kind: action.kind.buttonKind) { onAction(action) }
             }
         }
-        .padding(theme.spacing(.md))
-        .background(theme.swiftUIColor(.surfaceRaised), in: card)
-        .overlay(card.strokeBorder(theme.swiftUIColor(.borderSubtle)))
+        .card()
     }
 }
 
