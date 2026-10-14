@@ -32,14 +32,6 @@ public final class OnboardingViewModel: OnboardingViewModeling {
         await monitor.refresh()
     }
 
-    public func onboardingDidAppear() {
-        monitor.setOnboardingVisible(true)
-    }
-
-    public func onboardingDidDisappear() {
-        monitor.setOnboardingVisible(false)
-    }
-
     // MARK: Rows
 
     private func row(for permission: Permission) -> OnboardingRowState {

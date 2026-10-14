@@ -4,8 +4,11 @@ import Observation
 /// What the app knows about the system permissions, kept current without a relaunch: the onboarding, the menu and the
 /// overlay read their state from it.
 ///
-/// The statuses are read again when the app becomes active, and every `pollInterval` only while the onboarding is
-/// visible, so a permission granted or revoked in System Settings shows within a second of the user looking at it.
+/// Once started, the statuses are read every `pollInterval` whether or not a screen is open, and again when the app
+/// becomes active, so a permission granted or revoked in System Settings shows within a second. Susurro is a menu bar app
+/// that rarely becomes active, so the read on a timer is what finds a revocation while the app idles. A second costs
+/// little: each status is one call to the system that raises no prompt, about 80 microseconds of CPU (Accessibility,
+/// about 1) plus a wait of about 3 ms on the privacy service that is not on the main actor, measured on this Mac.
 /// Only the requested permissions are read (`PermissionPolicy.requested(for:)`), and only the required ones can disable
 /// dictation or bring the onboarding back (`blocking`): a conditional permission that is missing leaves its own feature
 /// inactive and nothing else.
@@ -49,6 +52,7 @@ public final class PermissionsMonitor {
     @ObservationIgnored private let clock: any Clock<Duration>
     @ObservationIgnored private let pollInterval: Duration
     @ObservationIgnored private let staleAfter: Duration
+    @ObservationIgnored private let diagnostics: any DiagnosticsLog
     @ObservationIgnored private var poll: Task<Void, Never>?
     @ObservationIgnored private var staleTimers: [Permission: Task<Void, Never>] = [:]
     @ObservationIgnored private var requestsInFlight: Set<Permission> = []
@@ -59,15 +63,18 @@ public final class PermissionsMonitor {
     /// - Parameters:
     ///   - openSettings: Opens the System Settings pane where the user changes a permission.
     ///   - clock: Times the poll and the stale-guidance wait. Tests pass a `ManualClock`.
-    ///   - pollInterval: The pause between reads while the onboarding is visible.
+    ///   - pollInterval: The pause between two reads of a started monitor.
     ///   - staleAfter: How long a permission may stay denied after the user came back from System Settings.
+    ///   - diagnostics: Where the status changes, the troubleshooting shown, and the request outcomes are recorded. Only
+    ///     permissions and their statuses are recorded.
     public init(
         checker: any PermissionsChecker,
         openSettings: @escaping @MainActor (Permission) -> Void,
         clock: any Clock<Duration> = ContinuousClock(),
         needs: PermissionNeeds = PermissionNeeds(),
         pollInterval: Duration = .seconds(1),
-        staleAfter: Duration = .seconds(30)
+        staleAfter: Duration = .seconds(30),
+        diagnostics: any DiagnosticsLog = NoDiagnostics()
     ) {
         self.checker = checker
         openSettingsAction = openSettings
@@ -75,6 +82,7 @@ public final class PermissionsMonitor {
         self.needs = needs
         self.pollInterval = pollInterval
         self.staleAfter = staleAfter
+        self.diagnostics = diagnostics
     }
 
     // MARK: What the permissions mean now
@@ -115,13 +123,9 @@ public final class PermissionsMonitor {
         await refresh()
     }
 
-    /// Polls every `pollInterval` while the onboarding is visible, and not otherwise. The first read is at once.
-    public func setOnboardingVisible(_ isVisible: Bool) {
-        guard isVisible else {
-            poll?.cancel()
-            poll = nil
-            return
-        }
+    /// Reads the statuses at once and then every `pollInterval`, until `stop()`. Starting a monitor that is running does
+    /// nothing.
+    public func start() {
         guard poll == nil else { return }
         poll = Task { [weak self, clock, pollInterval] in
             // `self` is held only while a read runs, so a monitor that is let go also ends its poll.
@@ -130,6 +134,12 @@ public final class PermissionsMonitor {
                 do { try await clock.sleep(for: pollInterval) } catch { return }
             }
         }
+    }
+
+    /// Ends the poll. The statuses stay as they were last read, and the app activation still reads them.
+    public func stop() {
+        poll?.cancel()
+        poll = nil
     }
 
     /// Reads the statuses because the user came back to the app, and starts the wait for the stale-grant guidance on
@@ -160,6 +170,8 @@ public final class PermissionsMonitor {
         requestsInFlight.remove(permission)
         if steps[permission]?.phase == .requesting { steps[permission]?.phase = .sentToSettings }
         await refresh()
+        diagnostics.record(
+            .permissionRequestEnded(permission: permission, status: statuses[permission] ?? .notDetermined))
     }
 
     /// Opens the System Settings pane of the permission, and follows it until its status changes. A permission the setup
@@ -173,6 +185,10 @@ public final class PermissionsMonitor {
     // MARK: Follow-up
 
     private func apply(_ read: [Permission: PermissionStatus]) {
+        for permission in Permission.allCases {
+            guard let status = read[permission], statuses[permission] != status else { continue }
+            diagnostics.record(.permissionStatusChanged(permission: permission, from: statuses[permission], to: status))
+        }
         statuses = read
         hasReadStatuses = true
         for (permission, status) in read where steps[permission].map({ $0.baseline != status }) == true {
@@ -207,6 +223,8 @@ public final class PermissionsMonitor {
     /// one from starting.
     private func staleTimeElapsed(for permission: Permission) async {
         await refresh()
+        guard steps[permission] != nil else { return }
         steps[permission]?.phase = .stale
+        diagnostics.record(.permissionGuidanceShown(permission: permission))
     }
 }
