@@ -154,6 +154,33 @@ struct OnboardingViewModelTests {
         #expect(shown.action?.title == scenario.title)
     }
 
+    @Test(
+        "each row says in a word where its permission stands",
+        arguments: [
+            (PermissionStatus.granted, nil as PermissionsMonitor.FollowUp?, "Allowed"),
+            (.notDetermined, nil, "Not asked yet"),
+            (.denied, nil, "Not allowed"),
+            (.denied, .requesting, "Waiting…"),
+            (.denied, .sentToSettings, "Waiting…"),
+            (.denied, .stale, "Needs attention"),
+        ]
+    )
+    func statusTextSaysWhereItStands(status: PermissionStatus, followUp: PermissionsMonitor.FollowUp?, text: String) {
+        let row = OnboardingViewModel.row(for: .microphone, status: status, followUp: followUp)
+
+        #expect(row.statusText == text)
+    }
+
+    @Test("the state carries the words of the screen: title, subtitle, and the titles of its two buttons")
+    func stateCarriesTheWords() {
+        let state = OnboardingViewModel(monitor: Rig([:]).monitor).state
+
+        #expect(state.title == "Set up Susurro")
+        #expect(state.subtitle == "Susurro needs these permissions to hear you and to type what you say.")
+        #expect(state.recheckTitle == "Check again")
+        #expect(state.doneTitle == "Done")
+    }
+
     @Test("a permission that has not been read yet is shown as not asked")
     func unreadIsNotAsked() throws {
         let model = OnboardingViewModel(monitor: Rig([:]).monitor)

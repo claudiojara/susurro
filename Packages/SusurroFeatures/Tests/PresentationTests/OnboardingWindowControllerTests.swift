@@ -34,6 +34,7 @@ struct OnboardingWindowControllerTests {
         let controller = makeController()
 
         #expect(controller.window.title == "Set up Susurro")
+        #expect(controller.window.title == controller.content.model.state.title)
         #expect(controller.window.styleMask.contains(.titled))
         #expect(controller.window.styleMask.contains(.closable))
         #expect(!controller.window.styleMask.contains(.resizable))

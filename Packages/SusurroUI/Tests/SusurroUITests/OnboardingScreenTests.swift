@@ -6,6 +6,13 @@ import UITestSupport
 @testable import SusurroUI
 
 /// What the onboarding screen paints, read from its pixels and its size, in light and dark.
+extension OnboardingViewState {
+    /// The words of the screen that are not rows.
+    enum Part: CaseIterable, Sendable {
+        case title, subtitle, recheckTitle, doneTitle
+    }
+}
+
 @MainActor
 @Suite("Onboarding screen")
 struct OnboardingScreenTests {
@@ -47,8 +54,7 @@ struct OnboardingScreenTests {
     @Test("the banner is there when a required permission is missing, and is not when nothing is")
     func bannerFollowsTheMessage() {
         let off = state(.fresh)
-        let withoutMessage = OnboardingViewState(
-            rows: off.rows, isDoneEnabled: off.isDoneEnabled, restrictionMessage: nil)
+        let withoutMessage = off.with(restrictionMessage: .some(nil))
 
         let with = Probe.height(of: screen(off), width: 440)
         let without = Probe.height(of: screen(withoutMessage), width: 440)
@@ -59,11 +65,36 @@ struct OnboardingScreenTests {
     @Test("a row more makes the screen taller by the height of the row and the space before it")
     func rowsAreInTheChecklist() {
         let two = state(.fresh)
-        let four = OnboardingViewState(
-            rows: OnboardingFixtures.rows(.withOptional), isDoneEnabled: true, restrictionMessage: nil)
-        let twoWithout = OnboardingViewState(rows: two.rows, isDoneEnabled: true, restrictionMessage: nil)
+        let four = state(.withOptional)
+        let twoWithout = two.with(restrictionMessage: .some(nil), isDoneEnabled: true)
 
         #expect(Probe.height(of: screen(four), width: 440) > Probe.height(of: screen(twoWithout), width: 440) + 100)
+    }
+
+    // MARK: Words
+
+    @Test(
+        "the screen draws the title, the subtitle, and the titles of its two buttons from the state",
+        arguments: [
+            OnboardingViewState.Part.title, .subtitle, .recheckTitle, .doneTitle,
+        ])
+    func wordsComeFromTheState(part: OnboardingViewState.Part) {
+        let base = state(.allGranted)
+        let changed: OnboardingViewState =
+            switch part {
+            case .title: base.with(title: "Get Susurro ready")
+            case .subtitle: base.with(subtitle: "These let it hear you and type for you.")
+            case .recheckTitle: base.with(recheckTitle: "Look again")
+            case .doneTitle: base.with(doneTitle: "Finish")
+            }
+        let size = canvas(for: screen(base))
+
+        let before = Probe.picture(of: screen(base), size: size, scheme: .light)
+        let same = Probe.picture(of: screen(base), size: size, scheme: .light)
+        let after = Probe.picture(of: screen(changed), size: size, scheme: .light)
+
+        #expect(SnapshotSupport.differingPixels(before, same, tolerance: 0.02) == 0)
+        #expect(SnapshotSupport.differingPixels(before, after, tolerance: 0.02) > 100, "\(part)")
     }
 
     // MARK: Colors
@@ -90,7 +121,7 @@ struct OnboardingScreenTests {
     @Test("Done is the main button once it is enabled, and is quiet while it is not", arguments: [true, false])
     func doneButton(isEnabled: Bool) throws {
         let granted = state(.allGranted)
-        let state = OnboardingViewState(rows: granted.rows, isDoneEnabled: isEnabled, restrictionMessage: nil)
+        let state = granted.with(isDoneEnabled: isEnabled)
         for scheme in Probe.schemes {
             let theme = try Probe.theme(scheme)
             let view = screen(state)
