@@ -134,9 +134,10 @@ public protocol HistoryRepository: Sendable {
     func page(offset: Int, limit: Int) async throws -> [DictationRecord]
     /// The records still `processing` that have audio. At launch they are the attempts the last run did not finish.
     func recoverable() async throws -> [DictationRecord]
-    /// Marks every record that is still `processing` as `failed` with `DictationRecord.interruptedFailure`, keeping its
-    /// audio, and returns how many it changed. It is for launch, before any dictation can be under way.
-    func failInterrupted() async throws -> Int
+    /// Marks every record that is still `processing` and was created before `launch` as `failed` with
+    /// `DictationRecord.interruptedFailure`, keeping its audio, and returns how many it changed. It is for launch: the
+    /// date keeps it from touching a dictation that began after the app started.
+    func failInterrupted(createdBefore launch: Date) async throws -> Int
     /// The records whose audio is still stored and that were created before `cutoff`.
     func audioOlderThan(_ cutoff: Date) async throws -> [DictationRecord]
     /// Records that the audio is gone: sets `audioExpired` and clears `audioURL`. Throws

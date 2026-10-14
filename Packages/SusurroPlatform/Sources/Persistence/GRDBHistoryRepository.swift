@@ -77,13 +77,13 @@ public final class GRDBHistoryRepository: HistoryRepository {
         }
     }
 
-    public func failInterrupted() async throws -> Int {
+    public func failInterrupted(createdBefore launch: Date) async throws -> Int {
         try await queue.write { db in
             try db.execute(
-                sql: "UPDATE dictations SET status = ?, failure = ? WHERE status = ?",
+                sql: "UPDATE dictations SET status = ?, failure = ? WHERE status = ? AND createdAt < ?",
                 arguments: [
                     DictationStatus.failed.rawValue, DictationRecord.interruptedFailure,
-                    DictationStatus.processing.rawValue,
+                    DictationStatus.processing.rawValue, launch.timeIntervalSince1970,
                 ])
             return db.changesCount
         }

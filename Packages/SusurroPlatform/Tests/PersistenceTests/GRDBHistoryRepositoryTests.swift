@@ -121,10 +121,13 @@ struct HistoryRepositoryContractTests {
         let repository = try kind.make()
         let interrupted = Self.record(age: 10)
         let done = Self.record(status: .succeeded)
+        let newer = Self.record(age: -5)
         try await repository.insert(interrupted)
         try await repository.insert(done)
+        try await repository.insert(newer)
 
-        #expect(try await repository.failInterrupted() == 1)
+        // A dictation that began after the launch is under way, not interrupted.
+        #expect(try await repository.failInterrupted(createdBefore: Self.now) == 1)
 
         let recovered = try await repository.record(id: interrupted.id)
         #expect(recovered?.status == .failed)
@@ -132,8 +135,9 @@ struct HistoryRepositoryContractTests {
         #expect(recovered?.audioURL == interrupted.audioURL)
         #expect(recovered?.hasAudio == true)
         #expect(try await repository.record(id: done.id) == done)
-        #expect(try await repository.recoverable().isEmpty)
-        #expect(try await repository.failInterrupted() == 0)
+        #expect(try await repository.recoverable().map(\.id) == [newer.id])
+        #expect(try await repository.failInterrupted(createdBefore: Self.now) == 0)
+        #expect(try await repository.failInterrupted(createdBefore: Self.now.addingTimeInterval(60)) == 1)
     }
 
     @Test("audioOlderThan lists the stored audio created before the cutoff, and expiring clears it", arguments: Kind.allCases)

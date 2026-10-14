@@ -60,10 +60,10 @@ public final class InMemoryHistoryRepository: HistoryRepository {
         try read { state in Self.sorted(state.records.values.filter { $0.status == .processing && $0.hasAudio }) }
     }
 
-    public func failInterrupted() async throws -> Int {
+    public func failInterrupted(createdBefore launch: Date) async throws -> Int {
         var count = 0
         try change { state in
-            for (id, record) in state.records where record.status == .processing {
+            for (id, record) in state.records where record.status == .processing && record.createdAt < launch {
                 var failed = record
                 failed.status = .failed
                 failed.failure = DictationRecord.interruptedFailure
