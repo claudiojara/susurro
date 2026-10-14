@@ -62,6 +62,36 @@ import SwiftUI
         }
     }
 
+    extension OverlayHUD {
+        struct Gallery: View {
+            @Environment(\.theme) private var theme
+
+            var body: some View {
+                VStack(spacing: theme.spacing(.sm)) {
+                    ForEach(OverlayFixtures.Fixture.allCases, id: \.self) {
+                        OverlayHUD(state: OverlayFixtures.state($0), level: OverlayFixtures.level)
+                    }
+                }
+            }
+        }
+    }
+
+    extension WaveformMeter {
+        struct Gallery: View {
+            @Environment(\.theme) private var theme
+            private static let levels = [0.0, 0.25, 0.6, 1.0]
+
+            var body: some View {
+                VStack(spacing: theme.spacing(.md)) {
+                    ForEach(Self.levels, id: \.self) { WaveformMeter(level: $0, label: "Input level") }
+                }
+            }
+        }
+    }
+
+    #Preview("OverlayHUD") { PreviewMatrix { OverlayHUD.Gallery() } }
+    #Preview("WaveformMeter") { PreviewMatrix { WaveformMeter.Gallery() } }
+
     /// A model with a fixed state, for the preview of the container.
     @MainActor
     private final class PreviewModel: OnboardingViewModeling {
