@@ -7,10 +7,10 @@
     "paperOverlay": { "light": "#FFFFFFF2", "dark": "#242426F2" },
     "ink": { "light": "#1D1D1F", "dark": "#F5F5F7" },
     "inkMuted": { "light": "#6E6E73", "dark": "#A1A1A6" },
-    "inkInverse": { "light": "#FFFFFF", "dark": "#FFFFFF" },
+    "inkInverse": { "light": "#FFFFFF", "dark": "#1E1E20" },
     "line": { "light": "#0000001A", "dark": "#FFFFFF1F" },
     "blue": { "light": "#0A64D8", "dark": "#4C9AFF" },
-    "red": { "light": "#D92D20", "dark": "#FF6B60" },
+    "red": { "light": "#D32A1E", "dark": "#FF6B60" },
     "green": { "light": "#1A7F37", "dark": "#4CD07D" },
     "amber": { "light": "#B54708", "dark": "#FFB84D" }
   },
