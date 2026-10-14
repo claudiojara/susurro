@@ -232,6 +232,8 @@ GRDB database `dictations(id, createdAt, status, bundleID, category, tone, style
 | Input Monitoring | Modifier-only or fn hotkeys stay unarmed and settings report the missing permission |
 | Screen Recording | Checked via preflight only when OCR is enabled; skipped silently otherwise |
 
+Only Microphone and Accessibility are required: while one is missing, dictation is disabled with a reason and the onboarding stays open. Input Monitoring and Screen Recording are conditional on a feature (a modifier-only or fn hotkey, OCR). Their onboarding rows are optional and carry a feature note, and a denied one never gates dictation or the end of the onboarding; it leaves only its own feature inactive, with an explanation. `PermissionPolicy` expresses this as `required`, `conditional(for:)`, `requested(for:)` (the onboarding rows), `missing(for:statuses:)`, `blocking(statuses:)` (the missing required ones, which are the only source of the disabled-dictation reason), and `isOnboardingComplete(statuses:)`.
+
 A Secure Event Input warning is exposed while it is active. The stable signing identity and bundle ID `dev.claudiojara.susurro` keep TCC grants across updates.
 
 ## UI Architecture and Theming
