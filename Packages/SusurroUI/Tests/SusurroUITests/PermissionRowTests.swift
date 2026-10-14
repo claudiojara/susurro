@@ -25,18 +25,42 @@ struct PermissionRowTests {
     // MARK: Colors
 
     @Test(
-        "the status is painted in the tint of the status",
+        "the icon and the pill are painted in the tint of the status",
         arguments: [
             (OnboardingFixtures.Row.granted, ColorToken.statusSuccess),
             (.denied, .statusError),
             (.waitingForPrompt, .accentPrimary),
             (.waitingInSettings, .accentPrimary),
             (.stale, .statusWarning),
-        ], Probe.schemes)
-    func statusTint(fixture: OnboardingFixtures.Row, token: ColorToken, scheme: ColorScheme) throws {
-        let picture = Probe.picture(of: row(fixture), size: canvas, scheme: scheme)
+        ])
+    func statusTint(fixture: OnboardingFixtures.Row, token: ColorToken) throws {
+        for scheme in Probe.schemes {
+            let picture = Probe.picture(of: row(fixture), size: canvas, scheme: scheme)
 
-        #expect(Probe.isPainted(try Probe.theme(scheme).color(token), in: picture), "\(fixture) in \(scheme)")
+            let painted = try #require(
+                SnapshotSupport.extent(of: picture, matching: Probe.theme(scheme).color(token), tolerance: Probe.exact),
+                "\(fixture) paints nothing in \(token) in \(scheme)")
+
+            // The icon is at the left end of the first line and the pill at the right end, and both take the tint.
+            #expect(painted.minX < 60 && painted.maxX > 300, "\(fixture) in \(scheme): \(painted)")
+        }
+    }
+
+    @Test("the troubleshooting steps of a stale row are painted in the warning color, below the first line")
+    func guidanceTint() throws {
+        for scheme in Probe.schemes {
+            let theme = try Probe.theme(scheme)
+            let stale = Probe.picture(of: row(.stale), size: canvas, scheme: scheme)
+            let waiting = Probe.picture(of: row(.waitingInSettings), size: canvas, scheme: scheme)
+
+            let steps = try #require(
+                SnapshotSupport.extent(of: stale, matching: theme.color(.statusWarning), tolerance: Probe.exact))
+            let status = try #require(
+                SnapshotSupport.extent(of: waiting, matching: theme.color(.accentPrimary), tolerance: Probe.exact))
+
+            // The first line holds the icon and the pill and is about as tall as the icon; the steps are lines below it.
+            #expect(steps.height > status.height + 30, "\(steps) against \(status) in \(scheme)")
+        }
     }
 
     @Test("the row is a raised card on the window", arguments: Probe.schemes)
@@ -58,15 +82,19 @@ struct PermissionRowTests {
             (.optional, true),
             (.denied, false),
             (.stale, false),
-        ], Probe.schemes)
-    func buttonFill(fixture: OnboardingFixtures.Row, filled: Bool, scheme: ColorScheme) throws {
-        let theme = try Probe.theme(scheme)
-        let picture = Probe.picture(of: row(fixture), size: canvas, scheme: scheme)
+        ])
+    func buttonFill(fixture: OnboardingFixtures.Row, filled: Bool) throws {
+        for scheme in Probe.schemes {
+            let theme = try Probe.theme(scheme)
+            let picture = Probe.picture(of: row(fixture), size: canvas, scheme: scheme)
 
-        // The accent also colors the icon and the pill of a waiting row, so only rows whose status is not in the accent
-        // are looked at: the paint of a button is at least as wide as its title, and an icon is a few points wide.
-        let found = SnapshotSupport.extent(of: picture, matching: theme.color(.accentPrimary), tolerance: Probe.exact)
-        #expect((found?.width ?? 0) > 40 == filled, "\(fixture) in \(scheme): \(String(describing: found))")
+            // The accent also colors the icon and the pill of a waiting row, so only rows whose status is not in the
+            // accent are looked at: the paint of a button is at least as wide as its title, an icon a few points.
+            let found = SnapshotSupport.extent(
+                of: picture, matching: theme.color(.accentPrimary), tolerance: Probe.exact)
+            let isButton = (found?.width ?? 0) > 40
+            #expect(isButton == filled, "\(fixture) in \(scheme): \(String(describing: found))")
+        }
     }
 
     // MARK: Parts

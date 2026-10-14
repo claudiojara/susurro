@@ -17,13 +17,13 @@ enum OnboardingCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
 
     var size: CGSize {
         switch self {
-        case .rowGranted: CGSize(width: Self.rowWidth, height: 100)
-        case .rowNotAsked: CGSize(width: Self.rowWidth, height: 150)
-        case .rowDenied: CGSize(width: Self.rowWidth, height: 150)
-        case .rowWaitingForPrompt: CGSize(width: Self.rowWidth, height: 100)
-        case .rowWaitingInSettings: CGSize(width: Self.rowWidth, height: 150)
-        case .rowStale: CGSize(width: Self.rowWidth, height: 200)
-        case .rowOptional: CGSize(width: Self.rowWidth, height: 190)
+        case .rowGranted: CGSize(width: Self.rowWidth, height: 108)
+        case .rowNotAsked: CGSize(width: Self.rowWidth, height: 148)
+        case .rowDenied: CGSize(width: Self.rowWidth, height: 148)
+        case .rowWaitingForPrompt: CGSize(width: Self.rowWidth, height: 108)
+        case .rowWaitingInSettings: CGSize(width: Self.rowWidth, height: 148)
+        case .rowStale: CGSize(width: Self.rowWidth, height: 198)
+        case .rowOptional: CGSize(width: Self.rowWidth, height: 200)
         }
     }
 
