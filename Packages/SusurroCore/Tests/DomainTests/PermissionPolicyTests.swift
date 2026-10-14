@@ -40,6 +40,16 @@ struct PermissionPolicyTests {
         #expect(Permission.allCases == [.microphone, .accessibility, .inputMonitoring, .screenRecording])
     }
 
+    @Test(
+        "Accessibility and Screen Recording are reported only as allowed or not, so denied may mean never asked",
+        arguments: [
+            (Permission.microphone, false), (.accessibility, true), (.inputMonitoring, false), (.screenRecording, true),
+        ]
+    )
+    func deniedMayMeanNotAsked(permission: Permission, expected: Bool) {
+        #expect(permission.deniedMayMeanNotAsked == expected)
+    }
+
     @Test("with every required permission granted nothing is missing and the onboarding is complete")
     func allGranted() {
         let needs = PermissionNeeds()

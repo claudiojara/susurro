@@ -106,6 +106,22 @@ struct SystemPermissionsCheckerTests {
         #expect(await sut.status(.screenRecording) == expected)
     }
 
+    @Test("a permission that is denied when never asked is never reported as not determined, whatever the system says")
+    func flaggedPermissionsAreNeverNotDetermined() async {
+        let flagged = Permission.allCases.filter(\.deniedMayMeanNotAsked)
+
+        for permission in flagged {
+            for answer in [true, false] {
+                let sut = SystemPermissionsChecker(
+                    probes: Probes(accessibilityTrusted: answer, screenRecordingGranted: answer).probes)
+
+                #expect(await sut.status(permission) != .notDetermined)
+            }
+        }
+        // Without this the loop could run over nothing.
+        #expect(flagged == [.accessibility, .screenRecording])
+    }
+
     @Test("each permission reads its own probe")
     func permissionsAreIndependent() async {
         let sut = SystemPermissionsChecker(
