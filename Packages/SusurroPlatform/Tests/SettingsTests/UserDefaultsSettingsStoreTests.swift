@@ -1,3 +1,4 @@
+import CoreTestSupport
 import Domain
 import Foundation
 import Testing
@@ -95,6 +96,48 @@ struct UserDefaultsSettingsStoreTests {
 
         store.set(false, for: SampleKeys.launchAtLogin)
         #expect(store.value(for: SampleKeys.launchAtLogin) == false)
+    }
+
+    @Test("every corrupt key is reported by its name, and what it held is not in the report")
+    func corruptKeysAreReported() {
+        let scratch = ScratchDefaults()
+        defer { scratch.remove() }
+        let raw = scratch.makeDefaults()
+        let diagnostics = RecordingDiagnostics()
+        let store = UserDefaultsSettingsStore(defaults: scratch.makeDefaults(), diagnostics: diagnostics)
+        raw.set("maybe-secret", forKey: "general.launchAtLogin")
+        raw.set("diagonal-secret", forKey: "overlay.edge")
+        raw.set(Data("{secret".utf8), forKey: "hotkey.combo")
+        raw.set("fast-secret", forKey: "hotkey.holdThreshold")
+
+        _ = store.value(for: SampleKeys.launchAtLogin)
+        _ = store.value(for: SampleKeys.overlayEdge)
+        _ = store.value(for: SampleKeys.combo)
+        _ = store.value(for: SampleKeys.holdThreshold)
+        _ = store.value(for: SampleKeys.retentionDays)
+
+        #expect(
+            diagnostics.events == [
+                .settingUnreadable(key: "general.launchAtLogin"), .settingUnreadable(key: "overlay.edge"),
+                .settingUnreadable(key: "hotkey.combo"), .settingUnreadable(key: "hotkey.holdThreshold"),
+            ])
+        #expect(!String(describing: diagnostics.events).contains("secret"))
+    }
+
+    @Test("removing a key deletes it from the preferences instead of storing its default")
+    func removeDeletesTheKey() {
+        let scratch = ScratchDefaults()
+        defer { scratch.remove() }
+        let raw = scratch.makeDefaults()
+        let store = UserDefaultsSettingsStore(defaults: scratch.makeDefaults())
+        store.set(30, for: SampleKeys.retentionDays)
+        store.set("es", for: SampleKeys.language)
+
+        store.remove(SampleKeys.retentionDays)
+
+        #expect(raw.object(forKey: "history.retentionDays") == nil)
+        #expect(raw.string(forKey: "speech.language") == "es")
+        #expect(UserDefaultsSettingsStore(defaults: scratch.makeDefaults()).value(for: SampleKeys.retentionDays) == 7)
     }
 
     @Test("a key that was never written is not created by reading it")

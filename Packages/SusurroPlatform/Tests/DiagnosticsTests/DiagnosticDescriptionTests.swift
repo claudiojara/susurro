@@ -34,6 +34,14 @@ struct DiagnosticDescriptionTests {
             (.modelReadiness("loading"), .default, "speech model: loading"),
             (.modelReadiness("ready"), .default, "speech model: ready"),
             (
+                .settingNotStored(key: "hotkey.combo"), .error,
+                "setting not stored, its value has no stored form: hotkey.combo"
+            ),
+            (
+                .settingUnreadable(key: "overlay.edge"), .error,
+                "setting unreadable, its default is used: overlay.edge"
+            ),
+            (
                 .launchPermissions(microphone: "granted", accessibility: "denied"), .default,
                 "permissions at launch: microphone granted, accessibility denied"
             ),
