@@ -50,7 +50,7 @@ public protocol VoiceActivityDetector: Sendable { func analyze(_ clip: AudioClip
 public protocol SpeechRecognizer: Sendable {
   var id: ASRProviderID { get }; var locality: Locality { get }; var maxClipDuration: Duration? { get }
   func readiness() async -> RecognizerReadiness            // notInstalled | loading(progress) | ready
-  func transcribe(_ clip: AudioClip, options: RecognitionOptions) async throws -> RawTranscript }  // language, vocabulary; cancellable
+  func transcribe(_ clip: AudioClip, options: RecognitionOptions) async throws -> RawTranscript }  // language, vocabulary, boostTerms (the dictionary); cancellable
 public protocol TranscriptCleaner: Sendable {               // one protocol, as the spec requires
   var locality: Locality { get }
   func availability() async -> CleanerAvailability
@@ -165,7 +165,7 @@ The pipeline runs in this order:
 
 1. Finalize audio and insert a `captured` record.
 2. VAD. If no speech is found, the attempt ends as no-speech.
-3. ASR via `AudioChunker`, with options for language (auto or pinned) and vocabulary. An empty transcript means no-speech. Store the raw text.
+3. ASR via `AudioChunker`, with options for language (auto or pinned), vocabulary, and the dictionary terms to boost (Parakeet rescores its transcript against them with a CTC model, ADR 0016). An empty transcript means no-speech. Store the raw text.
 4. Cleanup. It is skipped, and raw is used, in any of these cases:
    - tone is `verbatim` (the terminal default; no model call);
    - cleanup is disabled;

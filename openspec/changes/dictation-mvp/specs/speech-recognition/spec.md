@@ -40,13 +40,45 @@ A cloud provider MUST be unusable until the user enables it and a key is stored.
 
 ### Requirement: Vocabulary biasing
 
-Vocabulary terms MUST be passed to the provider. A provider without biasing support MUST ignore them without error.
+Vocabulary terms MUST be passed to the provider. The Parakeet provider MUST rescore its transcript against the user's dictionary terms with CTC keyword spotting when the dictionary is not empty; the terms found around the cursor and on the screen (context and OCR terms) are not boosted. A provider without biasing support MUST ignore the terms without error.
+
+The rescoring MUST run on this Mac, with a second model that is downloaded only once a dictation has dictionary terms, from a pinned revision into the app's own model folder. Terms shorter than 5 characters MUST NOT be boosted. A dictation MUST NOT wait for that model: until it is ready, and whenever the rescoring is unavailable or fails, the transcript is the one Parakeet wrote. A dictation with no dictionary terms MUST NOT download, load, or run it.
 
 #### Scenario: Unsupported biasing
 
 - GIVEN a provider that does not support vocabulary
 - WHEN it is called with 5 terms
 - THEN transcription succeeds and the terms are ignored
+
+#### Scenario: Mangled name
+
+- GIVEN the dictionary holds "Kaelthorn" and the rescoring model is ready
+- WHEN the user says "Mañana tengo una reunión con Kaelthorn" and Parakeet alone writes "Kyle Thorn"
+- THEN the transcript reads "Mañana tengo una reunión con Kaelthorn"
+
+#### Scenario: Terms that are not in the speech
+
+- GIVEN the dictionary holds "Kaelthorn" and "González" and the rescoring model is ready
+- WHEN the user says a sentence that holds neither
+- THEN the transcript is identical to the one without the dictionary
+
+#### Scenario: Context terms are not boosted
+
+- GIVEN the vocabulary holds a dictionary term and a name found around the cursor
+- WHEN the recognizer is called
+- THEN only the dictionary term is offered for rescoring
+
+#### Scenario: No dictionary
+
+- GIVEN the dictionary is empty
+- WHEN a dictation is transcribed
+- THEN the rescoring model is not downloaded, loaded, or run
+
+#### Scenario: Model not ready
+
+- GIVEN the dictionary holds a term and the rescoring model is still downloading, or failed to load
+- WHEN a dictation is transcribed
+- THEN the dictation completes with the transcript Parakeet wrote
 
 ### Requirement: Language mode
 

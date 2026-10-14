@@ -17,4 +17,5 @@ number, and add a row below. An accepted ADR is not edited; a later ADR supersed
 | [0012](0012-vad-placement-post-pass-on-the-persisted-file.md) | VAD runs as a post-pass; the stored file stays untrimmed | accepted |
 | [0013](0013-parakeet-takes-whole-clips.md) | Parakeet takes whole clips; chunking is for providers with a limit | accepted |
 | [0014](0014-keep-spanish-dictation-in-spanish.md) | Language mode, drift guard, and a second recognizer keep Spanish in Spanish | accepted |
+| [0016](0016-dictionary-terms-bias-parakeet-through-ctc-rescoring.md) | Dictionary terms bias Parakeet through CTC rescoring | accepted |
 | [0030](0030-busy-presses-use-a-fifo-processing-queue.md) | Busy presses use a FIFO ProcessingQueue | accepted |
