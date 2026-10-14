@@ -37,7 +37,8 @@ struct ContrastTests {
         var pairs: [(ColorToken, ColorToken)] = []
         let surfaces: [ColorToken] = [.surfaceWindow, .surfaceRaised, .surfaceOverlay]
         let texts: [ColorToken] = [
-            .textPrimary, .textSecondary, .accentPrimary, .accentRecording, .statusSuccess, .statusWarning, .statusError,
+            .textPrimary, .textSecondary, .accentPrimary, .accentRecording, .statusSuccess, .statusWarning,
+            .statusError,
         ]
         for text in texts { for surface in surfaces { pairs.append((text, surface)) } }
         for fill: ColorToken in [.accentPrimary, .accentRecording, .statusError] { pairs.append((.textOnAccent, fill)) }
@@ -55,7 +56,8 @@ struct ContrastTests {
             let background = theme.color(pair.background).composited(over: window)
             let ratio = theme.color(pair.text).contrastRatio(against: background)
             if ratio < Self.required {
-                failures.append("\(pair.text.rawValue) on \(pair.background.rawValue): \(String(format: "%.2f", ratio))")
+                failures.append(
+                    "\(pair.text.rawValue) on \(pair.background.rawValue): \(String(format: "%.2f", ratio))")
             }
         }
         #expect(failures == [], "In \(appearance), below \(Self.required):1")
@@ -71,7 +73,8 @@ struct ContrastTests {
             #expect(backgrounds.contains(surface))
         }
         for fill: ColorToken in [.accentPrimary, .accentRecording, .statusError] {
-            #expect(Self.pairs.contains { $0.text == .textOnAccent && $0.background == fill }, "\(fill) is never a fill")
+            #expect(
+                Self.pairs.contains { $0.text == .textOnAccent && $0.background == fill }, "\(fill) is never a fill")
         }
     }
 }
