@@ -140,4 +140,15 @@ struct MenuModelTests {
         #expect(rig.monitor.followUps[.accessibility] == .sentToSettings)
         #expect(rig.monitor.followUps[.microphone] == nil)
     }
+
+    @Test("setting up opens the onboarding window")
+    func setUpShowsTheOnboarding() {
+        var shown = 0
+        let model = MenuModel(monitor: Rig([:]).monitor, showOnboarding: { shown += 1 })
+
+        model.setUp()
+        model.setUp()
+
+        #expect(shown == 2)
+    }
 }

@@ -45,9 +45,6 @@ public enum DiagnosticEvent: Sendable, Equatable {
     /// storage name of the setting's key; what it held is never recorded. It is recorded each time the key is read,
     /// until the key is set or removed.
     case settingUnreadable(key: String)
-    /// The status of the two required permissions once the launch prompts were answered. Each is "granted", "denied",
-    /// or "notDetermined".
-    case launchPermissions(microphone: String, accessibility: String)
     /// A read of a permission's status differs from the one before. `from` is nil the first time the permission is read.
     /// A change from granted is a revocation. Only the permission and its status are recorded.
     case permissionStatusChanged(permission: Permission, from: PermissionStatus?, to: PermissionStatus)

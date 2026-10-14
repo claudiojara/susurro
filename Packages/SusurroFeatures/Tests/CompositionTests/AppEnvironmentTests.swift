@@ -13,51 +13,93 @@ struct AppEnvironmentTests {
 
     // MARK: Launch
 
-    @Test("launch loads the model and asks for the permissions that are missing, one after the other")
+    @Test("launch loads the model and asks for no permission: the onboarding does that")
     func launch() async {
         let f = AppEnvironmentFixture(permissions: [.microphone: .notDetermined, .accessibility: .denied])
         f.environment.start()
-        await f.eventually("the launch permissions") {
-            f.diagnostics.events.contains(.launchPermissions(microphone: "notDetermined", accessibility: "denied"))
-        }
+        await f.eventually("the model to be prepared") { f.recognizer.calls.contains(.prepare) }
+        await f.eventually("the first read") { f.environment.monitor.hasReadStatuses }
 
-        #expect(f.recognizer.calls.contains(.prepare))
-        #expect(f.permissions.requested == [.microphone, .accessibility])
+        #expect(f.permissions.requested.isEmpty)
         #expect(f.diagnostics.events.first == .appLaunched)
         #expect(f.diagnostics.events.contains(.modelPrepareRequested))
         await f.environment.shutdown()
     }
 
-    @Test("launch asks for nothing that is granted already")
-    func launchWithPermissionsGranted() async {
-        let f = AppEnvironmentFixture()
-        f.environment.start()
-        await f.eventually("the launch permissions") {
-            f.diagnostics.events.contains(.launchPermissions(microphone: "granted", accessibility: "granted"))
-        }
-
-        #expect(f.permissions.requested.isEmpty)
-        await f.environment.shutdown()
-    }
-
     @Test("starting twice starts everything once")
     func startIsIdempotent() async {
-        let f = AppEnvironmentFixture()
+        let f = AppEnvironmentFixture(permissions: [.microphone: .denied, .accessibility: .granted])
         f.environment.start()
         f.environment.start()
-        await f.eventually("the launch permissions") {
-            f.diagnostics.events.contains(.launchPermissions(microphone: "granted", accessibility: "granted"))
-        }
-
+        await f.eventually("the first read") { f.environment.monitor.hasReadStatuses }
+        await f.eventually("the model to be prepared") { f.recognizer.calls.contains(.prepare) }
+        await f.eventually("the window") { f.window.shown >= 1 }
         await f.clock.waitForSleeps(1)
+        for _ in 0..<50 { await Task.yield() }
 
         let launches = f.diagnostics.events.filter { $0 == .appLaunched }.count
         let prepares = f.recognizer.calls.filter { $0 == .prepare }.count
         #expect(launches == 1)
         #expect(prepares == 1)
         #expect(f.clock.pendingSleeps == 1)  // one permission poll
+        #expect(f.permissions.statusReads == 2)  // the two required permissions, once
         #expect(f.themeWatches.value == 1)
+        #expect(f.window.shown == 1)  // one presenter
         await f.environment.shutdown()
+    }
+
+    // MARK: Onboarding window
+
+    @Test("the window opens at launch when a required permission is missing")
+    func windowOpensAtLaunch() async {
+        let f = AppEnvironmentFixture(permissions: [.microphone: .denied, .accessibility: .granted])
+        f.environment.start()
+
+        await f.eventually("the window") { f.window.shown == 1 }
+
+        await f.environment.shutdown()
+    }
+
+    @Test("the window stays closed at launch when the required permissions are granted")
+    func windowStaysClosed() async {
+        let f = AppEnvironmentFixture()
+        f.environment.start()
+        await f.eventually("the first read") { f.environment.monitor.hasReadStatuses }
+        for _ in 0..<50 { await Task.yield() }
+
+        #expect(f.window.shown == 0)
+        await f.environment.shutdown()
+    }
+
+    @Test("the window opens when a permission is revoked while the app idles")
+    func windowOpensOnRevocation() async {
+        let f = AppEnvironmentFixture()
+        f.environment.start()
+        await f.eventually("the first read") { f.environment.monitor.hasReadStatuses }
+        await f.clock.waitForSleeps(1)
+
+        f.permissions.set(.accessibility, to: .denied)
+        f.clock.advance(by: .seconds(1))
+
+        await f.eventually("the window") { f.window.shown == 1 }
+        await f.environment.shutdown()
+    }
+
+    @Test("setting up from the menu opens the window")
+    func menuOpensTheWindow() async {
+        let f = AppEnvironmentFixture()
+
+        f.environment.menu.setUp()
+
+        #expect(f.window.shown == 1)
+    }
+
+    @Test("the window shows the environment's onboarding view model, in the environment's theme")
+    func windowIsBuiltFromTheEnvironment() {
+        let f = AppEnvironmentFixture()
+
+        #expect(f.window.model === f.environment.onboarding)
+        #expect(f.window.themes === f.environment.themes)
     }
 
     // MARK: Dictation through the whole graph
@@ -296,9 +338,7 @@ struct AppEnvironmentTests {
         f.environment.start()
         await f.eventually("the first read") { f.environment.monitor.hasReadStatuses }
         await f.clock.waitForSleeps(1)
-        await f.eventually("the launch") {
-            f.diagnostics.events.contains(.launchPermissions(microphone: "granted", accessibility: "granted"))
-        }
+        await f.eventually("the model to be prepared") { f.recognizer.calls.contains(.prepare) }
 
         await f.environment.shutdown()
         let reads = f.permissions.statusReads

@@ -41,8 +41,6 @@ public struct OSLogDiagnostics: DiagnosticsLog {
         case .modelReadiness(let state): (.default, "speech model: \(state)")
         case .settingNotStored(let key): (.error, "setting not stored, its value has no stored form: \(key)")
         case .settingUnreadable(let key): (.error, "setting unreadable, its default is used: \(key)")
-        case .launchPermissions(let microphone, let accessibility):
-            (.default, "permissions at launch: microphone \(microphone), accessibility \(accessibility)")
         case .permissionStatusChanged(let permission, let from, let to):
             (.default, Self.describeChange(of: permission, from: from, to: to))
         case .permissionGuidanceShown(let permission):

@@ -18,6 +18,8 @@ public struct MenuContent: Equatable, Sendable {
     /// Why dictation is off, naming the required permissions that are missing, or nil when nothing holds it back. It is
     /// the sentence the onboarding shows, from the same `DictationDisabledReason`.
     public let disabledMessage: String?
+    /// The title of the item that opens the onboarding, or nil when dictation is not off.
+    public let setUpTitle: String?
     public let microphone: PermissionRow
     public let accessibility: PermissionRow
     public let modelLine: String
@@ -29,6 +31,7 @@ public struct MenuContent: Equatable, Sendable {
         MenuContent(
             hotkeyHint: "Hold Control-Option-D to dictate",
             disabledMessage: disabledReason?.message,
+            setUpTitle: disabledReason == nil ? nil : "Set up Susurro…",
             microphone: row(.microphone, name: "Microphone", status: microphone),
             accessibility: row(.accessibility, name: "Accessibility", status: accessibility),
             modelLine: modelLine(for: readiness)

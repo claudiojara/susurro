@@ -25,6 +25,8 @@ public final class AppEnvironment {
         public var activations: @Sendable () -> AsyncStream<Void>
         /// Puts the user's clipboard back at once if a paste is still under way. It runs as the app terminates.
         public var restoreClipboardNow: @MainActor () -> Void
+        /// Makes the window of the onboarding, which shows the view model in the theme.
+        public var onboardingWindow: @MainActor (OnboardingViewModel, ThemeModel) -> any OnboardingSurface
         /// The user's settings. No setting is read yet: the first ones arrive with the hotkey configuration.
         public var settings: any SettingsStore
         /// The themes the user has put in the themes folder, and the one in use.
@@ -48,6 +50,7 @@ public final class AppEnvironment {
             openSettings: @escaping @MainActor (Permission) -> Void,
             activations: @escaping @Sendable () -> AsyncStream<Void>,
             restoreClipboardNow: @escaping @MainActor () -> Void,
+            onboardingWindow: @escaping @MainActor (OnboardingViewModel, ThemeModel) -> any OnboardingSurface,
             settings: any SettingsStore,
             themes: ThemeStore,
             watchThemes: @escaping @Sendable () async -> Void = {},
@@ -65,6 +68,7 @@ public final class AppEnvironment {
             self.openSettings = openSettings
             self.activations = activations
             self.restoreClipboardNow = restoreClipboardNow
+            self.onboardingWindow = onboardingWindow
             self.settings = settings
             self.themes = themes
             self.watchThemes = watchThemes
@@ -88,7 +92,7 @@ public final class AppEnvironment {
     private let coordinator: DictationCoordinator
     private let presenter: SkeletonOverlayPresenter
     private let watcher: ModelLoadWatcher
-    private let prompter: PermissionPrompter
+    private let onboardingPresenter: OnboardingPresenter
     private var tasks: [Task<Void, Never>] = []
     private var hasStarted = false
 
@@ -113,15 +117,17 @@ public final class AppEnvironment {
         monitor = PermissionsMonitor(
             checker: dependencies.permissions, openSettings: dependencies.openSettings, clock: dependencies.clock,
             diagnostics: dependencies.diagnostics)
-        prompter = PermissionPrompter(checker: dependencies.permissions)
         onboarding = OnboardingViewModel(monitor: monitor)
-        menu = MenuModel(monitor: monitor)
         themes = ThemeModel()
+        let onboardingPresenter = OnboardingPresenter(
+            monitor: monitor, surface: dependencies.onboardingWindow(onboarding, themes))
+        self.onboardingPresenter = onboardingPresenter
+        menu = MenuModel(monitor: monitor, showOnboarding: { onboardingPresenter.show() })
         settings = dependencies.settings
     }
 
-    /// Starts the app's work: the overlay, the hotkey, the model, the permission prompts and monitor, and the themes. It
-    /// does nothing the second time.
+    /// Starts the app's work: the overlay, the hotkey, the model, the permission monitor and the onboarding, and the
+    /// themes. It does nothing the second time.
     public func start() {
         guard !hasStarted else { return }
         hasStarted = true
@@ -134,6 +140,7 @@ public final class AppEnvironment {
         run { await $0.menu.observe(await $0.dependencies.readinessChanges()) }
         run { await $0.logModelReadiness() }
         run { await $0.launch() }
+        run { await $0.onboardingPresenter.run() }
         run { await $0.monitor.run(activations: $0.dependencies.activations()) }
         run { await $0.themes.follow(await $0.dependencies.themes.updates()) }
         run { await $0.dependencies.watchThemes() }
@@ -157,16 +164,11 @@ public final class AppEnvironment {
 
     // MARK: Launch
 
-    /// The model starts loading before the first press, then the permission prompts come one at a time, until the
-    /// onboarding window replaces them. The monitor reads what the user answered.
+    /// The model starts loading before the first press. The permissions are the monitor's and the onboarding's: the
+    /// system prompts come when the user asks for a permission there, not at launch.
     private func launch() async {
         dependencies.diagnostics.record(.modelPrepareRequested)
         await dependencies.recognizer.prepare()
-        await prompter.requestMissingPermissions()
-        let microphone = await dependencies.permissions.status(.microphone)
-        let accessibility = await dependencies.permissions.status(.accessibility)
-        dependencies.diagnostics.record(
-            .launchPermissions(microphone: Self.name(microphone), accessibility: Self.name(accessibility)))
     }
 
     private func logModelReadiness() async {
@@ -181,14 +183,6 @@ public final class AppEnvironment {
 
     private func run(_ work: @escaping @MainActor (AppEnvironment) async -> Void) {
         tasks.append(Task { await work(self) })
-    }
-
-    private static func name(_ status: PermissionStatus) -> String {
-        switch status {
-        case .granted: "granted"
-        case .denied: "denied"
-        case .notDetermined: "notDetermined"
-        }
     }
 
     private static func name(_ readiness: RecognizerReadiness) -> String {

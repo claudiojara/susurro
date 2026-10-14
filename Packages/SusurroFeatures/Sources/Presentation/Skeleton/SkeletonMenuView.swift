@@ -12,6 +12,7 @@ public struct SkeletonMenuView: View {
     public var body: some View {
         MenuView(
             content: model.content,
+            onSetUp: { model.setUp() },
             onOpenSettings: { model.openSettings(for: $0) },
             onQuit: { NSApplication.shared.terminate(nil) }
         )

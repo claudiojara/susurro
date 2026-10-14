@@ -31,10 +31,17 @@ ignored by git) and set `DEVELOPMENT_TEAM`.
 
 ## First run
 
-1. **Microphone.** The system asks first. Allow it.
-2. **Accessibility.** The system asks next, and sends you to System Settings > Privacy & Security > Accessibility.
-   Turn Susurro on. Without it, the text is copied to the clipboard and not pasted, and the overlay says so.
-3. **The speech model.** The first run downloads the Parakeet v3 model (about 600 MB, once) and compiles it for the
+1. **The onboarding window.** It opens by itself while Microphone or Accessibility is missing, and not again once both
+   are allowed. Each permission is a row with the reason Susurro needs it and one button:
+   - **Microphone:** "Allow Microphone" shows the system prompt. Allow it.
+   - **Accessibility:** "Allow Accessibility" shows the system prompt, which sends you to System Settings > Privacy &
+     Security > Accessibility. Turn Susurro on. Without it, the text is copied to the clipboard and not pasted, and the
+     overlay says so.
+   A row turns to "Allowed" within a second of the permission being granted, and Done enables once both are allowed.
+   If a permission stays "Waiting" or "Not allowed" 30 seconds after you came back from System Settings, the row shows the
+   steps for it (switch it off and on, remove and add the app again). While dictation is off, the menu says why and has a
+   "Set up Susurro…" item that opens the window again, and a permission that is revoked later opens it again by itself.
+2. **The speech model.** The first run downloads the Parakeet v3 model (about 600 MB, once) and compiles it for the
    Neural Engine. The download takes about a minute on a fast connection, and the compile about 25 seconds more. The
    compile is cached for the app's identity, so later launches load the model in under a second, until a macOS update or
    a cleared cache. The menu line and the overlay show the progress; you can already record meanwhile, and the
@@ -62,9 +69,9 @@ The app logs to the unified log under the subsystem `dev.claudiojara.susurro`. I
 ```
 
 (In zsh, `log` alone is a shell builtin: use `/usr/bin/log`.) A healthy launch reads `app launched`, `speech model:
-prepare requested`, `speech model: loading`, `speech model: ready`, and, once the permission prompts are answered,
-`permissions at launch: ...`. The first dictation adds `first tap buffer: N frames at R Hz`. Failures are logged as
-errors, for example `dictation failed: timedOut.readiness` or `paste not completed: noRead`.
+prepare requested`, `speech model: loading`, `speech model: ready`, and a line for each permission the first time it is
+read (`permission microphone: unread -> granted`). A change later reads `permission accessibility revoked: granted ->
+denied`. The first dictation adds `first tap buffer: N frames at R Hz`. Failures are logged as errors, for example `dictation failed: timedOut.readiness` or `paste not completed: noRead`.
 
 ## Known limits
 
@@ -83,7 +90,7 @@ These are known and each has a later change:
 - Keyboard layouts where V is not the key with code 9, such as Dvorak, paste the wrong key.
 - The text is pasted as transcribed: no cleanup, no capitalization, no spacing.
 - The hotkey is fixed.
-- The overlay is unthemed, and there is no onboarding window.
+- The overlay is unthemed. The onboarding window grows with its rows and can run past the bottom of a small display.
 
 ## What still needs a person
 
@@ -92,8 +99,17 @@ macOS permission prompts cannot and must not be answered by a script):
 
 - [ ] Release Left Control and Left Option before the check; on one Mac they read as held at rest, and then the paste
       falls back to the clipboard.
-- [ ] The Microphone prompt appears once and the Accessibility prompt appears once, in that order.
-- [ ] The menu bar icon opens the menu, and a permission row turns to "allowed" within two seconds of granting it.
+- [ ] The onboarding window opens at launch when a permission is missing (reset them with `tccutil reset Microphone
+      dev.claudiojara.susurro` and `tccutil reset Accessibility dev.claudiojara.susurro`). "Allow Microphone" shows the
+      system prompt once, "Allow Accessibility" shows the prompt that leads to System Settings, each row turns to
+      "Allowed" within a second of the grant, Done enables when both are allowed, and the window is not there at the
+      next launch.
+- [ ] Revoke Accessibility in System Settings while the app runs: within about a second the menu says dictation is off,
+      the onboarding window opens with the banner, and a press of the hotkey gives the overlay notice.
+- [ ] Open System Settings from a row, leave Accessibility off for 30 seconds after coming back: the row shows the
+      troubleshooting steps (and, with the toggle on but not read, the steps are the way out).
+- [ ] The menu bar icon opens the menu, the "Set up Susurro…" item opens the window again, and a permission row turns to
+      "allowed" within a second of granting it.
 - [ ] Hold Control+Option+D in Notes, a text field in a browser, and Terminal, speak Spanish, and release: the text
       pastes in under 2 seconds, and what you had on the clipboard is back afterwards, rich content included.
 - [ ] The overlay never steals focus: keep the caret in the field while it shows.
