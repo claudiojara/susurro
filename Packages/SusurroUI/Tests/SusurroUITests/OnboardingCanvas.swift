@@ -9,6 +9,8 @@ import UITestSupport
 /// canvas that followed the fonts of the machine would give a picture of another size on another macOS.
 enum OnboardingCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
     case rowGranted, rowNotAsked, rowDenied, rowWaitingForPrompt, rowWaitingInSettings, rowStale, rowOptional
+    case bannerShort, bannerLong
+    case checklistRequired, checklistWithOptional
 
     var testDescription: String { "\(self)" }
 
@@ -24,6 +26,10 @@ enum OnboardingCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
         case .rowWaitingInSettings: CGSize(width: Self.rowWidth, height: 148)
         case .rowStale: CGSize(width: Self.rowWidth, height: 198)
         case .rowOptional: CGSize(width: Self.rowWidth, height: 200)
+        case .bannerShort: CGSize(width: Self.rowWidth, height: 70)
+        case .bannerLong: CGSize(width: Self.rowWidth, height: 90)
+        case .checklistRequired: CGSize(width: Self.rowWidth, height: 300)
+        case .checklistWithOptional: CGSize(width: Self.rowWidth, height: 500)
         }
     }
 
@@ -36,6 +42,10 @@ enum OnboardingCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
         case .rowWaitingInSettings: row(.waitingInSettings)
         case .rowStale: row(.stale)
         case .rowOptional: row(.optional)
+        case .bannerShort: AnyView(Banner(OnboardingFixtures.shortBanner))
+        case .bannerLong: AnyView(Banner(OnboardingFixtures.longBanner))
+        case .checklistRequired: AnyView(PermissionChecklist(OnboardingFixtures.rows(.fresh)) { _, _ in })
+        case .checklistWithOptional: AnyView(PermissionChecklist(OnboardingFixtures.rows(.withOptional)) { _, _ in })
         }
     }
 

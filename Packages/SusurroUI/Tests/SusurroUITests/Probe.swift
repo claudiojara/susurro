@@ -29,8 +29,17 @@ enum Probe {
     }
 
     /// The height a view takes when it is given `width` and as much height as it needs, in points.
-    static func height(of view: some View, width: CGFloat, scheme: ColorScheme = .light) -> CGFloat {
-        SnapshotSupport.idealSize(of: view.frame(width: width), scheme: scheme).height
+    static func height(
+        of view: some View, width: CGFloat, scheme: ColorScheme = .light, theme: Theme = .default
+    ) -> CGFloat {
+        SnapshotSupport.idealSize(of: view.frame(width: width), theme: theme, scheme: scheme).height
+    }
+
+    /// The default theme with one number of a scale changed.
+    static func spaced(_ token: SpacingToken, _ points: Double) -> Theme {
+        var theme = Theme.default
+        theme.spacing[token.rawValue] = points
+        return theme
     }
 }
 
