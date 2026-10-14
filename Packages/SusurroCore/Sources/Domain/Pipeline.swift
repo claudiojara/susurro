@@ -12,6 +12,10 @@ public enum NoticeKind: Sendable, Equatable {
     /// A press arrived while the last dictation was still being transcribed or inserted, so it was ignored. The
     /// pipeline state that was showing comes right back after this notice.
     case busy
+    /// The input device went away mid-recording. What was captured before is kept and goes on to be transcribed.
+    case deviceDisconnected
+    /// The recording is digital silence, so the microphone looks muted or disconnected, and nothing is transcribed.
+    case silentMicrophone
 }
 
 /// Where the user goes to recover from an error.
@@ -43,6 +47,10 @@ public enum PipelineError: Error, Sendable, Equatable {
     case timedOut(Stage)
     /// The transcript is neither in the target app nor on the clipboard.
     case notInserted(NotInsertedReason)
+    /// The selected speech provider is in the cloud and is not turned on, or has no key. Nothing was recorded.
+    case providerNotUsable(ProviderBlocker)
+    /// The recording could not be written to disk and verified, so it was not transcribed. The text is the reason.
+    case persistenceFailed(String)
 
     public enum Stage: Sendable, Equatable {
         case readiness
@@ -63,18 +71,20 @@ public enum PipelineError: Error, Sendable, Equatable {
         case .recognitionFailed: "recognitionFailed"
         case .timedOut(let stage): "timedOut.\(stage)"
         case .notInserted(let reason): "notInserted.\(reason)"
+        case .persistenceFailed: "persistenceFailed"
+        case .providerNotUsable(let blocker): "providerNotUsable.\(blocker)"
         }
     }
 
     public var remedy: Remedy {
         switch self {
         case .microphoneNotGranted: .permissions
-        case .recognizerNotInstalled: .settings
+        case .recognizerNotInstalled, .providerNotUsable: .settings
         case .cloudKeyMissing: .addKey
         case .recognizerUnavailable(_, let retryable): retryable ? .retry : .settings
         // An insertion that timed out may have pasted the text already, so it does not invite a second dictation.
         case .timedOut(.insertion): .check
-        case .captureFailed, .recognitionFailed, .timedOut, .notInserted: .retry
+        case .captureFailed, .persistenceFailed, .recognitionFailed, .timedOut, .notInserted: .retry
         }
     }
 }

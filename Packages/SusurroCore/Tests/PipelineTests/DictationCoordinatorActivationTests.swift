@@ -90,7 +90,7 @@ struct DictationCoordinatorActivationTests {
 
     @Test("five minutes of silence leave a hands-free recording running")
     func silenceDoesNotStop() async {
-        var h = await Harness()
+        var h = await Harness(recordingCap: DictationLimits.recordingCap)
         let before = h.clock.suspendedSleeps
         await h.startHandsFree()
         await h.waitForTimers(startedAfter: before, count: 3)  // the first cap, the window, the second cap
@@ -241,10 +241,10 @@ struct DictationCoordinatorActivationTests {
         await h.sut.handle(.escape)
         _ = await h.read(through: .idle)
 
-        await h.startRecording(samples: [0.7])
+        await h.startRecording(samples: DictationCoordinatorTests.audio(0.7))
 
         #expect(await h.release() == Self.transcribed)
-        #expect(h.recognizer.transcribedClips == [AudioClip(samples: [0.7])])
+        #expect(h.recognizer.transcribedClips.map { $0.samples.first } == [0.7])
     }
 
     // MARK: Start

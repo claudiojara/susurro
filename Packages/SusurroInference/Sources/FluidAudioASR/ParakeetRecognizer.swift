@@ -1,10 +1,6 @@
 import Domain
 import OSLog
 
-extension ASRProviderID {
-    public static let parakeetV3 = ASRProviderID("parakeet-v3")
-}
-
 /// Transcribes with Parakeet v3, a multilingual model that runs on this Mac. Call `prepare()` at launch to download and
 /// load the model; until `readiness()` is `.ready`, `transcribe` refuses.
 ///
@@ -20,8 +16,6 @@ public actor ParakeetRecognizer: SpeechRecognizer {
         let continuation: CheckedContinuation<Void, any Error>
     }
 
-    // `id`, `locality`, and `maxClipDuration` are not requirements of `SpeechRecognizer` yet. `id` and `locality` join
-    // the port in 4a.6 and `maxClipDuration` in 4b.7, and this recognizer already answers them.
     public nonisolated let id = ASRProviderID.parakeetV3
     public nonisolated let locality = Locality.local
     /// Nil: no limit is needed, because FluidAudio chunks long clips itself.

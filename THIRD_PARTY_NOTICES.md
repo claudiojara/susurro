@@ -53,6 +53,15 @@ FluidInference).
 Licensed under the Apache License, Version 2.0 (http://www.apache.org/licenses/LICENSE-2.0). The license text is the
 `LICENSE` file at the root of that repository.
 
+## Silero VAD
+
+The voice activity model that finds the speech in a recording, so a recording of silence is not transcribed.
+https://github.com/snakers4/silero-vad (by the Silero Team), in the Core ML conversion that FluidInference publishes at
+https://huggingface.co/FluidInference/silero-vad-coreml, pinned to commit `b419383c55c110e2c9271fa6ee0ea83d03c70d96`.
+Susurro downloads it on the first recording it analyzes; it is not part of the app bundle.
+
+MIT License. Copyright (c) 2020-present Silero Team.
+
 ## text-processing-rs
 
 A text normalization library that FluidAudio can link as a prebuilt binary (`NemoTextProcessing`).

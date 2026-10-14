@@ -11,6 +11,7 @@ let package = Package(
             targets: [
                 "Permissions", "Hotkeys", "AudioIO", "TextInsertion", "Diagnostics", "Settings", "Persistence",
                 "AccessibilityContext",
+                "LanguageDetection",
             ]
         )
     ],
@@ -33,6 +34,7 @@ let package = Package(
         .target(name: "Diagnostics", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .target(name: "AccessibilityContext", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .target(name: "Settings", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
+        .target(name: "LanguageDetection", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .target(
             name: "Persistence",
             dependencies: [
@@ -87,6 +89,13 @@ let package = Package(
                 .product(name: "SusurroCore", package: "SusurroCore"),
                 .product(name: "CoreTestSupport", package: "SusurroCore"),
                 .product(name: "GRDB", package: "GRDB.swift"),
+            ]
+        ),
+        .testTarget(
+            name: "LanguageDetectionTests",
+            dependencies: [
+                "LanguageDetection",
+                .product(name: "SusurroCore", package: "SusurroCore"),
             ]
         ),
         .testTarget(

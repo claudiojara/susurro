@@ -35,6 +35,24 @@ final class LiveAudioEngine: EngineProviding {
         try engine.withLock { try $0.start() }
     }
 
+    func configurationChanges() -> AsyncStream<Void> {
+        // The notification names the engine that posted it, and `stop()` replaces the engine, so only the current one
+        // counts.
+        let current = engine.withLock { ObjectIdentifier($0) }
+        return AsyncStream { continuation in
+            let watching = Task {
+                for await notification in NotificationCenter.default.notifications(
+                    named: .AVAudioEngineConfigurationChange)
+                {
+                    if let poster = notification.object as AnyObject?, ObjectIdentifier(poster) == current {
+                        continuation.yield()
+                    }
+                }
+            }
+            continuation.onTermination = { _ in watching.cancel() }
+        }
+    }
+
     func stop() {
         // A new engine per capture, so the next one binds to whichever input device is the default by then.
         engine.withLock { engine in

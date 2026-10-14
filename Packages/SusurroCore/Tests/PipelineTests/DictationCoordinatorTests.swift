@@ -5,8 +5,14 @@ import Testing
 
 @Suite("Dictation coordinator", .timeLimit(.minutes(1)))
 struct DictationCoordinatorTests {
-    static let clip: [Float] = [0.1, 0.2, 0.3]
-    static let capSamples = 60 * 16_000
+    /// A second of audio: a recording shorter than 300 ms is discarded by the recording itself.
+    static let clip = audio(0.1)
+    static func audio(_ value: Float, seconds: Double = 1) -> [Float] {
+        [Float](repeating: value, count: Int(seconds * Double(AudioClip.sampleRate)))
+    }
+    /// A short recording cap, so that a test reaches it without holding minutes of audio.
+    static let cap = Duration.seconds(2)
+    static let capSamples = 2 * AudioClip.sampleRate
     /// Presses happen away from the timestamp origin, so a hold is measured from its own press.
     static let pressTime = Duration.seconds(10)
     static let transcribed: [PipelineState] = [.transcribing(progress: nil), .inserted, .idle]
@@ -22,8 +28,8 @@ struct DictationCoordinatorTests {
         let sut = h.sut
         let loop = Task { await sut.run() }
         h.hotkeys.send(.down(at: Self.pressTime))
-        h.capture.emit(AudioChunk(samples: [0.1, 0.2]))
-        h.capture.emit(AudioChunk(samples: [0.3]))
+        h.capture.emit(AudioChunk(samples: Array(Self.clip[..<8_000])))
+        h.capture.emit(AudioChunk(samples: Array(Self.clip[8_000...])))
         let recording = await h.read(through: .recording(.hold))
         h.hotkeys.send(.up(at: Self.pressTime + .milliseconds(1200)))
         let rest = await h.read(through: .idle)
@@ -83,20 +89,39 @@ struct DictationCoordinatorTests {
 
     @Test("a recognizer that is loading records, and transcription waits for ready while showing progress")
     func loadingRecognizer() async {
-        let loading = FakeRecognizer(
-            readiness: [.loading(progress: 0.4), .loading(progress: 0.4), .loading(progress: 0.8), .ready],
-            transcript: "hola"
-        )
-        var h = await Harness(recognizer: loading)
-        await h.startRecording()
-        let states = await h.release()
+        let loading = FakeRecognizer(readiness: [.loading(progress: 0.4)], transcript: "hola")
+        let sleeper = FakeSleeper(blocksPauses: true)
+        var h = await Harness(recognizer: loading, sleeper: sleeper)
+        await h.startRecording()  // a model that is loading does not stop the recording
+        await h.sut.handle(.up(at: Self.pressTime + .milliseconds(1200)))
+        let waiting = await h.read(through: .transcribing(progress: 0.4))
 
-        // The press asks the recognizer to prepare, which is a no-op while it loads, and then reads it again.
-        #expect(states == [.transcribing(progress: nil), .transcribing(progress: 0.8)] + Self.transcribed)
-        let calls: [FakeRecognizer.Call] = [.readiness, .prepare, .readiness, .readiness, .readiness]
-        #expect(h.recognizer.calls == calls + [.transcribe(AudioClip(samples: Self.clip))])
-        #expect(h.sleeper.pauseCount == 1)
+        // The state follows the model: the dictation waits, showing the progress, and nothing is transcribed yet.
+        #expect(waiting == [.transcribing(progress: nil), .transcribing(progress: 0.4)])
+        #expect(loading.transcribedClips.isEmpty)
+        #expect(h.inserter.insertedTexts.isEmpty)
+        loading.setReadiness(.ready)
+        sleeper.fire(DictationLimits.readinessPollInterval)
+
+        #expect(await h.read(through: .idle) == Self.transcribed)
+        #expect(loading.transcribedClips == [AudioClip(samples: Self.clip)])
         #expect(h.inserter.insertedTexts == ["hola"])
+    }
+
+    @Test(
+        "a cloud provider that is not turned on, or has no key, starts no capture and says what is missing",
+        arguments: [(false, ProviderBlocker.notEnabled), (true, .missingKey)]
+    )
+    func cloudProviderNotUsable(enabled: Bool, blocker: ProviderBlocker) async {
+        let cloud = FakeRecognizer(id: ASRProviderID("cloud-fake"), locality: .cloud)
+        let settings = InMemorySettingsStore()
+        settings.set(enabled, for: RecognitionSettings.cloudEnabled(for: cloud.id))
+        var h = await Harness(recognizer: cloud, settings: settings)
+        await h.sut.handle(.down(at: .zero))
+
+        #expect(await h.read(through: .idle) == [.error(.providerNotUsable(blocker)), .idle])
+        #expect(h.capture.startCount == 0)
+        #expect(cloud.calls == [])
     }
 
     @Test("a recognizer whose load failed starts no capture, asks to try again, and is prepared again")
@@ -205,32 +230,75 @@ struct DictationCoordinatorTests {
     @Test("audio delivered after stop returns is still part of the clip")
     func audioDeliveredAfterStop() async {
         var h = await Harness(capture: FakeAudioCaptureSource(onStop: .holdStreamOpen))
-        await h.startRecording(samples: [0.1])
+        await h.startRecording(samples: Self.audio(0.1))
         let sut = h.sut
         let release = Task { await sut.handle(.up(at: Self.pressTime + .milliseconds(1200))) }
         await h.capture.stopped.wait()
         // Without the drain wait the coordinator moves on within a few scheduler turns; give it those turns.
         for _ in 0..<50 { await Task.yield() }
-        h.capture.emit(AudioChunk(samples: [0.9]))
+        h.capture.emit(AudioChunk(samples: Self.audio(0.9, seconds: 0.5)))
         h.capture.finish()
         await release.value
 
         #expect(await h.read(through: .idle) == Self.transcribed)
-        #expect(h.recognizer.transcribedClips == [AudioClip(samples: [0.1, 0.9])])
+        #expect(h.recognizer.transcribedClips == [AudioClip(samples: Self.audio(0.1) + Self.audio(0.9, seconds: 0.5))])
     }
 
     @Test("a capture stream that fails mid-recording keeps the audio captured so far")
     func captureStreamFailure() async {
         var h = await Harness()
-        await h.startRecording(samples: [0.1])
-        h.capture.fail(CaptureError.noInputDevice)
+        await h.startRecording(samples: Self.audio(0.1))
+        h.capture.fail(Failure())
         let states = await h.release()
 
         #expect(states == Self.transcribed)
-        #expect(h.recognizer.transcribedClips == [AudioClip(samples: [0.1])])
-        withKnownIssue("3b: a device lost mid-recording should also publish a notice (AUD Device failures)") {
-            #expect(states.contains { if case .notice = $0 { true } else { false } })
-        }
+        #expect(h.recognizer.transcribedClips == [AudioClip(samples: Self.audio(0.1))])
+    }
+
+    @Test("a device removed mid-recording is transcribed at once with a notice, and the text waits for the release")
+    func deviceRemovedMidRecording() async {
+        var h = await Harness()
+        await h.startRecording(samples: Self.audio(0.1, seconds: 1.5))
+        h.capture.fail(CaptureError.deviceRemoved)
+        let started = await h.read(through: .transcribing(progress: nil))
+        let rest = await h.release(after: 5_000)
+
+        #expect(started == [.notice(.deviceDisconnected), .transcribing(progress: nil)])
+        #expect(rest == [.inserted, .idle])
+        #expect(h.recognizer.transcribedClips == [AudioClip(samples: Self.audio(0.1, seconds: 1.5))])
+    }
+
+    @Test("a recording is written to the store while it is captured, and the store holds it after the dictation")
+    func recordingIsInTheStore() async {
+        var h = await Harness()
+        await h.startRecording()
+        _ = await h.release()
+
+        #expect(h.recordings.begun.count == 1)
+        #expect(h.recordings.finished == h.recordings.begun)
+        #expect(h.recordings.samples(of: h.recordings.begun[0]) == Self.clip)
+    }
+
+    @Test("a store that cannot write ends the dictation in a persistence error, and the recognizer is never invoked")
+    func storeFailure() async {
+        let recordings = FakeRecordingStore(.init(appendFailsFromCall: 1))
+        var h = await Harness(recordings: recordings)
+        await h.startRecording()
+        let states = await h.release()
+
+        #expect(states == [.error(.persistenceFailed("the recording could not be saved")), .idle])
+        #expect(h.recognizer.transcribedClips.isEmpty)
+        #expect(h.inserter.insertedTexts.isEmpty)
+    }
+
+    @Test("a hold that is too short deletes the file it began")
+    func shortHoldDeletesTheFile() async {
+        var h = await Harness()
+        await h.startRecording()
+        _ = await h.release(after: 150)
+
+        #expect(h.recordings.aborted == h.recordings.begun)
+        #expect(h.recordings.finished.isEmpty)
     }
 
     @Test("a capture stream that fails before any audio reports its error")
@@ -264,18 +332,9 @@ struct DictationCoordinatorTests {
         #expect(h.inserter.insertedTexts.isEmpty)
     }
 
-    @Test("a press while the dictation is being transcribed is ignored, and the busy notice says so")
-    func pressWhileProcessing() async {
-        var h = await Harness(recognizer: FakeRecognizer(transcript: "uno", gated: true))
-        await h.startRecording()
-        await h.sut.handle(.up(at: Self.pressTime + .milliseconds(1200)))
-        _ = await h.read(through: .transcribing(progress: nil))
-        await h.sut.handle(.down(at: Self.pressTime + .milliseconds(1300)))
-        h.recognizer.releaseTranscription()
-
-        #expect(await h.read(through: .idle) == [.notice(.busy), .transcribing(progress: nil), .inserted, .idle])
-        #expect(h.capture.startCount == 1)
-        #expect(h.inserter.insertedTexts == ["uno"])
+    @Test("the default recording cap is ten minutes")
+    func defaultCap() {
+        #expect(DictationLimits.recordingCap == .seconds(600))
     }
 
     @Test("a duplicate press while recording is ignored and does not restart the hold")
@@ -509,29 +568,15 @@ struct DictationCoordinatorTests {
     @Test("two dictations in a row each get their own capture and clip")
     func sequentialDictations() async {
         var h = await Harness()
-        await h.startRecording(samples: [0.1])
+        await h.startRecording(samples: Self.audio(0.1))
         _ = await h.release()
-        await h.startRecording(samples: [0.7])
+        await h.startRecording(samples: Self.audio(0.7))
         let second = await h.release()
 
         #expect(second == Self.transcribed)
         #expect(h.capture.startCount == 2)
-        #expect(h.recognizer.transcribedClips == [AudioClip(samples: [0.1]), AudioClip(samples: [0.7])])
-    }
-
-    @Test("a press while the text is being inserted is ignored, and the busy notice says so")
-    func pressWhileInserting() async {
-        let inserter = FakeTextInserter(gated: true)
-        var h = await Harness(inserter: inserter)
-        await h.startRecording()
-        await h.sut.handle(.up(at: Self.pressTime + .milliseconds(1200)))
-        await inserter.entered.wait()
-        await h.sut.handle(.down(at: Self.pressTime + .milliseconds(1300)))
-        inserter.releaseInsertion()
-
-        let busy: [PipelineState] = [.notice(.busy), .transcribing(progress: nil)]
-        #expect(await h.read(through: .idle) == [.transcribing(progress: nil)] + busy + [.inserted, .idle])
-        #expect(h.capture.startCount == 1)
+        #expect(
+            h.recognizer.transcribedClips == [AudioClip(samples: Self.audio(0.1)), AudioClip(samples: Self.audio(0.7))])
     }
 
     @Test("a recognizer that throws CancellationError ends in an error, and a later press works")
@@ -581,7 +626,7 @@ struct DictationCoordinatorTests {
         #expect(await h.read(through: .idle) == [.idle])
     }
 
-    @Test("reaching the 60 s clip cap finishes the recording and says so")
+    @Test("reaching the recording cap finishes the recording and says so")
     func clipCapFinishesRecording() async {
         var h = await Harness()
         await h.sut.handle(.down(at: Self.pressTime))
@@ -616,6 +661,6 @@ struct DictationCoordinatorTests {
 
         #expect(await h.release(after: 61_000) == Self.transcribed)
         #expect(h.recognizer.transcribedClips.map(\.samples.count) == [Self.capSamples - 1])
-        #expect(h.diagnostics.events.isEmpty)  // the cap was not reached, so it is not logged
+        #expect(!h.diagnostics.events.contains(.recordingCapReached))  // the cap was not reached, so it is not logged
     }
 }

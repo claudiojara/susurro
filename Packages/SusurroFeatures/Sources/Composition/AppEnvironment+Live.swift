@@ -1,5 +1,6 @@
 import AccessibilityContext
 import AppKit
+import AppleSpeechASR
 import AudioIO
 import DesignSystem
 import Diagnostics
@@ -7,6 +8,7 @@ import Domain
 import FluidAudioASR
 import Foundation
 import Hotkeys
+import LanguageDetection
 import Permissions
 import Pipeline
 import Presentation
@@ -38,9 +40,20 @@ extension AppEnvironment.Dependencies {
         let themes = ThemeStore(directory: themesFolder)
         let clock = ContinuousClock()
         let settings = UserDefaultsSettingsStore(diagnostics: diagnostics)
+        let vad = SileroVADDetector()
+        let languageDetector = NLLanguageDetector()
+        let languageRecognizer = AppleSpeechRecognizer()
+        let sleep: @Sendable (Duration) async throws -> Void = { try await clock.sleep(for: $0) }
+        // The history's retry runs the same recognition as a new dictation, from the stored file to the raw text.
+        let reprocessor = PipelineReprocessor(
+            detector: vad,
+            runner: AppEnvironment.Dependencies.recognitionRunner(
+                recognizer: recognizer, languageRecognizer: languageRecognizer, settings: settings,
+                languageDetector: languageDetector, diagnostics: diagnostics, sleep: sleep))
         return AppEnvironment.Dependencies(
             hotkeys: HotkeyService(settings: settings, permissions: permissions),
             capture: AVAudioEngineCaptureSource(diagnostics: diagnostics),
+            recordings: CAFRecordingStore(directory: { Self.recordingsFolder }, diagnostics: diagnostics),
             recognizer: recognizer,
             readinessChanges: { await recognizer.readinessChanges() },
             inserter: inserter,
@@ -56,9 +69,12 @@ extension AppEnvironment.Dependencies {
             ),
             theming: Theming(store: themes, prepare: Self.prepareThemes(for: themes)),
             clock: clock,
-            history: .live(recognizer: recognizer, sleep: { try await clock.sleep(for: $0) }),
+            history: .live(reprocessor: reprocessor),
             frontmost: frontmost,
-            context: Self.contextPipeline(settings: settings)
+            context: Self.contextPipeline(settings: settings),
+            vad: vad,
+            languageDetector: languageDetector,
+            languageRecognizer: languageRecognizer
         )
     }
 
@@ -74,6 +90,11 @@ extension AppEnvironment.Dependencies {
             styleSettings: { bundleID, url in
                 styles.settings(for: resolver.candidateTargets(bundleID: bundleID, url: url))
             })
+    }
+
+    /// Where the recordings are kept: `Audio` in the app's folder of Application Support.
+    private static var recordingsFolder: URL {
+        URL.applicationSupportDirectory.appending(path: "Susurro/Audio", directoryHint: .isDirectory)
     }
 
     /// Where the user puts theme files: `Themes` in the app's folder of Application Support.

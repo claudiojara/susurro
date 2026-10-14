@@ -59,6 +59,17 @@ public enum DiagnosticEvent: Sendable, Equatable {
     case permissionGuidanceShown(permission: Permission)
     /// A request to the system for the permission returned, and a read after it found the permission in `status`.
     case permissionRequestEnded(permission: Permission, status: PermissionStatus)
+    /// A recording was written and read back. `id` names the file (`<id>.caf`) and `milliseconds` is its length.
+    case recordingVerified(id: String, milliseconds: Int)
+    /// A recording could not be written or verified. `step` is one of "begin", "write", or "verify".
+    case recordingStoreFailed(step: String)
+    /// A step of the durable pipeline could not reach the history. `step` is one of "insert" or "update". The
+    /// dictation goes on without the record.
+    case historyWriteFailed(step: String)
+    /// The voice activity detector failed, so the recording went to the recognizer whole.
+    case voiceDetectionFailed
+    /// The recognizer answered in a language other than the one that was asked for, so the clip was transcribed again.
+    case languageDriftDetected
 }
 
 /// Where the pipeline reports what it would otherwise swallow. The live log lives in the platform package.

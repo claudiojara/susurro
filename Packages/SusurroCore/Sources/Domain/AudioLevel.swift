@@ -13,7 +13,11 @@ public enum AudioLevel {
         guard !samples.isEmpty else { return 0 }
         var sumOfSquares = 0.0
         for sample in samples { sumOfSquares += Double(sample) * Double(sample) }
-        let rms = (sumOfSquares / Double(samples.count)).squareRoot()
+        return level(rms: (sumOfSquares / Double(samples.count)).squareRoot())
+    }
+
+    /// The level from 0 to 1 of audio whose RMS amplitude is `rms`.
+    public static func level(rms: Double) -> Double {
         guard rms.isFinite, rms > 0 else { return 0 }
         let decibels = 20 * log10(rms)
         let fraction = (decibels - floorDecibels) / (ceilingDecibels - floorDecibels)

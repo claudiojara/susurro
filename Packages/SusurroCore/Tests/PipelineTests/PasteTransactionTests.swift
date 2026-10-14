@@ -393,9 +393,11 @@ struct PasteTransactionTests {
         let h = PasteHarness()
         h.appReadsOnPaste()
 
-        async let first = h.sut.insert("one")
-        async let second = h.sut.insert("two")
-        let outcomes = await [first, second]
+        // The second is submitted once the first has begun, so the order of submission is known.
+        let first = Task { await h.sut.insert("one") }
+        for _ in 0..<1_000 where h.calls.isEmpty { await Task.yield() }
+        let second = Task { await h.sut.insert("two") }
+        let outcomes = [await first.value, await second.value]
         await h.sut.drain()
 
         #expect(outcomes == [.inserted, .inserted])

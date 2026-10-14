@@ -12,4 +12,15 @@ protocol EngineProviding: Sendable {
     func removeTap()
     func start() throws
     func stop()
+    /// A value each time the engine's configuration changes while it runs: the input device was unplugged or replaced,
+    /// or the route switched. The engine has stopped delivering buffers by then. Call it before `start()`, and read the
+    /// stream until the capture ends.
+    func configurationChanges() -> AsyncStream<Void>
+}
+
+extension EngineProviding {
+    /// An engine that reports no changes.
+    func configurationChanges() -> AsyncStream<Void> {
+        AsyncStream { $0.finish() }
+    }
 }

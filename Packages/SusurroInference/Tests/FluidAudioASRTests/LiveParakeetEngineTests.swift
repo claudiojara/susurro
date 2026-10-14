@@ -100,6 +100,30 @@ struct LiveParakeetEngineTests {
         )
     }
 
+    @Test("a first load on a disk with too little room fails with the reason, before any download")
+    func lowDiskSpace() {
+        let needed = LiveParakeetEngine.requiredFreeSpace
+
+        #expect(throws: LowDiskSpace(available: needed - 1)) {
+            try LiveParakeetEngine.checkFreeSpace(modelsPresent: false, available: needed - 1)
+        }
+        #expect(throws: Never.self) { try LiveParakeetEngine.checkFreeSpace(modelsPresent: false, available: needed) }
+        #expect(LowDiskSpace(available: 0).errorDescription?.contains("free disk space") == true)
+    }
+
+    @Test("a load that has the weights already, or cannot tell the free space, is not held back")
+    func diskSpaceNotChecked() {
+        #expect(throws: Never.self) { try LiveParakeetEngine.checkFreeSpace(modelsPresent: true, available: 0) }
+        #expect(throws: Never.self) { try LiveParakeetEngine.checkFreeSpace(modelsPresent: false, available: nil) }
+    }
+
+    @Test("the free space of a folder that does not exist yet is the one of the volume above it")
+    func availableSpaceOfAMissingFolder() {
+        let missing = FileManager.default.temporaryDirectory.appending(path: "susurro-missing/\(UUID())/Models")
+
+        #expect((LiveParakeetEngine.availableSpace(at: missing) ?? 0) > 0)
+    }
+
     @Test("a transient error reaches the recognizer unchanged")
     func transientErrorIsPassedOn() {
         let failure = LiveParakeetEngine.loadFailure(URLError(.notConnectedToInternet))

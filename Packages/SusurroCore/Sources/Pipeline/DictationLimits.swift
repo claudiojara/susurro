@@ -2,8 +2,9 @@
 public enum DictationLimits {
     /// A shorter hold is discarded.
     public static let minimumHold = Duration.milliseconds(300)
-    /// Reaching this much audio finishes the recording.
-    public static let recordingCap = Duration.seconds(60)
+    /// Reaching this much audio finishes the recording. Ten minutes is what every mode allows: the recording is written
+    /// to disk as it is captured, and the clip is split at pauses for a recognizer that takes less.
+    public static let recordingCap = Duration.seconds(600)
     /// The pause between readiness checks while the speech model loads.
     public static let readinessPollInterval = Duration.milliseconds(200)
     /// How long a finished recording waits for a loading model whose progress does not change. Any change in progress
@@ -14,6 +15,9 @@ public enum DictationLimits {
     public static let readinessHardCap = Duration.seconds(180)
     /// How long asking the recognizer to prepare may take. It only starts a load, so it returns at once.
     public static let prepareTimeout = Duration.seconds(5)
+    /// How long a read of a permission's status or of the recognizer's readiness may take. Both answer at once, so an
+    /// answer that does not come means the system is stuck, and a press must not wait on it for good.
+    public static let statusTimeout = Duration.seconds(4)
     /// How long the capture may take to start. A device that is slow to open, or a stuck audio system, would otherwise
     /// hold the press at "Getting ready" for good. It is not the stop limit, so that a test can run out one and not the
     /// other.

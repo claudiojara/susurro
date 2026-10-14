@@ -89,6 +89,7 @@ final class ReadinessFeed: Sendable {
 final class AppEnvironmentFixture {
     let hotkeys = FakeHotkeySource()
     let capture: FakeAudioCaptureSource
+    let recordings = FakeRecordingStore()
     let recognizer: FakeRecognizer
     let inserter = FakeTextInserter()
     let permissions: MutablePermissionsChecker
@@ -135,6 +136,7 @@ final class AppEnvironmentFixture {
             AppEnvironment.Dependencies(
                 hotkeys: hotkeys,
                 capture: capture,
+                recordings: recordings,
                 recognizer: recognizer,
                 readinessChanges: { readiness.subscribe() },
                 inserter: inserter,
