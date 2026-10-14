@@ -64,9 +64,9 @@ public final class OnboardingViewModel: OnboardingViewModeling {
         return reading == .denied ? .denied : .notAsked
     }
 
-    /// The step that fits where the permission stands. Accessibility and Screen Recording are reported only as allowed
-    /// or not, so for them denied can mean never asked, and the request, which shows the system prompt that leads to
-    /// System Settings, comes before the pane.
+    /// The step that fits where the permission stands. For a permission whose denied status may mean never asked
+    /// (`Permission.deniedMayMeanNotAsked`) the request, which shows the system prompt that leads to System Settings,
+    /// comes before the pane.
     private func action(for permission: Permission, shown status: OnboardingRowStatus) -> OnboardingAction? {
         switch status {
         case .granted:
@@ -74,7 +74,7 @@ public final class OnboardingViewModel: OnboardingViewModeling {
         case .notAsked:
             return OnboardingCopy.requestAction(permission)
         case .denied:
-            return OnboardingCopy.deniedMeansNotAskedYet.contains(permission)
+            return permission.deniedMayMeanNotAsked
                 ? OnboardingCopy.requestAction(permission) : OnboardingCopy.openSettingsAction
         case .waiting:
             // A prompt that is up needs the user's answer. Otherwise the user was sent to System Settings.

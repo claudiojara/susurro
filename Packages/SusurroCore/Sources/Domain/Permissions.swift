@@ -8,6 +8,18 @@ public enum Permission: Sendable, Hashable, CaseIterable {
     case screenRecording
 }
 
+extension Permission {
+    /// Whether the system reports this permission only as allowed or not, so that a user who was never asked reads as
+    /// denied. For these the first step is the request, which shows the system prompt that leads to System Settings, and
+    /// `PermissionsChecker.status` never returns `notDetermined`. For the others, denied means the user refused.
+    public var deniedMayMeanNotAsked: Bool {
+        switch self {
+        case .microphone, .inputMonitoring: false
+        case .accessibility, .screenRecording: true
+        }
+    }
+}
+
 public enum PermissionStatus: Sendable, Equatable {
     case notDetermined
     case granted
@@ -15,6 +27,9 @@ public enum PermissionStatus: Sendable, Equatable {
 }
 
 public protocol PermissionsChecker: Sendable {
+    /// The permission's status now, read from the system without raising a prompt. It is never `notDetermined` for a
+    /// permission whose `deniedMayMeanNotAsked` is true: the system cannot tell a refusal from no answer there, and the
+    /// status is denied.
     func status(_ permission: Permission) async -> PermissionStatus
     /// Asks the system for the permission, which may show its prompt. A permission that is already decided is not
     /// asked again; the user changes it in System Settings.

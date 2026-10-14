@@ -8,10 +8,6 @@ enum OnboardingCopy {
 
     static let openSettingsAction = OnboardingAction(kind: .openSettings, title: "Open System Settings")
 
-    /// The permissions the system reports only as allowed or not (`SystemPermissionsChecker`), so that a user who was
-    /// never asked reads as denied.
-    static let deniedMeansNotAskedYet: Set<Permission> = [.accessibility, .screenRecording]
-
     static func requestAction(_ permission: Permission) -> OnboardingAction {
         OnboardingAction(kind: .request, title: "Allow \(permission.displayName)")
     }
