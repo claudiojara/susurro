@@ -29,7 +29,9 @@ struct AtomSnapshotTests {
 
     @Test("status dots in every tint", arguments: schemes)
     func statusDots(scheme: ColorScheme) {
-        assertViewSnapshot(of: StatusDot.Gallery(), scheme: scheme, named: scheme.name)
+        // A dot is a small part of a picture, so the canvas is small too and a wrong dot cannot hide in the tolerance.
+        assertViewSnapshot(
+            of: StatusDot.Gallery(), size: CGSize(width: 240, height: 80), scheme: scheme, named: scheme.name)
     }
 
     @Test("level bars from empty to full, in every tint", arguments: schemes)

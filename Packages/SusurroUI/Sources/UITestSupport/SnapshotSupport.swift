@@ -13,9 +13,12 @@ public enum SnapshotSupport {
     /// The canvas a view is drawn on when a test does not ask for another size, in points.
     public static let defaultSize = CGSize(width: 360, height: 280)
 
-    /// How much two pictures may differ and still match. Every pixel counts (`precision` is 1), but a pixel matches
-    /// when it is within 2 % of the reference, which absorbs the rounding of a different graphics driver and no more.
-    static let precision: Float = 1
+    /// How much two pictures may differ and still match: 99.9 % of the pixels have to match, and a pixel matches when it
+    /// is within 2 % of the reference. Measured, not guessed: the same code drawn on macOS 26.6.2 and on the CI image
+    /// (macOS 27.0.1) differs in a few hundredths to a tenth of a percent of the pixels, at the edges of letters. At
+    /// 99.99 % five of the six pictures failed, at 99.9 % none. A view smaller than 0.1 % of its canvas could hide in
+    /// that, so a gallery of small views uses a small canvas.
+    static let precision: Float = 0.999
     static let perceptualPrecision: Float = 0.98
 
     /// `view` centered on a canvas of `size` that has the window color of `theme`, with a margin, in the appearance
