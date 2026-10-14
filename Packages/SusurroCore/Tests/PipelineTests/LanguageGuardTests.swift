@@ -65,6 +65,25 @@ struct LanguageGuardTests {
         #expect(LanguageGuard.removingUnknownTokens(from: "<unk>") == "")
     }
 
+    @Test("more than 30% of the letters in another script is drift, and exactly 30% is not")
+    func scriptShareBoundary() {
+        let sut = Self.guardian()
+
+        #expect(!sut.hasDrifted("абв abcdefg"))  // 3 of 10 letters
+        #expect(sut.hasDrifted("абвг abcdef"))  // 4 of 10
+    }
+
+    @Test(
+        "the detector must be at least 60% sure of another language, and give Spanish less than 30%",
+        arguments: [
+            (0.6, 0.29, true), (0.59, 0.02, false), (0.9, 0.3, false), (0.9, 0.0, true), (0.61, 0.299, true),
+        ])
+    func confidenceBoundary(other: Double, spanish: Double, drifted: Bool) {
+        let answers = ["ok": [Self.guess("en", other), Self.guess("es", spanish)]]
+
+        #expect(Self.guardian(answers).hasDrifted("ok") == drifted)
+    }
+
     @Test("digits and punctuation have no language")
     func noLetters() {
         #expect(!Self.guardian().hasDrifted("10:30 - 12,5 %"))
