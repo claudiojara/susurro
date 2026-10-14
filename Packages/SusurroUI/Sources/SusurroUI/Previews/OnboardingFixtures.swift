@@ -22,6 +22,19 @@
         static let shortBanner = "Dictation is off until Accessibility is allowed."
         static let longBanner = "Dictation is off until Microphone and Accessibility are allowed."
 
+        static func state(_ screen: Screen) -> OnboardingViewState {
+            switch screen {
+            case .fresh:
+                OnboardingViewState(rows: rows(.fresh), isDoneEnabled: false, dictationDisabledMessage: longBanner)
+            case .allGranted:
+                OnboardingViewState(rows: rows(.allGranted), isDoneEnabled: true, dictationDisabledMessage: nil)
+            case .stale:
+                OnboardingViewState(rows: rows(.stale), isDoneEnabled: false, dictationDisabledMessage: shortBanner)
+            case .withOptional:
+                OnboardingViewState(rows: rows(.withOptional), isDoneEnabled: true, dictationDisabledMessage: nil)
+            }
+        }
+
         static func rows(_ screen: Screen) -> [OnboardingRowState] {
             switch screen {
             case .fresh: [row(.notAsked), accessibility(status: .denied, action: allow("Accessibility"))]

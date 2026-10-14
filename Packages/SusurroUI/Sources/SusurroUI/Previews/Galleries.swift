@@ -46,4 +46,20 @@ import SwiftUI
         }
     }
 
+    extension OnboardingScreen {
+        struct Gallery: View {
+            @Environment(\.theme) private var theme
+            private static let screens: [OnboardingFixtures.Screen] = [.fresh, .allGranted, .stale]
+
+            var body: some View {
+                HStack(alignment: .top, spacing: theme.spacing(.lg)) {
+                    ForEach(Self.screens, id: \.self) { screen in
+                        OnboardingScreen(
+                            state: OnboardingFixtures.state(screen), onAction: { _, _ in }, onRecheck: {}, onDone: {})
+                    }
+                }
+            }
+        }
+    }
+
 #endif

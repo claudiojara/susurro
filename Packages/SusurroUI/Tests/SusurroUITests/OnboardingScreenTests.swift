@@ -35,8 +35,8 @@ struct OnboardingScreenTests {
         var theme = Theme.default
         theme.sizes[SizeToken.onboardingWidth.rawValue] = points
 
-        #expect(width(of: screen(state(.fresh)), theme: theme) == points)
-        #expect(width(of: screen(state(.allGranted)), theme: theme) == points)
+        #expect(abs(width(of: screen(state(.fresh)), theme: theme) - points) < 0.01)
+        #expect(abs(width(of: screen(state(.allGranted)), theme: theme) - points) < 0.01)
     }
 
     @Test("the default theme gives the onboarding a width that fits its rows")
@@ -100,9 +100,8 @@ struct OnboardingScreenTests {
                 of: Probe.picture(of: view, size: canvas(for: view), scheme: scheme),
                 matching: theme.color(.accentPrimary), tolerance: Probe.exact)
 
-            #expect(
-                (filled?.width ?? 0) > 40 == isEnabled,
-                "enabled \(isEnabled) in \(scheme): \(String(describing: filled))")
+            let isFilled = (filled?.width ?? 0) > 40
+            #expect(isFilled == isEnabled, "enabled \(isEnabled) in \(scheme): \(String(describing: filled))")
         }
     }
 
@@ -120,5 +119,30 @@ struct OnboardingScreenTests {
         let edge = size.width - SnapshotSupport.margin() - theme.spacing(.xl)
         #expect(abs(done.maxX - edge) <= 3, "\(done) against the edge at \(edge)")
         #expect(done.minY > size.height / 2, "\(done)")
+    }
+
+    @Test("the screen sits on the window color, and Check again is at the left end of the foot")
+    func windowAndCheckAgain() throws {
+        for scheme in Probe.schemes {
+            let theme = try Probe.theme(scheme)
+            let view = screen(state(.allGranted))
+            let size = canvas(for: view)
+            let picture = Probe.picture(of: view, size: size, scheme: scheme)
+            let margin = SnapshotSupport.margin()
+            let inset = theme.spacing(.xl)
+
+            // The padding at the top left corner of the screen shows the window color of the theme, not a card's.
+            let padding = SnapshotSupport.pixel(
+                of: picture, atX: (margin + 4) / size.width, y: (margin + 4) / size.height)
+            let window = theme.color(.surfaceWindow)
+            #expect(
+                max(abs(padding.red - window.red), abs(padding.green - window.green), abs(padding.blue - window.blue))
+                    <= Probe.exact, "\(padding) in \(scheme)")
+
+            // The title of Check again is in the plain text color, in the foot to the left of Done.
+            let foot = CGRect(
+                x: margin + inset, y: size.height - margin - inset - 34, width: 120, height: 34)
+            #expect(Probe.isPainted(theme.color(.textPrimary), in: picture, region: foot), "the foot in \(scheme)")
+        }
     }
 }

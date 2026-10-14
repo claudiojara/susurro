@@ -34,9 +34,9 @@ enum OnboardingCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
         case .bannerLong: CGSize(width: Self.rowWidth, height: 94)
         case .checklistRequired: CGSize(width: Self.rowWidth, height: 266)
         case .checklistWithOptional: CGSize(width: Self.rowWidth, height: 512)
-        case .screenFresh: CGSize(width: Self.screenWidth, height: 520)
-        case .screenAllGranted: CGSize(width: Self.screenWidth, height: 400)
-        case .screenStale: CGSize(width: Self.screenWidth, height: 600)
+        case .screenFresh: CGSize(width: Self.screenWidth, height: 510)
+        case .screenAllGranted: CGSize(width: Self.screenWidth, height: 358)
+        case .screenStale: CGSize(width: Self.screenWidth, height: 504)
         }
     }
 
