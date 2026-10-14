@@ -20,6 +20,7 @@ let package = Package(
             dependencies: [
                 .product(name: "SusurroCore", package: "SusurroCore"),
                 .product(name: "SusurroUI", package: "SusurroUI"),
+                .product(name: "DesignSystem", package: "SusurroUI"),
             ]
         ),
         .target(
@@ -40,6 +41,7 @@ let package = Package(
                 .product(name: "SusurroCore", package: "SusurroCore"),
                 .product(name: "CoreTestSupport", package: "SusurroCore"),
                 .product(name: "SusurroUI", package: "SusurroUI"),
+                .product(name: "DesignSystem", package: "SusurroUI"),
             ]
         ),
         .testTarget(
