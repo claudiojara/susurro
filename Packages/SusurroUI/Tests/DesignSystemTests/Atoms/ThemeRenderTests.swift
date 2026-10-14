@@ -47,14 +47,49 @@ struct ThemeRenderTests {
 
     private let size = CGSize(width: 160, height: 80)
 
+    /// The accent color of a theme in an appearance.
+    private func accent(of theme: Theme, _ appearance: Appearance) throws -> RGBAColor {
+        try theme.resolved(for: appearance).color(.accentPrimary)
+    }
+
     @Test(
-        "two themes that differ only in accent draw the accent views differently and the others alike",
+        "two themes that differ only in accent change only what is painted in the accent, and change nothing else",
         arguments: Subject.allCases)
-    fileprivate func differentThemeDifferentRender(subject: Subject) {
-        for scheme in [ColorScheme.light, .dark] {
-            let standard = SnapshotSupport.pngData(of: subject.view, size: size, theme: .default, scheme: scheme)
-            let other = SnapshotSupport.pngData(of: subject.view, size: size, theme: otherAccent, scheme: scheme)
-            #expect((standard != other) == subject.usesAccent, "\(subject) in \(scheme)")
+    fileprivate func onlyTheAccentChanges(subject: Subject) throws {
+        for (scheme, appearance) in [(ColorScheme.light, Appearance.light), (.dark, .dark)] {
+            let before = SnapshotSupport.cgImage(of: subject.view, size: size, theme: .default, scheme: scheme)
+            let after = SnapshotSupport.cgImage(of: subject.view, size: size, theme: otherAccent, scheme: scheme)
+            let changes = SnapshotSupport.pixelChanges(from: before, to: after)
+            guard subject.usesAccent else {
+                #expect(changes.isEmpty, "\(subject) in \(scheme): \(changes.count) pixels changed")
+                continue
+            }
+            // A pixel that is a share `s` of accent and the rest of something else changes by `s` times the change of
+            // the accent, in all three channels at once. A pixel that changed for another reason would not.
+            let from = try accent(of: .default, appearance)
+            let to = try accent(of: otherAccent, appearance)
+            let shift = (red: to.red - from.red, green: to.green - from.green, blue: to.blue - from.blue)
+            let pivot = max(abs(shift.red), abs(shift.green), abs(shift.blue))
+            #expect(pivot > 0.2, "the two accents are too close to tell their pixels apart")
+            #expect(!changes.isEmpty, "\(subject) in \(scheme): the accent changed nothing")
+            var shares: [Double] = []
+            for change in changes {
+                let share =
+                    (abs(shift.red) == pivot
+                        ? change.red / shift.red
+                        : abs(shift.green) == pivot ? change.green / shift.green : change.blue / shift.blue)
+                shares.append(share)
+                let rounding = 2.0 / 255
+                #expect(
+                    abs(change.red - share * shift.red) <= rounding, "\(subject) in \(scheme): not an accent change")
+                #expect(
+                    abs(change.green - share * shift.green) <= rounding, "\(subject) in \(scheme): not an accent change"
+                )
+                #expect(
+                    abs(change.blue - share * shift.blue) <= rounding, "\(subject) in \(scheme): not an accent change")
+            }
+            #expect(shares.allSatisfy { $0 > -0.02 && $0 < 1.02 }, "\(subject) in \(scheme): a share outside 0 to 1")
+            #expect(shares.contains { $0 > 0.98 }, "\(subject) in \(scheme): no pixel is all accent")
         }
     }
 

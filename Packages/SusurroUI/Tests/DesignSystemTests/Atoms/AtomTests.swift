@@ -1,6 +1,4 @@
-import SwiftUI
 import Testing
-import UITestSupport
 
 @testable import DesignSystem
 
@@ -38,34 +36,5 @@ struct AtomTests {
             let tinted: Tint? = tint
             #expect(tinted.textColor == color)
         }
-    }
-
-    @Test("a status dot is painted in the color of its tint, in light and dark", arguments: tints)
-    func dotColor(tint: Tint, color: ColorToken) throws {
-        #expect(Tint.allCases.count == Self.tints.count)
-        for (scheme, appearance) in [(ColorScheme.light, Appearance.light), (.dark, .dark)] {
-            let theme = try Theme.default.resolved(for: appearance)
-            let image = SnapshotSupport.cgImage(
-                of: StatusDot(tint), size: CGSize(width: 40, height: 40), theme: .default, scheme: scheme)
-            let center = SnapshotSupport.pixel(of: image, atX: 0.5, y: 0.5)
-            let expected = theme.color(color)
-            #expect(abs(center.red - expected.red) < 0.01, "\(tint) red in \(scheme)")
-            #expect(abs(center.green - expected.green) < 0.01, "\(tint) green in \(scheme)")
-            #expect(abs(center.blue - expected.blue) < 0.01, "\(tint) blue in \(scheme)")
-        }
-    }
-
-    @Test("a level bar fills the left part of its width and leaves the rest as the track")
-    func levelBarFillsFromTheLeft() throws {
-        let theme = try Theme.default.resolved(for: .light)
-        let image = SnapshotSupport.cgImage(
-            of: LevelBar(level: 0.25, tint: .success, label: "Level"), size: CGSize(width: 200, height: 40),
-            theme: .default,
-            scheme: .light)
-        let filled = SnapshotSupport.pixel(of: image, atX: 0.2, y: 0.5)
-        let empty = SnapshotSupport.pixel(of: image, atX: 0.6, y: 0.5)
-        #expect(abs(filled.green - theme.color(.statusSuccess).green) < 0.01)
-        #expect(abs(filled.red - theme.color(.statusSuccess).red) < 0.01)
-        #expect(abs(empty.green - theme.color(.statusSuccess).green) > 0.05)
     }
 }

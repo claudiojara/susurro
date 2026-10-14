@@ -25,8 +25,36 @@ versions. So the references are made on the CI image, which is the machine that 
 matches when 99.9 % of its pixels do (`precision` 0.999), and a pixel matches when it is within 2 % of the reference
 (`perceptualPrecision` 0.98). Both numbers were measured: the same code drawn on macOS 26.6.2 and on the CI image
 (27.0.1) differed in a few hundredths to a tenth of a percent of the pixels, all at the edges of letters, and at 99.99 %
-five of the six pictures failed. A view smaller than 0.1 % of its canvas could hide in that, so the gallery of status
-dots uses a small canvas, and `AtomTests` checks the colors of the atoms on their own by reading pixels.
+five of the six pictures failed. So a view can change by up to a tenth of a percent of its canvas without a snapshot test
+noticing, and two things keep that from hiding a mistake:
+
+- **Small canvases.** Each atom gallery is drawn on a canvas just big enough for it (`AtomCanvas` in the tests). Recoloring
+  the smallest view of a gallery (a caption-sized icon, a status dot) changes about 200 pixels, so the canvases are small
+  enough to let fewer than two thirds of that through. `AtomCanvasTests` measures it: a canvas must hold its gallery with
+  little to spare, and the smallest recolor must change at least 1.5 times as many pixels as the canvas lets pass.
+- **Exact colors.** `AtomColorTests` reads the pixels each atom paints and compares them with the token, to within one step
+  of a channel: the middle of a dot, the fill and the track of a bar, the fill and the title of a button in each state, and
+  a pixel inside a stroke of a label, an icon, or a pill's text. A snapshot says the picture did not change; these say the
+  colors are the right ones.
+
+## Adding an atom
+
+An atom is a public struct that is a `View` in `Sources/DesignSystem/Atoms`. `AtomCoverageTests` finds it by reading the
+folder and fails, naming the step, until all of these are done:
+
+1. **The atom.** Colors come from a `Tint` (an optional one for text), sizes and states from tokens, and the text VoiceOver
+   says from `label:`. Add a token to the theme for anything it needs that is not there: do not borrow the token of another
+   role. `AtomConventionsTests` checks the shape of the initializer; the token lint checks that no literal is written.
+2. **A gallery** (`extension MyAtom { struct Gallery }` in `AtomGalleries.swift`) that shows every variant: every `Tint`
+   with `Tint.allCases`, every kind, every state. One `#Preview("MyAtom") { PreviewMatrix { MyAtom.Gallery() } }` in the
+   atom's file draws it in light and dark on every bundled theme.
+3. **A canvas** (a case of `AtomCanvas` in `Tests/DesignSystemTests/Atoms`) just big enough for the gallery, and the smallest
+   variant of it in `recoloredPixels`. Take the size from `AtomCanvasTests`, which says how far the canvas is from the
+   gallery.
+4. **A snapshot test** in `AtomSnapshotTests`, in light and dark, that draws the gallery on its canvas.
+5. **A color test** in `AtomColorTests` that reads the colors the atom paints, in light and dark.
+6. **The list of atoms** in `AtomConventionsTests.atomsAreFound`.
+7. **The references.** Put the label `record-snapshots` on the pull request and read the new pictures.
 
 ## Recording
 
