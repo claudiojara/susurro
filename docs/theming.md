@@ -105,15 +105,28 @@ visual value written in place of a token. The message names the file, the line, 
 
 | Rule | What it flags | What to write instead |
 |---|---|---|
-| `colorInitializer`, `namedColor`, `hexLiteral` | `Color(`, `NSColor(`, `Color.red`, `0xFF8800`, `"#FF8800"` (`Color.clear` is allowed) | `theme.swiftUIColor(.textPrimary)` |
-| `fontSize` | `.system(size:`, `.custom(_, size:` | `theme.font(.body)` |
-| `spacing` | a number in `padding`, `frame`, `offset`, or a `spacing:` argument | `theme.spacing(.md)` |
-| `cornerRadius` | a number in `cornerRadius`, or in any `...radius:` argument | `theme.radius(.md)` |
-| `animationDuration` | a number as `duration:`, `response:`, `dampingFraction:`, `delay` | `theme.easing(.fast, motionEnabled:)` |
+| `colorInitializer` | `Color(`, `NSColor(`, `CGColor(`, `Color.init(`, `#colorLiteral(` | `theme.swiftUIColor(.textPrimary)` |
+| `namedColor` | `Color.red`, `CGColor.white`, and a system color or style in a color position: `.foregroundStyle(.red)`, `.background(.white)`, `.tint(.blue)`, `color: .black`, `colors: [.red, .blue]`, `.foregroundStyle(.secondary)` (`Color.clear` and `.clear` are allowed) | `theme.swiftUIColor(.statusError)`. A system color ignores the theme. |
+| `hexLiteral` | `0xFF8800`, `"#FF8800"` | A palette entry in `DefaultTheme.json` and the token that points at it |
+| `fontSize` | `.system(size:`, `.custom(_, size:`, `NSFont.systemFont(ofSize:`, `NSFont(name:size:)` | `theme.font(.body)` |
+| `spacing` | a number in `padding`, `frame`, `offset`, `lineSpacing`, `tracking`, `Spacer`, `CGSize`, `CGRect`, `EdgeInsets`, or in the expression after `spacing:` or `minLength:` | `theme.spacing(.md)` |
+| `cornerRadius` | a number in `cornerRadius`, or in the expression after a corner radius label (`cornerRadius:`, `topLeadingRadius:`) | `theme.radius(.md)` |
+| `effectRadius` | a number as the radius of a shadow, a blur, or a gradient (`radius:`, `startRadius:`, `endRadius:`) | Nothing yet: these have no token. Add a group (see "Adding a group") before using one. |
+| `strokeWidth` | a number as `lineWidth:`, or in `border` | Nothing yet: use the default hairline, or add a token for the width. |
+| `animationDuration` | a number as `duration:`, `blendDuration:`, `delay` | `theme.easing(.fast, motionEnabled:)` |
+| `animationSpring` | a number as `response:`, `dampingFraction:`, `bounce:`, `extraBounce:`, `stiffness:`, `damping:`, `mass:` | The spring tokens `springResponse` and `springDamping` |
+| `visualConstant` | a number assigned to a `CGFloat`, or to a constant named for a length (`static let cornerRadius: CGFloat = 16`, `let padding = 8`) | Ask the theme where the value is used, not in a constant |
 
-Zero is allowed, because no space and no radius is not a design choice. `Sources/DesignSystem/Tokens/` is not scanned: it
-is where a theme value becomes a SwiftUI one (`ResolvedTheme+SwiftUI.swift`), so it is the one place that writes
-`Color(` and `.system(size:`. Anything else that has to turn a theme value into a SwiftUI value goes there too.
+An expression counts: `spacing: base * 2` and `cornerRadius: size / 2` are flagged for their `2`. Zero is allowed, because
+no space and no radius is not a design choice. `Sources/DesignSystem/Tokens/ResolvedTheme+SwiftUI.swift` is the one file
+that is not scanned: it is where a theme value becomes a SwiftUI one, so it is the one place that writes `Color(` and
+`.system(size:`. The other files of `Tokens/` are scanned like any other, and anything else that has to turn a theme
+value into a SwiftUI value goes in the bridge. A test (`theBridgeHoldsTheLiterals`) fails if another file of `Tokens/`
+needs the allowance.
+
+Only `Sources/DesignSystem` and `Sources/SusurroUI` are scanned. The skeleton views of `Packages/SusurroFeatures` still
+hold literals (`SkeletonIndicatorView`, `SkeletonOverlayPanel`: sizes, margins, and a corner radius) and are not scanned:
+the screens of PR 2d and 2e replace them, and they will be added to the scan then.
 
 The scanner (`Tests/DesignSystemTests/TokenLint/LiteralScanner.swift`) reads text, not syntax. It skips comments and
 the inside of strings, and it counts the text of a string interpolation as part of the string. It cannot know that a

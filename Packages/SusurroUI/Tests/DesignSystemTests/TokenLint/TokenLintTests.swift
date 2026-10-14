@@ -11,22 +11,33 @@ struct TokenLintTests {
         #expect(found.map(\.line) == [6, 7])
     }
 
-    /// `Tokens/` is where a theme value becomes a SwiftUI one, so it is the one place that may write `Color(` and
-    /// `.system(size:`.
+    /// Where a theme value becomes a SwiftUI one, so it is the one file that may write `Color(` and `.system(size:`.
     private let tokens = PackageLayout.sources("DesignSystem").appendingPathComponent("Tokens")
+    private var bridge: URL { tokens.appendingPathComponent("ResolvedTheme+SwiftUI.swift") }
 
-    @Test("the design system and UI sources hold no visual literal outside Tokens")
+    @Test("the design system and UI sources hold no visual literal outside the bridge")
     func sourcesAreClean() throws {
         for target in ["DesignSystem", "SusurroUI"] {
-            let report = try LiteralScanner.scan(PackageLayout.sources(target), allowing: [tokens])
+            let report = try LiteralScanner.scan(PackageLayout.sources(target), allowing: [bridge])
             #expect(!report.files.isEmpty, "No Swift file was found in Sources/\(target).")
             #expect(report.violations.map(\.description) == [], "Sources/\(target) writes a visual literal.")
         }
     }
 
-    @Test("without the allowance Tokens is not clean, so the allowance is what keeps the sources scan green")
-    func tokensHoldTheLiterals() throws {
-        let rules = try Set(LiteralScanner.scan(tokens).violations.map(\.rule))
-        #expect(rules.isSuperset(of: [.colorInitializer, .fontSize]))
+    @Test("the bridge is the only file of Tokens that holds literals, so it is the only one the lint allows")
+    func theBridgeHoldsTheLiterals() throws {
+        let report = try LiteralScanner.scan(tokens)
+        #expect(report.files.contains("ResolvedTheme+SwiftUI.swift"))
+        #expect(report.files.count > 1, "Tokens holds other files, which the lint must read")
+        #expect(Set(report.violations.map(\.file)) == ["ResolvedTheme+SwiftUI.swift"])
+        #expect(Set(report.violations.map(\.rule)).isSuperset(of: [.colorInitializer, .fontSize]))
+    }
+
+    @Test("the theming guide explains every rule and the remedy for it")
+    func guideExplainsEveryRule() throws {
+        let guide = try String(contentsOf: PackageLayout.repositoryFile("docs/theming.md"), encoding: .utf8)
+        for rule in LiteralRule.allCases {
+            #expect(guide.contains("| `\(rule.rawValue)` |"), "docs/theming.md has no row for \(rule.rawValue)")
+        }
     }
 }
