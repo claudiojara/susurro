@@ -52,7 +52,7 @@ struct CoordinatorDiagnosticsTests {
     @Test("a capture stream that fails mid-recording is logged by its type, though the audio is kept")
     func captureStreamFailureIsLogged() async {
         var h = await Harness()
-        await h.startRecording(samples: [0.1])
+        await h.startRecording(samples: DictationCoordinatorTests.audio(0.1))
         h.capture.fail(CaptureError.noInputDevice)
         let states = await h.release()
 

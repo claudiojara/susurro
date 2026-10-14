@@ -77,13 +77,19 @@ If no speech is found, the attempt MUST end as no-speech: the recognizer is not 
 
 ### Requirement: Minimum duration
 
-Recordings shorter than 300 ms MUST be discarded without a history entry.
+A hold shorter than 300 ms, measured by the timestamps of its key events, MUST be discarded without a history entry. A recording that was submitted MUST be processed whatever the length of its audio: the capture takes up to about 150 ms to deliver its first buffer, so the audio is always shorter than the hold, and a clip too short to hold speech ends as a no-speech notice. A recording that the user cancelled with Esc and that holds less than 300 ms of audio MUST be discarded without a history entry.
 
 #### Scenario: Accidental blip
 
-- GIVEN a 200 ms recording is stopped
-- WHEN the pipeline is evaluated
+- GIVEN the key is held for 200 ms
+- WHEN it is released
 - THEN nothing is stored or processed
+
+#### Scenario: Short word
+
+- GIVEN the key is held for 400 ms and 250 ms of audio were captured
+- WHEN it is released
+- THEN the clip is processed, and if no speech is found the attempt ends as no-speech with a notice
 
 ### Requirement: Device failures
 

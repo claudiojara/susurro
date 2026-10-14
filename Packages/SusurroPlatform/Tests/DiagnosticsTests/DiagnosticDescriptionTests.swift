@@ -22,6 +22,11 @@ struct DiagnosticDescriptionTests {
             (.pasteNotCompleted(cause: "noRead"), .error, "paste not completed: noRead"),
             (.pasteboardWriteRefused, .error, "the pasteboard refused a write"),
             (.clipboardRestoreFailed, .error, "the pasteboard refused the old contents"),
+            (.clipboardNotRestored(reason: "tooLarge"), .default, "the old clipboard was not put back: tooLarge"),
+            (
+                .styleResolved(category: "work_chat", tone: "casual", source: "bundle"), .default,
+                "style: category=work_chat tone=casual source=bundle"
+            ),
             (
                 .captureFirstBuffer(frames: 1_024, sampleRate: 48_000), .default,
                 "first tap buffer: 1024 frames at 48000 Hz"
@@ -60,6 +65,24 @@ struct DiagnosticDescriptionTests {
             (
                 .permissionRequestEnded(permission: .accessibility, status: .denied), .default,
                 "permission accessibility: request ended, now denied"
+            ),
+            (
+                .recordingVerified(id: "ABC", milliseconds: 5_000), .default,
+                "recording ABC.caf stored and verified: 5000 ms"
+            ),
+            (.recordingStoreFailed(step: "verify"), .error, "recording store failed at verify"),
+            (.historyWriteFailed(step: "insert"), .error, "history write failed at insert"),
+            (
+                .voiceDetectionFailed, .error, "voice detection failed, the recording goes to the recognizer whole"
+            ),
+            (.languageDriftDetected, .default, "transcript in the wrong language, transcribing again"),
+            (
+                .secretUnreadable(account: .deepgram, status: -25308), .error,
+                "key store unreadable for deepgram: status -25308"
+            ),
+            (
+                .cloudRequestFailed(provider: "deepgram", reason: "http-401"), .error,
+                "cloud request to deepgram failed: http-401"
             ),
         ])
     func descriptions(event: DiagnosticEvent, level: OSLogType, line: String) {

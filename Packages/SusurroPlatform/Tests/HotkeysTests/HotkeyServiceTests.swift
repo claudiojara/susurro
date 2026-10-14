@@ -1,96 +1,81 @@
 import CoreTestSupport
 import Domain
-import Synchronization
 import Testing
 
 @testable import Hotkeys
 
 @Suite("Hotkey service", .timeLimit(.minutes(1)))
 struct HotkeyServiceTests {
-    /// Raw transitions scripted by the test, with a signal for when the service stops listening.
-    private final class FakeTransitions: KeyTransitionSource {
-        let stoppedListening = Gate()
-        private let subscriptionCount = Mutex(0)
-        private let stream: AsyncStream<KeyTransition>
-        private let continuation: AsyncStream<KeyTransition>.Continuation
-
-        init() {
-            (stream, continuation) = AsyncStream.makeStream()
-            let stopped = stoppedListening
-            continuation.onTermination = { _ in stopped.open() }
-        }
-
-        var subscriptions: Int { subscriptionCount.withLock { $0 } }
-
-        func transitions() -> AsyncStream<KeyTransition> {
-            subscriptionCount.withLock { $0 += 1 }
-            return stream
-        }
-
-        func send(_ transition: KeyTransition) { continuation.yield(transition) }
-        func finish() { continuation.finish() }
-    }
-
-    private final class TestClock: Sendable {
-        private let current = Mutex(Duration.zero)
-        func set(_ time: Duration) { current.withLock { $0 = time } }
-        func now() -> Duration { current.withLock { $0 } }
-    }
-
     @Test("each transition is stamped with the time it is read")
     func stampsTransitions() async {
-        let source = FakeTransitions()
-        let clock = TestClock()
-        let sut = HotkeyService(source: source, now: { clock.now() })
-        var events = sut.events().makeAsyncIterator()
+        let rig = HotkeyRig()
+        var events = rig.service.events().makeAsyncIterator()
+        await rig.source.waitForSubscriptions(1)
 
-        clock.set(.milliseconds(1_000))
-        source.send(.down)
+        rig.clock.set(.milliseconds(1_000))
+        rig.source.send(.down)
         #expect(await events.next() == .down(at: .milliseconds(1_000)))
 
-        clock.set(.milliseconds(1_350))
-        source.send(.up)
+        rig.clock.set(.milliseconds(1_350))
+        rig.source.send(.up)
         #expect(await events.next() == .up(at: .milliseconds(1_350)))
     }
 
     @Test("repeated downs and a stray up are dropped, and the stream ends when the source does")
     func filtersRepeatsAndEnds() async {
-        let source = FakeTransitions()
-        let sut = HotkeyService(source: source, now: { .milliseconds(5) })
+        let rig = HotkeyRig()
+        rig.clock.set(.milliseconds(5))
+        let stream = rig.service.events()
+        await rig.source.waitForSubscriptions(1)
 
-        for transition in [KeyTransition.up, .down, .down, .up, .up] { source.send(transition) }
-        source.finish()
+        for transition in [KeyTransition.up, .down, .down, .up, .up] { rig.source.send(transition) }
+        rig.source.finish()
 
         var seen: [HotkeyEvent] = []
-        for await event in sut.events() { seen.append(event) }
+        for await event in stream { seen.append(event) }
 
         #expect(seen == [.down(at: .milliseconds(5)), .up(at: .milliseconds(5))])
     }
 
     @Test("the source is released when the consumer stops listening")
     func releasesSourceWhenConsumerStops() async {
-        let source = FakeTransitions()
-        let sut = HotkeyService(source: source, now: { .zero })
+        let rig = HotkeyRig()
 
         let reader = Task {
-            var events = sut.events().makeAsyncIterator()
+            var events = rig.service.events().makeAsyncIterator()
             return await events.next()
         }
-        source.send(.down)
+        await rig.source.waitForSubscriptions(1)
+        rig.source.send(.down)
 
         #expect(await reader.value == .down(at: .zero))
-        await source.stoppedListening.wait()
+        await rig.source.stoppedListening.wait()
     }
 
-    @Test("the source is subscribed to as soon as events() is called, whether or not the stream is read")
-    func subscribesWhenEventsIsCalled() {
-        let source = FakeTransitions()
-        let sut = HotkeyService(source: source, now: { .zero })
-        #expect(source.subscriptions == 0)
+    @Test("nothing is listened to before events() is called, and the default hotkey is listened to after")
+    func subscribesWhenEventsIsCalled() async {
+        let rig = HotkeyRig()
+        #expect(rig.source.subscriptions.isEmpty)
 
-        let events = sut.events()
+        let events = rig.service.events()
+        await rig.source.waitForSubscriptions(1)
 
-        #expect(source.subscriptions == 1)
+        #expect(rig.source.subscriptions == [.standard])
+        withExtendedLifetime(events) {}
+    }
+
+    @Test("a hotkey the user changes is listened to without a relaunch")
+    func followsTheSettings() async {
+        let rig = HotkeyRig(permissions: [.inputMonitoring: .granted])
+        let events = rig.service.events()
+        await rig.source.waitForSubscriptions(1)
+
+        rig.chooseModifierOnly(.function)
+        let fn = HotkeyConfiguration(kind: .modifierOnly, combo: HotkeyCombo(keyCode: nil, modifiers: .function))
+        await rig.waitForSubscription(to: fn)
+
+        #expect(rig.source.subscriptions.first == .standard)
+        #expect(rig.source.subscriptions.last == fn)
         withExtendedLifetime(events) {}
     }
 }

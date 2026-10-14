@@ -10,8 +10,14 @@ struct PipelineErrorTests {
         #expect(PipelineError.recognizerUnavailable("offline", retryable: true).remedy == .retry)
         #expect(PipelineError.recognizerUnavailable("model is damaged", retryable: false).remedy == .settings)
         #expect(PipelineError.captureFailed("device").remedy == .retry)
+        #expect(PipelineError.persistenceFailed("disk").remedy == .retry)
+        #expect(PipelineError.providerNotUsable(.missingKey).remedy == .settings)
+        #expect(PipelineError.providerNotUsable(.notEnabled).remedy == .settings)
         #expect(PipelineError.recognitionFailed("model").remedy == .retry)
         #expect(PipelineError.timedOut(.transcription).remedy == .retry)
+        #expect(PipelineError.timedOut(.capture).remedy == .retry)
+        // The text may have been pasted already, so the way out is to look, not to dictate again.
+        #expect(PipelineError.timedOut(.insertion).remedy == .check)
         #expect(PipelineError.notInserted(.clipboardChanged).remedy == .retry)
         #expect(PipelineError.notInserted(.clipboardWriteFailed).remedy == .retry)
     }
@@ -31,6 +37,9 @@ struct PipelineErrorTests {
             (.timedOut(.insertion), "timedOut.insertion"),
             (.notInserted(.clipboardChanged), "notInserted.clipboardChanged"),
             (.notInserted(.clipboardWriteFailed), "notInserted.clipboardWriteFailed"),
+            (.persistenceFailed(secret), "persistenceFailed"),
+            (.providerNotUsable(.missingKey), "providerNotUsable.missingKey"),
+            (.providerNotUsable(.notEnabled), "providerNotUsable.notEnabled"),
         ]
         for (error, kind) in kinds {
             #expect(error.kind == kind)

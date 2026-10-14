@@ -10,7 +10,11 @@ struct MenuView: View {
     let onSetUp: () -> Void
     let onRequest: (Permission) -> Void
     let onOpenSettings: (Permission) -> Void
+    let onPreference: (MenuContent.Preference.Kind, Bool) -> Void
     let onQuit: () -> Void
+    var onShowHistory: () -> Void = {}
+    /// Opens the settings. With none, the menu has no Settings item.
+    var onSettings: (() -> Void)?
 
     var body: some View {
         if let message = content.restrictionMessage {
@@ -20,11 +24,26 @@ struct MenuView: View {
         }
         Text(content.hotkeyHint)
         Divider()
+        Button("History…", action: onShowHistory)
+        Divider()
         permissionRows(content.microphone)
         permissionRows(content.accessibility)
         Divider()
+        if !content.preferences.isEmpty {
+            ForEach(content.preferences, id: \.kind) { preference in
+                Toggle(
+                    preference.title,
+                    isOn: Binding(get: { preference.isOn }, set: { onPreference(preference.kind, $0) }))
+                if let note = preference.note { Text(note) }
+            }
+            Divider()
+        }
         Text(content.modelLine)
         Divider()
+        if let onSettings {
+            Button("Settings…", action: onSettings)
+                .keyboardShortcut(",")
+        }
         Button("Quit Susurro", action: onQuit)
             .keyboardShortcut("q")
     }

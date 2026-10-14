@@ -4,6 +4,7 @@ import PackageDescription
 
 let package = Package(
     name: "SusurroFeatures",
+    defaultLocalization: "en",
     platforms: [.macOS(.v26)],
     products: [
         .library(name: "SusurroFeatures", targets: ["Presentation", "Composition"])
@@ -21,13 +22,15 @@ let package = Package(
                 .product(name: "SusurroCore", package: "SusurroCore"),
                 .product(name: "SusurroUI", package: "SusurroUI"),
                 .product(name: "DesignSystem", package: "SusurroUI"),
-            ]
+            ],
+            resources: [.process("Resources")]
         ),
         .target(
             name: "Composition",
             dependencies: [
                 "Presentation",
                 .product(name: "SusurroCore", package: "SusurroCore"),
+                .product(name: "SusurroUI", package: "SusurroUI"),
                 .product(name: "DesignSystem", package: "SusurroUI"),
                 // The preview environment runs on the fakes. They are small, and the live environment never touches them.
                 .product(name: "CoreTestSupport", package: "SusurroCore"),
@@ -39,6 +42,7 @@ let package = Package(
             name: "PresentationTests",
             dependencies: [
                 "Presentation",
+                .product(name: "SusurroPlatform", package: "SusurroPlatform"),
                 .product(name: "SusurroCore", package: "SusurroCore"),
                 .product(name: "CoreTestSupport", package: "SusurroCore"),
                 .product(name: "SusurroUI", package: "SusurroUI"),
@@ -52,6 +56,7 @@ let package = Package(
                 "Presentation",
                 .product(name: "SusurroCore", package: "SusurroCore"),
                 .product(name: "CoreTestSupport", package: "SusurroCore"),
+                .product(name: "SusurroUI", package: "SusurroUI"),
                 .product(name: "DesignSystem", package: "SusurroUI"),
             ]
         ),

@@ -2,8 +2,9 @@
 public enum DictationLimits {
     /// A shorter hold is discarded.
     public static let minimumHold = Duration.milliseconds(300)
-    /// Reaching this much audio finishes the recording.
-    public static let recordingCap = Duration.seconds(60)
+    /// Reaching this much audio finishes the recording. Ten minutes is what every mode allows: the recording is written
+    /// to disk as it is captured, and the clip is split at pauses for a recognizer that takes less.
+    public static let recordingCap = Duration.seconds(600)
     /// The pause between readiness checks while the speech model loads.
     public static let readinessPollInterval = Duration.milliseconds(200)
     /// How long a finished recording waits for a loading model whose progress does not change. Any change in progress
@@ -14,13 +15,24 @@ public enum DictationLimits {
     public static let readinessHardCap = Duration.seconds(180)
     /// How long asking the recognizer to prepare may take. It only starts a load, so it returns at once.
     public static let prepareTimeout = Duration.seconds(5)
+    /// How long a read of a permission's status or of the recognizer's readiness may take. Both answer at once, so an
+    /// answer that does not come means the system is stuck, and a press must not wait on it for good.
+    public static let statusTimeout = Duration.seconds(4)
     /// How long the capture may take to start. A device that is slow to open, or a stuck audio system, would otherwise
     /// hold the press at "Getting ready" for good. It is not the stop limit, so that a test can run out one and not the
     /// other.
     public static let captureStartTimeout = Duration.seconds(6)
     /// How long stopping the capture and delivering its last chunks may take.
     public static let captureStopTimeout = Duration.seconds(5)
+    /// How long one call to a recognizer may take, at the least. A call on a longer clip gets a tenth of the clip's
+    /// length if that is more (see `transcriptionTimeout(forClip:)`).
     public static let transcriptionTimeout = Duration.seconds(30)
+    /// How long one call to a recognizer may take on a clip of this length: `transcriptionTimeout`, or a tenth of the
+    /// clip when that is longer. The speech model runs at about eighty times real time (ADR 0013), so the floor
+    /// covers every clip a Mac handles quickly, and a slower Mac does not fail a ten-minute dictation on a fixed limit.
+    public static func transcriptionTimeout(forClip duration: Duration) -> Duration {
+        max(transcriptionTimeout, duration * 0.1)
+    }
     public static let insertionTimeout = Duration.seconds(10)
     /// How long the text of a hold that ran into the recording cap waits for the key to come up. Pasting while the
     /// hotkey's modifiers are down fails, and the text would end up on the clipboard instead. It is long enough for a
@@ -31,6 +43,10 @@ public enum DictationLimits {
     /// insertion together, and for a hold that ran into the recording cap the wait for the key as well. It is shorter than the sum of their limits, so a dictation cannot hold the coordinator busy
     /// for all of them in a row, and no shorter than the wait for the model, which a first launch can use up.
     public static let processingCap = Duration.seconds(200)
+    /// How long a finished recording waits for the context of the app it was dictated in, from the moment the key comes up.
+    /// A context that is not there by then is left out, and the dictation goes on without it. It is apart from the other
+    /// limits so that a test can run out one and not the others.
+    public static let contextDeadline = Duration.milliseconds(300)
     /// How long a shutdown waits for the inserter to finish what it has in hand, such as putting the clipboard back.
     /// What is left after that is put back by the app as it terminates.
     public static let drainTimeout = Duration.seconds(2)

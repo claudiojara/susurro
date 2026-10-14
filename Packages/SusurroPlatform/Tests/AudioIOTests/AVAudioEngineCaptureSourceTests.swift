@@ -23,6 +23,7 @@ struct AVAudioEngineCaptureSourceTests {
             var tapFormat: AVAudioFormat?
             var isRunning = false
             var calls: [Call] = []
+            var changes: AsyncStream<Void>.Continuation?
         }
 
         /// Opened when the engine is stopped, so tests can wait for a teardown the source starts on its own.
@@ -55,6 +56,17 @@ struct AVAudioEngineCaptureSourceTests {
                     for frame in 0..<Int(buffer.frameLength) { data[channel][frame * buffer.stride] = .nan }
                 }
             }
+        }
+
+        /// Tells the source that the engine's configuration changed, as an unplugged device or a route switch does.
+        func signalConfigurationChange() {
+            state.withLock { $0.changes }?.yield()
+        }
+
+        func configurationChanges() -> AsyncStream<Void> {
+            let (stream, continuation) = AsyncStream.makeStream(of: Void.self)
+            state.withLock { $0.changes = continuation }
+            return stream
         }
 
         func inputFormat() -> AVAudioFormat? { format }
@@ -227,6 +239,33 @@ struct AVAudioEngineCaptureSourceTests {
         #expect(Self.isConvertedBuffer(chunk.samples.count))
         await #expect(throws: FormatConversionError.formatChanged) { try await chunks.next() }
         #expect(try await chunks.next() == nil)
+        await engine.stopped.wait()
+        #expect(engine.calls == [.installTap, .start, .removeTap, .stop])
+        await sut.stop()
+        #expect(engine.calls == [.installTap, .start, .removeTap, .stop])
+    }
+
+    @Test("a configuration change mid-recording delivers what was captured, then ends the stream as a removed device")
+    func configurationChangeEndsTheCapture() async throws {
+        let engine = FakeEngine()
+        let sut = AVAudioEngineCaptureSource(engine: engine)
+        var chunks = try await sut.start().makeAsyncIterator()
+
+        engine.deliver(Self.deviceBuffer())
+        engine.signalConfigurationChange()
+
+        let chunk = try #require(try await chunks.next())
+        #expect(Self.isConvertedBuffer(chunk.samples.count))
+        // The resampler's tail may come as one more chunk before the end.
+        var ended = false
+        while !ended {
+            do {
+                ended = try await chunks.next() == nil
+            } catch {
+                #expect(error as? CaptureError == .deviceRemoved)
+                ended = true
+            }
+        }
         await engine.stopped.wait()
         #expect(engine.calls == [.installTap, .start, .removeTap, .stop])
         await sut.stop()

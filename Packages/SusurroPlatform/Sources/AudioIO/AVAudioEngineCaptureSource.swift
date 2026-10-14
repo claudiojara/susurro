@@ -3,13 +3,17 @@ import Domain
 
 /// Captures the default microphone as 16 kHz mono chunks. The first chunk is the readiness signal: it arrives with the
 /// first real buffer from the device, not when the capture is requested. The capture ends on `stop`, which delivers
-/// everything captured first, or when the stream ends some other way: a conversion error, or a consumer that cancels
-/// or drops it.
+/// everything captured first, or when the stream ends some other way: a conversion error, a consumer that cancels
+/// or drops it, or a change of the engine's configuration. That change is what a device that is unplugged, or a route
+/// that switches mid-recording (AirPods connecting), looks like: the stream ends with `CaptureError.deviceRemoved`,
+/// after everything captured until then.
 public actor AVAudioEngineCaptureSource: AudioCaptureSource {
     private struct Capture {
         let id: Int
         let bridge: TapBridge
         let continuation: AsyncThrowingStream<AudioChunk, Error>.Continuation
+        /// Watches for a change of the engine's configuration for as long as the capture runs.
+        let observer: Task<Void, Never>
     }
 
     private let engine: any EngineProviding
@@ -41,6 +45,7 @@ public actor AVAudioEngineCaptureSource: AudioCaptureSource {
             Task { await self?.streamEnded(id) }
         }
         engine.installTap(format: format) { bridge.receive($0) }
+        let changes = engine.configurationChanges()
         do {
             try engine.start()
         } catch {
@@ -49,7 +54,13 @@ public actor AVAudioEngineCaptureSource: AudioCaptureSource {
             continuation.finish()
             throw error
         }
-        running = Capture(id: id, bridge: bridge, continuation: continuation)
+        let observer = Task { [weak self] in
+            for await _ in changes {
+                await self?.configurationChanged(id)
+                return
+            }
+        }
+        running = Capture(id: id, bridge: bridge, continuation: continuation, observer: observer)
         return stream
     }
 
@@ -62,11 +73,19 @@ public actor AVAudioEngineCaptureSource: AudioCaptureSource {
         endCapture(deliveringTail: false)
     }
 
+    /// The engine's configuration changed under the capture, and the engine stopped delivering. What was captured is
+    /// delivered first, then the stream ends with the reason.
+    private func configurationChanged(_ id: Int) {
+        guard running?.id == id else { return }
+        endCapture(deliveringTail: true, failure: CaptureError.deviceRemoved)
+    }
+
     /// Removes the tap before finishing, so every buffer already received has been yielded when the stream ends. Nothing
     /// calls the tap after that, which makes it safe to flush the bridge from here.
-    private func endCapture(deliveringTail: Bool) {
+    private func endCapture(deliveringTail: Bool, failure: (any Error)? = nil) {
         guard let capture = running else { return }
         running = nil
+        capture.observer.cancel()
         engine.removeTap()
         engine.stop()
         if deliveringTail { capture.bridge.flush() }
@@ -75,7 +94,7 @@ public actor AVAudioEngineCaptureSource: AudioCaptureSource {
         if let first = capture.bridge.firstBuffer {
             diagnostics.record(.captureFirstBuffer(frames: first.frames, sampleRate: first.sampleRate))
         }
-        capture.continuation.finish()
+        capture.continuation.finish(throwing: failure)
     }
 }
 

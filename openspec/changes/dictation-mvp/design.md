@@ -63,7 +63,9 @@ public protocol FocusedContextReader: Sendable { func snapshot() async -> Focuse
 public protocol ScreenTextRecognizer: Sendable { func recognize(windowOf: AppIdentity) async throws -> [String] }
 public protocol EntityTagger: Sendable { func properNouns(in text: String) -> [String] }   // NLTagger impl in Platform
 @MainActor public protocol Pasteboard { func snapshot() -> PasteboardSnapshot; var changeCount: Int { get }
-  func publishPromise(_ text: String) -> AsyncStream<ReadReceipt>; func writeConcrete(_ text: String); func restore(_ s: PasteboardSnapshot) }
+  func publishPromise(_ text: String) throws -> ReadReceipts; func writeConcrete(_ text: String) throws; func restore(_ s: PasteboardSnapshot) throws }
+// ReadReceipts is a thread-safe counter of the requests for the promised data, not a stream: the pasteboard calls the
+// provider from its own thread, and `PasteTransaction` polls `count` every 50 ms.
 @MainActor public protocol KeystrokePoster { func modifiersHeld() -> Bool; func postPaste() throws }
 public protocol HotkeySource: Sendable { func events() -> AsyncStream<HotkeyEvent>; func setEscapeArmed(_ armed: Bool) }
 public protocol HistoryRepository: Sendable { /* insert, update, page, audioOlderThan, markAudioExpired */ }
@@ -108,7 +110,7 @@ idle --esc while a job is processing-->           [cancelNewestJob]   (no insert
 ```
 
 - **Preconditions.** Microphone permission is granted, and the selected recognizer is not `notInstalled`. A cloud recognizer must also be enabled and have a key. A recognizer that is still loading does not block recording.
-- **`finish`.** If the captured duration is under 300 ms, the recording is discarded with no history entry. Otherwise the job is enqueued on `ProcessingQueue`.
+- **`finish`.** A hold under 300 ms by the timestamps of its key events is a tap (below). A submitted recording is enqueued on `ProcessingQueue` whatever the length of its audio, because the audio is shorter than the hold by the time the capture takes to deliver its first buffer; a clip too short to hold speech ends as a no-speech notice.
 - **Tap.** The tap's capture is discarded: no job and no history entry.
 - **Esc.** Esc cancels (confirmed): a cancelled recording is kept as `cancelled`, with its audio retained for retry under the 7-day retention. Esc is armed only while a recording or job is in flight.
 - **Cancel token.** Each job carries a `SessionID`, checked at every stage boundary.
@@ -185,7 +187,7 @@ The pipeline runs in this order:
 <TRANSCRIPT>…</TRANSCRIPT>
 ```
 
-Tag-like sequences inside any section (for example `</TRANSCRIPT>`) are neutralized by escaping `<` before the text is inserted. `build(_: CloudCleanupRequest)` cannot emit `<CONTEXT>`. FoundationModels uses greedy sampling and a `@Generable` output struct.
+Tag-like sequences inside any section (for example `</TRANSCRIPT>`) are neutralized by escaping `<` before the text is inserted. `build(_: CloudCleanupRequest)` cannot emit `<CONTEXT>`. FoundationModels uses greedy sampling and a plain-text reply (ADR 0008 measured the `@Generable` reply as worse).
 
 `OutputGuard` first sanitizes: it strips think blocks, code fences, and leading labels or preambles ("Output:", "Here is …:"). It then uses raw, with a reason, when any of these holds:
 

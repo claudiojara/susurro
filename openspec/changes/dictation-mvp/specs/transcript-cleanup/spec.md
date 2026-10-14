@@ -90,6 +90,34 @@ The raw transcript MUST be used instead when the sanitized output is empty, cont
 - WHEN the safety net runs
 - THEN the final text is the raw transcript
 
+### Requirement: Input budget
+
+The cleanup stage MUST NOT call a provider when the transcript exceeds the provider's input cap, and MUST use the raw transcript with the reason input-too-large instead. The cap is 2,500 characters for a local FoundationModels provider and 6,000 characters for a cloud provider. A local request MUST trim its text before the cursor before the cap rejects the transcript.
+
+#### Scenario: Local transcript over the cap
+
+- GIVEN a local FoundationModels request whose transcript is 2,501 characters and a spy provider
+- WHEN cleanup runs
+- THEN the provider is not called, the final text is the raw transcript, and the reason is input-too-large
+
+#### Scenario: Local transcript at the cap
+
+- GIVEN a local FoundationModels request whose transcript is exactly 2,500 characters
+- WHEN cleanup runs
+- THEN the provider is called
+
+#### Scenario: Cloud transcript over the cap
+
+- GIVEN a cloud request whose transcript is 6,001 characters and a spy provider
+- WHEN cleanup runs
+- THEN the provider is not called and the final text is the raw transcript
+
+#### Scenario: Context trimmed first
+
+- GIVEN a local request whose transcript and text before the cursor together exceed the provider's combined input
+- WHEN the request is built
+- THEN the text before the cursor is trimmed, nearest the cursor, and the transcript is untouched
+
 ### Requirement: Failure and timeout fallback
 
 Provider errors, unavailability, or exceeding a cleanup timeout MUST yield the raw transcript, never an error or a blocked insertion.

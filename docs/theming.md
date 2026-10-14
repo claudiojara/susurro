@@ -32,7 +32,7 @@ down to a single field of a token. This file changes the accent in light and dar
 | `sizes` | Points: the fixed dimension of a component (`statusDot` is the diameter of a status dot, `levelBar` the thickness of a level bar). |
 | `layout` | Points: the geometry of a screen or a window, as opposed to a component (`onboardingWidth` is the width of the onboarding screen). The overlay's geometry has its own group. |
 | `motion` | Durations in seconds, and `springResponse` and `springDamping`. |
-| `overlay` | `width`, `cornerRadius`, `offset` (points from the screen edge), `edge` (`top` or `bottom`). |
+| `overlay` | `width`, `cornerRadius`, `offset` (points from the screen edge), `edge` (`top` or `bottom`). The edge is the default: a user who chose an edge in the settings (`overlay.edge`) gets that one whatever the theme says. |
 
 A file is used whole or not at all. If anything in it cannot be used, the loader returns the default theme together
 with the errors, and a mistake in a file being edited shows up instead of leaving the old look. The loader reports
@@ -177,9 +177,10 @@ that is not scanned: it is where a theme value becomes a SwiftUI one, so it is t
 value into a SwiftUI value goes in the bridge. A test (`theBridgeHoldsTheLiterals`) fails if another file of `Tokens/`
 needs the allowance.
 
-Only `Sources/DesignSystem` and `Sources/SusurroUI` are scanned. The skeleton views of `Packages/SusurroFeatures` still
-hold literals (`SkeletonIndicatorView`, `SkeletonOverlayPanel`: sizes, margins, and a corner radius) and are not scanned:
-the screens of PR 2d and 2e replace them, and they will be added to the scan then.
+Only `Sources/DesignSystem` and `Sources/SusurroUI` are scanned. The views of `Packages/SusurroFeatures` are not views:
+they hold the view models and the AppKit glue, and every look is in `SusurroUI`. The recording overlay (`OverlayHUD`,
+`WaveformMeter`, the `OverlayPanel` host) is there, and it takes its width, corner radius and offset from the `overlay`
+group.
 
 The scanner (`Tests/DesignSystemTests/TokenLint/LiteralScanner.swift`) reads text, not syntax. It skips comments and
 the inside of strings, and it counts the text of a string interpolation as part of the string. It cannot know that a

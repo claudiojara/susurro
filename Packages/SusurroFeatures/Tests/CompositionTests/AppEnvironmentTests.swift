@@ -35,17 +35,36 @@ struct AppEnvironmentTests {
         await f.eventually("the first read") { f.environment.monitor.hasReadStatuses }
         await f.eventually("the model to be prepared") { f.recognizer.calls.contains(.prepare) }
         await f.eventually("the window") { f.window.shown >= 1 }
-        await f.clock.waitForSleeps(1)
+        await f.clock.waitForSleeps(2)
         for _ in 0..<50 { await Task.yield() }
 
         let launches = f.diagnostics.events.filter { $0 == .appLaunched }.count
         let prepares = f.recognizer.calls.filter { $0 == .prepare }.count
         #expect(launches == 1)
         #expect(prepares == 1)
-        #expect(f.clock.pendingSleeps == 1)  // one permission poll
+        #expect(f.clock.pendingSleeps == 2)  // one permission poll and one wait of the retention job
         #expect(f.permissions.statusReads == 2)  // the two required permissions, once
         #expect(f.themePreparations.value == 1)
         #expect(f.window.shown == 1)  // one presenter
+        await f.environment.shutdown()
+    }
+
+    @Test("choosing a modifier-only hotkey adds Input Monitoring to the permissions the app asks for, and back")
+    func hotkeyKindFollowsIntoThePermissions() async {
+        let f = AppEnvironmentFixture()
+        f.environment.start()
+        await f.eventually("the first read") { f.environment.monitor.hasReadStatuses }
+        #expect(!f.environment.monitor.requested.contains(.inputMonitoring))
+
+        f.settings.set(HotkeyKind.modifierOnly, for: HotkeySettings.kind)
+        await f.eventually("Input Monitoring to be asked for") {
+            f.environment.monitor.requested.contains(.inputMonitoring)
+        }
+
+        f.settings.set(HotkeyKind.keyed, for: HotkeySettings.kind)
+        await f.eventually("Input Monitoring to be dropped") {
+            !f.environment.monitor.requested.contains(.inputMonitoring)
+        }
         await f.environment.shutdown()
     }
 
@@ -111,7 +130,7 @@ struct AppEnvironmentTests {
         f.environment.start()
         f.hotkeys.send(.down(at: Self.pressTime))
         await f.eventually("the starting indicator") { f.overlay.current == "Getting ready…" }
-        f.capture.emit(AudioChunk(samples: [0.1, 0.2, 0.3]))
+        f.capture.emit(AudioChunk(samples: [Float](repeating: 0.1, count: AudioClip.sampleRate)))
         await f.eventually("the recording indicator") { f.overlay.current == "Listening…" }
         f.hotkeys.send(.up(at: Self.pressTime + .milliseconds(1200)))
         await f.eventually("the pasted indicator") { f.overlay.current == "Pasted" }
@@ -122,18 +141,19 @@ struct AppEnvironmentTests {
         await f.environment.shutdown()
     }
 
-    @Test("a press while a dictation is processed shows the busy notice on the overlay")
-    func busyPress() async {
+    @Test("a press while a dictation is processed starts the next recording, and the overlay follows it")
+    func pressWhileProcessing() async {
         let f = AppEnvironmentFixture(recognizer: FakeRecognizer(transcript: "uno", gated: true))
         f.environment.start()
         f.hotkeys.send(.down(at: Self.pressTime))
-        f.capture.emit(AudioChunk(samples: [0.1]))
+        f.capture.emit(AudioChunk(samples: [Float](repeating: 0.1, count: AudioClip.sampleRate)))
         await f.eventually("the recording indicator") { f.overlay.current == "Listening…" }
         f.hotkeys.send(.up(at: Self.pressTime + .milliseconds(1200)))
         await f.eventually("the transcribing indicator") { f.overlay.current == "Transcribing…" }
         f.hotkeys.send(.down(at: Self.pressTime + .milliseconds(1300)))
-        await f.eventually("the busy notice") { f.overlay.current == "Still working on the last dictation" }
+        await f.eventually("the next recording") { f.overlay.current == "Getting ready…" }
 
+        #expect(f.capture.startCount == 2)
         f.recognizer.releaseTranscription()
         await f.environment.shutdown()
     }

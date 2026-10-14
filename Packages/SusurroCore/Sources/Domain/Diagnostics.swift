@@ -25,6 +25,12 @@ public enum DiagnosticEvent: Sendable, Equatable {
     case pasteboardWriteRefused
     /// The pasteboard refused to take the user's old contents back.
     case clipboardRestoreFailed
+    /// The paste landed but the user's old clipboard was not put back, because the snapshot of it was incomplete.
+    /// `reason` is a fixed name such as "typeWithoutData" or "tooLarge".
+    case clipboardNotRestored(reason: String)
+    /// The style chosen for a dictation: the names of its category, tone, and the rule that decided. Nothing of the
+    /// context it was chosen from is recorded.
+    case styleResolved(category: String, tone: String, source: String)
     /// The app asked the inserter to put the clipboard back as it terminated. `restored` is false when there was
     /// nothing to put back: no paste was under way, or the user had copied something since.
     case clipboardRestoreAtTermination(restored: Bool)
@@ -53,6 +59,23 @@ public enum DiagnosticEvent: Sendable, Equatable {
     case permissionGuidanceShown(permission: Permission)
     /// A request to the system for the permission returned, and a read after it found the permission in `status`.
     case permissionRequestEnded(permission: Permission, status: PermissionStatus)
+    /// A recording was written and read back. `id` names the file (`<id>.caf`) and `milliseconds` is its length.
+    case recordingVerified(id: String, milliseconds: Int)
+    /// A recording could not be written or verified. `step` is one of "begin", "write", or "verify".
+    case recordingStoreFailed(step: String)
+    /// A step of the durable pipeline could not reach the history. `step` is one of "insert" or "update". The
+    /// dictation goes on without the record.
+    case historyWriteFailed(step: String)
+    /// The voice activity detector failed, so the recording went to the recognizer whole.
+    case voiceDetectionFailed
+    /// The recognizer answered in a language other than the one that was asked for, so the clip was transcribed again.
+    case languageDriftDetected
+    /// The key store could not be read for an account. Only the account and the system's status code are recorded: never
+    /// a key, and never a message that could quote one.
+    case secretUnreadable(account: SecretAccount, status: Int32)
+    /// A request to a cloud provider failed. `reason` is a fixed word such as "http-401", "timeout", "network", or
+    /// "response": never the body of the response and never anything that was sent.
+    case cloudRequestFailed(provider: String, reason: String)
 }
 
 /// Where the pipeline reports what it would otherwise swallow. The live log lives in the platform package.

@@ -31,6 +31,9 @@ public struct OSLogDiagnostics: DiagnosticsLog {
         case .pasteNotCompleted(let cause): (.error, "paste not completed: \(cause)")
         case .pasteboardWriteRefused: (.error, "the pasteboard refused a write")
         case .clipboardRestoreFailed: (.error, "the pasteboard refused the old contents")
+        case .clipboardNotRestored(let reason): (.default, "the old clipboard was not put back: \(reason)")
+        case .styleResolved(let category, let tone, let source):
+            (.default, "style: category=\(category) tone=\(tone) source=\(source)")
         case .clipboardRestoreAtTermination(let restored):
             (.default, restored ? "termination: the clipboard was put back" : "termination: no clipboard to put back")
         case .captureFirstBuffer(let frames, let sampleRate):
@@ -47,6 +50,15 @@ public struct OSLogDiagnostics: DiagnosticsLog {
             (.default, "permission \(permission): troubleshooting steps shown")
         case .permissionRequestEnded(let permission, let status):
             (.default, "permission \(permission): request ended, now \(status)")
+        case .recordingVerified(let id, let milliseconds):
+            (.default, "recording \(id).caf stored and verified: \(milliseconds) ms")
+        case .recordingStoreFailed(let step): (.error, "recording store failed at \(step)")
+        case .historyWriteFailed(let step): (.error, "history write failed at \(step)")
+        case .voiceDetectionFailed: (.error, "voice detection failed, the recording goes to the recognizer whole")
+        case .languageDriftDetected: (.default, "transcript in the wrong language, transcribing again")
+        case .secretUnreadable(let account, let status):
+            (.error, "key store unreadable for \(account.rawValue): status \(status)")
+        case .cloudRequestFailed(let provider, let reason): (.error, "cloud request to \(provider) failed: \(reason)")
         }
     }
 

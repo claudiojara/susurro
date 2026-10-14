@@ -1,4 +1,5 @@
 import AppKit
+import Domain
 import Testing
 
 @testable import TextInsertion
@@ -9,12 +10,12 @@ struct PromisedTextTests {
     func stringRequestIsAReceipt() {
         let promise = PromisedText("hello")
         let item = NSPasteboardItem()
-        #expect(promise.receipts == 0)
+        #expect(promise.receipts.count == 0)
 
         promise.pasteboard(nil, item: item, provideDataForType: .string)
 
         #expect(item.string(forType: .string) == "hello")
-        #expect(promise.receipts == 1)
+        #expect(promise.receipts.count == 1)
     }
 
     @Test("a request for another type provides nothing and is not a read")
@@ -25,7 +26,7 @@ struct PromisedTextTests {
         promise.pasteboard(nil, item: item, provideDataForType: .rtf)
 
         #expect(item.types.isEmpty)
-        #expect(promise.receipts == 0)
+        #expect(promise.receipts.count == 0)
     }
 
     // The next two pin what the paste depends on. They describe how the pasteboard behaves today, so a change in a later
@@ -44,7 +45,7 @@ struct PromisedTextTests {
 
         #expect(pasteboard.string(forType: .string) == "hello")
 
-        #expect(promise.receipts == 1)
+        #expect(promise.receipts.count == 1)
         #expect(pasteboard.changeCount == written)
     }
 
@@ -61,7 +62,7 @@ struct PromisedTextTests {
         #expect(pasteboard.string(forType: .string) == "hello")
         #expect(pasteboard.string(forType: .string) == "hello")
 
-        #expect(promise.receipts == 1)
+        #expect(promise.receipts.count == 1)
     }
 
     @Test("requests from several threads are all counted")
@@ -72,6 +73,6 @@ struct PromisedTextTests {
             promise.pasteboard(nil, item: NSPasteboardItem(), provideDataForType: .string)
         }
 
-        #expect(promise.receipts == 1_000)
+        #expect(promise.receipts.count == 1_000)
     }
 }

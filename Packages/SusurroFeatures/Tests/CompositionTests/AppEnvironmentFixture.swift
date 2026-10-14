@@ -3,21 +3,30 @@ import DesignSystem
 import Domain
 import Foundation
 import Presentation
+import SusurroUI
 import Synchronization
 import Testing
 
 @testable import Composition
 
-/// An overlay that keeps what the presenter shows, in order.
+/// An overlay that keeps what the view model shows, in order.
 @MainActor
 final class SpyOverlay: OverlaySurface {
-    private(set) var shown: [OverlayIndicator?] = []
+    private(set) var shown: [OverlayViewState] = []
+    private(set) var model: OverlayViewModel?
+    private(set) var themes: ThemeModel?
 
-    var messages: [String?] { shown.map { $0?.message } }
-    var current: String? { shown.last.flatMap { $0 }?.message }
+    var messages: [String?] { shown.map(\.text) }
+    var current: String? { shown.last?.text }
 
-    func display(_ indicator: OverlayIndicator?) {
-        shown.append(indicator)
+    func display(_ state: OverlayViewState) {
+        shown.append(state)
+    }
+
+    func built(from model: OverlayViewModel, _ themes: ThemeModel) -> SpyOverlay {
+        self.model = model
+        self.themes = themes
+        return self
     }
 }
 
@@ -80,6 +89,7 @@ final class ReadinessFeed: Sendable {
 final class AppEnvironmentFixture {
     let hotkeys = FakeHotkeySource()
     let capture: FakeAudioCaptureSource
+    let recordings = FakeRecordingStore()
     let recognizer: FakeRecognizer
     let inserter = FakeTextInserter()
     let permissions: MutablePermissionsChecker
@@ -105,7 +115,9 @@ final class AppEnvironmentFixture {
         permissions: [Permission: PermissionStatus] = [.microphone: .granted, .accessibility: .granted],
         recognizer: FakeRecognizer = FakeRecognizer(transcript: "hola"),
         capture: FakeAudioCaptureSource = FakeAudioCaptureSource(),
-        themeFiles: [String: String] = [:]
+        themeFiles: [String: String] = [:],
+        history: HistoryDependencies = .preview(),
+        settingsScreen: AppEnvironment.Dependencies.SettingsScreen? = nil
     ) {
         self.permissions = MutablePermissionsChecker(permissions)
         self.recognizer = recognizer
@@ -125,12 +137,13 @@ final class AppEnvironmentFixture {
             AppEnvironment.Dependencies(
                 hotkeys: hotkeys,
                 capture: capture,
+                recordings: recordings,
                 recognizer: recognizer,
                 readinessChanges: { readiness.subscribe() },
                 inserter: inserter,
                 permissions: self.permissions,
                 diagnostics: diagnostics,
-                overlay: overlay,
+                overlay: { [overlay] in overlay.built(from: $0, $1) },
                 restoreClipboardNow: { [unowned self] in clipboardRestores += 1 },
                 settings: settings,
                 onboarding: AppEnvironment.Dependencies.Onboarding(
@@ -140,7 +153,9 @@ final class AppEnvironmentFixture {
                 ),
                 theming: AppEnvironment.Dependencies.Theming(
                     store: themes, prepare: { themePreparations.increment() }),
-                clock: clock
+                clock: clock,
+                history: history,
+                settingsScreen: settingsScreen
             )
         )
     }

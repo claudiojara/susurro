@@ -20,6 +20,8 @@
     <true/>
     <key>NSMicrophoneUsageDescription</key>
     <string>Susurro records your voice while you hold the dictation key so it can turn your speech into text.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Susurro uses the speech engine of macOS, on this Mac, to transcribe again a dictation that came out in the wrong language. Your audio does not leave your Mac.</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
 </dict>

@@ -80,18 +80,19 @@ struct CapReleaseWaitTests {
         #expect(h.diagnostics.events == [.recordingCapReached, .releaseWaitExpired])
     }
 
-    @Test("a press during the wait gets the busy notice and starts no dictation")
+    @Test(
+        "a new press during the wait takes the old key as released, so the text goes in without waiting for the limit")
     func pressDuringTheWait() async {
         var h = await Harness(recognizer: FakeRecognizer(transcript: "hola"))
         _ = await Self.holdUntilTheCap(&h)
         await h.sleeper.entered(DictationLimits.releaseWaitTimeout).wait()
         await h.sut.handle(.down(at: Self.afterTheCap))
-        let rest = await h.release(after: 62_000)
+        let rest = await h.read(through: .inserted)
 
-        #expect(rest == [.notice(.busy), .transcribing(progress: nil), .inserted, .idle])
-        #expect(h.capture.startCount == 1)
-        #expect(h.recognizer.transcribedClips.count == 1)
+        // The release limit is never fired in this test: the text did not wait for it.
+        #expect(rest.last == .inserted)
         #expect(h.inserter.insertedTexts == ["hola"])
+        #expect(h.capture.startCount == 2)
     }
 
     @Test("shutting down during the wait inserts nothing")

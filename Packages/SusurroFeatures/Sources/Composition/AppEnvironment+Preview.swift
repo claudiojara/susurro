@@ -3,6 +3,7 @@ import DesignSystem
 import Domain
 import Foundation
 import Presentation
+import SusurroUI
 
 extension AppEnvironment {
     /// The graph on the fakes, for previews and for running the app without a microphone or a model.
@@ -17,12 +18,13 @@ extension AppEnvironment.Dependencies {
         AppEnvironment.Dependencies(
             hotkeys: FakeHotkeySource(),
             capture: FakeAudioCaptureSource(),
+            recordings: FakeRecordingStore(),
             recognizer: FakeRecognizer(transcript: transcript),
             readinessChanges: { AsyncStream { $0.yield(.ready) } },
             inserter: FakeTextInserter(),
             permissions: FakePermissionsChecker([.microphone: .granted, .accessibility: .granted]),
             diagnostics: NoDiagnostics(),
-            overlay: NoOverlay(),
+            overlay: { _, _ in NoOverlay() },
             restoreClipboardNow: {},
             settings: InMemorySettingsStore(),
             onboarding: Onboarding(
@@ -39,7 +41,7 @@ extension AppEnvironment.Dependencies {
 /// An overlay that shows nothing.
 @MainActor
 private struct NoOverlay: OverlaySurface {
-    func display(_ indicator: OverlayIndicator?) {}
+    func display(_ state: OverlayViewState) {}
 }
 
 /// An onboarding window that shows nothing.
