@@ -14,8 +14,9 @@ SWIFTPM_FLAGS := --disable-keychain
 SOURCE_PACKAGES := $(DERIVED_DATA)/SourcePackages
 XCODEBUILD_PACKAGE_FLAGS := -clonedSourcePackagesDirPath $(SOURCE_PACKAGES) -disableAutomaticPackageResolution
 
-# RECORD=1 re-records snapshot references. Do it only on the CI image (record-snapshots workflow).
-SNAPSHOT_ENV := $(if $(RECORD),SNAPSHOT_TESTING_RECORD=all)
+# RECORD=1 re-records snapshot references. Do it only on the CI image (record-snapshots workflow). Without it nothing is
+# ever written: a missing reference fails the test and creates no file.
+SNAPSHOT_ENV := SNAPSHOT_TESTING_RECORD=$(if $(RECORD),all,never)
 
 .PHONY: bootstrap resolve format lint test snapshots build run clean
 
@@ -35,9 +36,12 @@ test:
 		swift test $(SWIFTPM_FLAGS) --package-path Packages/$$pkg --skip Snapshot || exit 1; \
 	done
 
-# Stub until the snapshot infrastructure lands. It will run: $(SNAPSHOT_ENV) swift test --filter Snapshot
+# The snapshot suites (the ones with Snapshot in their name, which `make test` skips) compare pictures of the views with
+# the references in __Snapshots__. The pictures differ a little between macOS versions, so a run on another machine than
+# the CI image can fail. With RECORD=1 every test fails on purpose, because that is how recording reports itself; the
+# record-snapshots workflow then runs the target again without it.
 snapshots:
-	@echo "No snapshot suites yet."
+	$(SNAPSHOT_ENV) swift test $(SWIFTPM_FLAGS) --package-path Packages/SusurroUI --filter Snapshot
 
 # The pins are in Packages/SusurroFeatures/Package.resolved, the package the app depends on.
 resolve:
