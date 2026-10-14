@@ -1,6 +1,20 @@
 import Foundation
 import Synchronization
 
+/// A setting key whatever its value type, for code that handles a list of keys, as a check that none share a name.
+public protocol AnySettingKey: Sendable {
+    var storageName: String { get }
+}
+
+/// A part of a key name: the area or the name.
+enum SettingKeyPart {
+    /// Whether `part` can be one. A dot would let two different keys be stored under one name (`a.b` and `c` against `a`
+    /// and `b.c`), and an empty part would hide that a key lacks an area or a name.
+    static func isValid(_ part: String) -> Bool {
+        !part.isEmpty && !part.contains(".")
+    }
+}
+
 /// A type a setting can hold as it is stored, one that a property list keeps as itself.
 public protocol SettingStorable: Sendable {}
 extension Bool: SettingStorable {}
@@ -13,8 +27,9 @@ extension String: SettingStorable {}
 ///
 /// A key is named by its area, the part of the app the setting belongs to (`hotkey`, `overlay`, `history`), and its
 /// name in camel case, and is stored as `<area>.<name>`. Declaring the two parts apart is what keeps every key in that
-/// form.
-public struct SettingKey<Value: Sendable>: Sendable {
+/// form. Neither part may be empty or contain a dot, so that no two keys share a storage name by accident; a key that
+/// breaks the rule stops the app where it is declared.
+public struct SettingKey<Value: Sendable>: Sendable, AnySettingKey {
     public let storageName: String
     public let defaultValue: Value
     private let encoder: @Sendable (Value) -> (any Sendable)?
@@ -27,6 +42,10 @@ public struct SettingKey<Value: Sendable>: Sendable {
         encoder: @escaping @Sendable (Value) -> (any Sendable)?,
         decoder: @escaping @Sendable (Any) -> Value?
     ) {
+        precondition(
+            SettingKeyPart.isValid(area), "A setting key needs an area that is not empty and has no dot: \(area)")
+        precondition(
+            SettingKeyPart.isValid(name), "A setting key needs a name that is not empty and has no dot: \(name)")
         storageName = "\(area).\(name)"
         self.defaultValue = defaultValue
         self.encoder = encoder
