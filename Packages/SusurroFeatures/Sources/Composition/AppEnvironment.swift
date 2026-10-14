@@ -125,7 +125,8 @@ public final class AppEnvironment {
             inserter: dependencies.inserter,
             permissions: dependencies.permissions,
             diagnostics: dependencies.diagnostics,
-            sleep: sleep
+            sleep: sleep,
+            clock: clock
         )
         let overlay = dependencies.overlay
         presenter = SkeletonOverlayPresenter(sleep: sleep, display: { overlay.display($0) })
@@ -135,6 +136,8 @@ public final class AppEnvironment {
             reportUnavailable: { presenter.showModelUnavailable() })
         monitor = PermissionsMonitor(
             checker: dependencies.permissions, openSettings: dependencies.onboarding.openSettings, clock: clock,
+            needs: PermissionNeeds(
+                modifierOnlyHotkey: dependencies.settings.value(for: HotkeySettings.kind) == .modifierOnly),
             diagnostics: dependencies.diagnostics)
         onboardingModel = OnboardingViewModel(monitor: monitor)
         themeModel = ThemeModel()
@@ -160,6 +163,7 @@ public final class AppEnvironment {
         run { await $0.launch() }
         run { await $0.onboardingPresenter.run() }
         run { await $0.monitor.run(activations: $0.dependencies.onboarding.activations()) }
+        run { await $0.followHotkeyKind() }
         run { await $0.themeModel.follow(await $0.dependencies.theming.store.updates()) }
         // The folder is read away from the main actor, so a slow disk or a link to a volume that is not there cannot hold
         // the launch up. The bundled theme shows until the files are known.
@@ -184,6 +188,16 @@ public final class AppEnvironment {
     }
 
     // MARK: Launch
+
+    /// A modifier-only or fn hotkey needs Input Monitoring, so the permissions the app asks for follow the hotkey the user
+    /// chooses.
+    private func followHotkeyKind() async {
+        for await kind in dependencies.settings.values(for: HotkeySettings.kind) {
+            var needs = monitor.needs
+            needs.modifierOnlyHotkey = kind == .modifierOnly
+            await monitor.setNeeds(needs)
+        }
+    }
 
     /// The model starts loading before the first press. The permissions are the monitor's and the onboarding's: the
     /// system prompts come when the user asks for a permission there, not at launch.

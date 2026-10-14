@@ -82,6 +82,7 @@ public struct OverlayIndicator: Equatable, Sendable {
             switch error {
             case .microphoneNotGranted: "Microphone access is off."
             case .recognizerNotInstalled: "The speech model is missing."
+            case .cloudKeyMissing: "The speech service has no API key."
             case .recognizerUnavailable: "The speech model could not load."
             case .captureFailed: "Could not record."
             case .recognitionFailed: "Transcription failed."
@@ -97,6 +98,7 @@ public struct OverlayIndicator: Equatable, Sendable {
             case .permissions: "Open the Susurro menu to turn it on."
             case .settings: "Open the Susurro menu."
             case .retry: "Hold the key to try again."
+            case .addKey: "Open the Susurro menu to add a key."
             }
         return "\(headline) \(wayOut)"
     }

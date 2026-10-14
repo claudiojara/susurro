@@ -12,7 +12,7 @@ import Settings
 import TextInsertion
 
 extension AppEnvironment {
-    /// The graph on the real adapters: the Control+Option+D hotkey, the microphone, Parakeet, the pasteboard, the
+    /// The graph on the real adapters: the configured hotkey (Control+Option+D until the user changes it), the microphone, Parakeet, the pasteboard, the
     /// system permissions, and the log. Build it once, at launch.
     public static var live: AppEnvironment {
         AppEnvironment(Dependencies.live())
@@ -28,9 +28,10 @@ extension AppEnvironment.Dependencies {
         let permissions = SystemPermissionsChecker()
         let recognizer = ParakeetRecognizer()
         let inserter = SimplePasteInserter(diagnostics: diagnostics)
+        let settings = UserDefaultsSettingsStore(diagnostics: diagnostics)
         let themes = ThemeStore(directory: themesFolder)
         return AppEnvironment.Dependencies(
-            hotkeys: HotkeyService(),
+            hotkeys: HotkeyService(settings: settings, permissions: permissions),
             capture: AVAudioEngineCaptureSource(diagnostics: diagnostics),
             recognizer: recognizer,
             readinessChanges: { await recognizer.readinessChanges() },
@@ -39,7 +40,7 @@ extension AppEnvironment.Dependencies {
             diagnostics: diagnostics,
             overlay: SkeletonOverlayController(),
             restoreClipboardNow: { inserter.restoreForTermination() },
-            settings: UserDefaultsSettingsStore(diagnostics: diagnostics),
+            settings: settings,
             onboarding: Onboarding(
                 window: { OnboardingWindowController(model: $0, themes: $1) },
                 openSettings: { NSWorkspace.shared.open(permissions.settingsURL(for: $0)) },
