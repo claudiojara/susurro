@@ -204,7 +204,10 @@ struct LocalWhisperHTTPTests {
 
     @Test("it is not installed when nothing answers")
     func notInstalled() async {
-        #expect(await Rig(reply: .failure(.cannotConnectToHost)).recognizer.readiness() == .notInstalled)
+        // The rig keeps the stub server, and so its session, alive while the request runs.
+        let rig = Rig(reply: .failure(.cannotConnectToHost))
+
+        #expect(await rig.recognizer.readiness() == .notInstalled)
     }
 
     @Test("an address off this Mac is unavailable, with the reason, and nothing is sent")
@@ -221,24 +224,23 @@ struct LocalWhisperHTTPTests {
 
 @Suite("Local Whisper recognizer in command line mode", .timeLimit(.minutes(1)))
 struct LocalWhisperRecognizerCommandTests {
+    private let tools = FakeTools.shared
     private let clip = AudioClip(samples: (0..<800).map { Float($0 % 50) / 100 })
 
-    private func recognizer(
-        tool: String, folder: ToolFolder, language: SpeechLanguage = .auto
-    ) -> (LocalWhisperRecognizer, InMemorySettingsStore) {
+    private func recognizer(tool: String, folder: ToolFolder) -> LocalWhisperRecognizer {
         let settings = InMemorySettingsStore()
         settings.set(.cli, for: SpeechSettings.localWhisperMode)
         settings.set(tool, for: SpeechSettings.localWhisperExecutable)
-        return (LocalWhisperRecognizer(settings: settings, temporaryDirectory: folder.url), settings)
+        return LocalWhisperRecognizer(settings: settings, temporaryDirectory: folder.url)
     }
 
     @Test("the tool gets a file that holds the WAV, which is gone when the run is over")
     func temporaryFile() async throws {
         let folder = ToolFolder()
-        let tool = folder.script("read.sh", "printf 'bytes=%s' \"$(wc -c < \"$1\" | tr -d ' ')\"")
-        let (recognizer, _) = recognizer(tool: tool, folder: folder)
+        defer { folder.remove() }
 
-        let transcript = try await recognizer.transcribe(clip, options: RecognitionOptions())
+        let transcript = try await recognizer(tool: tools.sizeOfFile, folder: folder)
+            .transcribe(clip, options: RecognitionOptions())
 
         #expect(transcript.text == "bytes=\(clip.wavData().count)")
         #expect(folder.contents.filter { $0.hasSuffix(".wav") }.isEmpty, "the temporary file is still there")
@@ -247,11 +249,11 @@ struct LocalWhisperRecognizerCommandTests {
     @Test("the file is removed when the run fails too")
     func temporaryFileAfterFailure() async throws {
         let folder = ToolFolder()
-        let tool = folder.script("fail.sh", "exit 1")
-        let (recognizer, _) = recognizer(tool: tool, folder: folder)
+        defer { folder.remove() }
 
         await #expect(throws: RecognitionError.engineFailed("Local Whisper: exit 1")) {
-            try await recognizer.transcribe(clip, options: RecognitionOptions())
+            try await recognizer(tool: tools.failWithOne, folder: folder).transcribe(
+                clip, options: RecognitionOptions())
         }
         #expect(folder.contents.filter { $0.hasSuffix(".wav") }.isEmpty)
     }
@@ -259,27 +261,26 @@ struct LocalWhisperRecognizerCommandTests {
     @Test("a bad path is an error that names the command, and nothing is run")
     func badPath() async {
         let folder = ToolFolder()
-        let (recognizer, _) = recognizer(tool: "whisper", folder: folder)
+        defer { folder.remove() }
 
         await #expect(throws: RecognitionError.engineFailed("Local Whisper: the command cannot be run")) {
-            try await recognizer.transcribe(clip, options: RecognitionOptions())
+            try await recognizer(tool: "whisper", folder: folder).transcribe(clip, options: RecognitionOptions())
         }
     }
 
     @Test("it is ready when the command can be run, and says why when it cannot")
     func readiness() async {
         let folder = ToolFolder()
-        let good = folder.script("ok.sh", "echo hi")
-        let plain = folder.script("plain.sh", "echo hi", executable: false)
+        defer { folder.remove() }
 
-        #expect(await recognizer(tool: good, folder: folder).0.readiness() == .ready)
-        #expect(await recognizer(tool: "", folder: folder).0.readiness() == .notInstalled)
-        #expect(await recognizer(tool: "/definitely/not/here", folder: folder).0.readiness() == .notInstalled)
-        if case .unavailable(_, false) = await recognizer(tool: "whisper", folder: folder).0.readiness() {
+        #expect(await recognizer(tool: tools.hello, folder: folder).readiness() == .ready)
+        #expect(await recognizer(tool: "", folder: folder).readiness() == .notInstalled)
+        #expect(await recognizer(tool: "/definitely/not/here", folder: folder).readiness() == .notInstalled)
+        if case .unavailable(_, false) = await recognizer(tool: "whisper", folder: folder).readiness() {
         } else {
             Issue.record("a relative path should be unavailable")
         }
-        if case .unavailable(_, false) = await recognizer(tool: plain, folder: folder).0.readiness() {
+        if case .unavailable(_, false) = await recognizer(tool: tools.notExecutable, folder: folder).readiness() {
         } else {
             Issue.record("a file that cannot be run should be unavailable")
         }
