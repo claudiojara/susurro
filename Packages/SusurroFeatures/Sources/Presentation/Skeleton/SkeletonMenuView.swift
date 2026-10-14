@@ -15,7 +15,8 @@ public struct SkeletonMenuView: View {
             onSetUp: { model.setUp() },
             onRequest: { permission in Task { await model.request(permission) } },
             onOpenSettings: { model.openSettings(for: $0) },
-            onQuit: { NSApplication.shared.terminate(nil) }
+            onQuit: { NSApplication.shared.terminate(nil) },
+            onShowHistory: { model.openHistory() }
         )
     }
 }

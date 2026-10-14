@@ -29,6 +29,7 @@ extension AppEnvironment.Dependencies {
         let recognizer = ParakeetRecognizer()
         let inserter = SimplePasteInserter(diagnostics: diagnostics)
         let themes = ThemeStore(directory: themesFolder)
+        let clock = ContinuousClock()
         return AppEnvironment.Dependencies(
             hotkeys: HotkeyService(),
             capture: AVAudioEngineCaptureSource(diagnostics: diagnostics),
@@ -45,7 +46,9 @@ extension AppEnvironment.Dependencies {
                 openSettings: { NSWorkspace.shared.open(permissions.settingsURL(for: $0)) },
                 activations: Self.applicationActivations
             ),
-            theming: Theming(store: themes, prepare: Self.prepareThemes(for: themes))
+            theming: Theming(store: themes, prepare: Self.prepareThemes(for: themes)),
+            clock: clock,
+            history: .live(recognizer: recognizer, sleep: { try await clock.sleep(for: $0) })
         )
     }
 
