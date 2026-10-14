@@ -260,6 +260,41 @@ struct OnboardingViewModelTests {
         #expect(shown.action?.kind == .openSettings)
     }
 
+    @Test("a row that waits while its permission is not denied offers System Settings, and gets the troubleshooting")
+    func waitingWithoutDeniedIsNotStuck() async throws {
+        // The system can answer a request at once and leave the status as it was, as Input Monitoring does.
+        let rig = Rig(
+            [.microphone: .granted, .accessibility: .granted, .inputMonitoring: .notDetermined],
+            needs: PermissionNeeds(modifierOnlyHotkey: true))
+        let model = OnboardingViewModel(monitor: rig.monitor)
+        await rig.monitor.refresh()
+
+        await model.request(.inputMonitoring)
+        let waiting = try row(.inputMonitoring, of: model)
+        await rig.monitor.appDidBecomeActive()
+        await rig.clock.waitForSleeps(1)
+        rig.clock.advance(by: .seconds(30))
+        await waitUntil { (try? row(.inputMonitoring, of: model).status) == .stale }
+
+        let stale = try row(.inputMonitoring, of: model)
+        #expect(waiting.status == .waiting)
+        #expect(waiting.action?.kind == .openSettings)
+        #expect(stale.action?.kind == .openSettings)
+    }
+
+    @Test("no reason is shown before the statuses are read")
+    func noReasonBeforeTheFirstRead() async {
+        let rig = Rig([.microphone: .denied, .accessibility: .denied])
+        let model = OnboardingViewModel(monitor: rig.monitor)
+        let before = model.state.dictationDisabledMessage
+
+        await rig.monitor.refresh()
+
+        #expect(before == nil)
+        #expect(
+            model.state.dictationDisabledMessage == "Dictation is off until Microphone and Accessibility are allowed.")
+    }
+
     // MARK: Stale grants
 
     @Test("a row still denied 30 seconds after coming back from System Settings shows the troubleshooting steps")
