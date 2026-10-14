@@ -62,4 +62,22 @@ import SwiftUI
         }
     }
 
+    /// A model with a fixed state, for the preview of the container.
+    @MainActor
+    private final class PreviewModel: OnboardingViewModeling {
+        let state: OnboardingViewState
+
+        init(_ state: OnboardingViewState) {
+            self.state = state
+        }
+
+        func request(_ permission: OnboardingPermission) async {}
+        func openSettings(_ permission: OnboardingPermission) {}
+        func recheck() async {}
+    }
+
+    #Preview("OnboardingContainer") {
+        PreviewMatrix { OnboardingContainer(model: PreviewModel(OnboardingFixtures.state(.fresh)), onDone: {}) }
+    }
+
 #endif
