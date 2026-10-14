@@ -69,6 +69,17 @@ struct DictionaryStoreTests {
         #expect(store.terms() == ["Acme", "Beta"])
     }
 
+    @Test("the settings screen's edit replaces in place, and a term that is gone changes nothing")
+    func settingsEdit() throws {
+        let store = DictionaryStore(settings: InMemorySettingsStore())
+        try store.add("Acme")
+        try store.add("Globex")
+        try store.edit("Acme", to: "ACME Corp")
+        try store.edit("Nope", to: "Other")
+        #expect(throws: DictionaryError.duplicate) { try store.edit("Globex", to: "acme corp") }
+        #expect(store.terms() == ["ACME Corp", "Globex"])
+    }
+
     @Test("terms are trimmed when they are added")
     func trimmed() throws {
         let store = DictionaryStore(settings: InMemorySettingsStore())

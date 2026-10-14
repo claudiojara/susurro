@@ -10,7 +10,7 @@ let package = Package(
             name: "SusurroPlatform",
             targets: [
                 "Permissions", "Hotkeys", "AudioIO", "TextInsertion", "Diagnostics", "Settings", "Persistence",
-                "AccessibilityContext", "LanguageDetection", "EntityTagging", "ScreenOCR",
+                "AccessibilityContext", "LanguageDetection", "EntityTagging", "ScreenOCR", "Secrets",
             ]
         )
     ],
@@ -43,6 +43,7 @@ let package = Package(
                 .product(name: "GRDB", package: "GRDB.swift"),
             ]
         ),
+        .target(name: "Secrets", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .testTarget(
             name: "PermissionsTests",
             dependencies: ["Permissions", .product(name: "SusurroCore", package: "SusurroCore")]
@@ -109,6 +110,14 @@ let package = Package(
             dependencies: [
                 "LanguageDetection",
                 .product(name: "SusurroCore", package: "SusurroCore"),
+            ]
+        ),
+        .testTarget(
+            name: "SecretsTests",
+            dependencies: [
+                "Secrets",
+                .product(name: "SusurroCore", package: "SusurroCore"),
+                .product(name: "CoreTestSupport", package: "SusurroCore"),
             ]
         ),
         .testTarget(

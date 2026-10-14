@@ -15,7 +15,7 @@ let package = Package(
         .target(name: "Activation", dependencies: ["Domain"]),
         .target(name: "Pipeline", dependencies: ["Domain", "TextShaping", "Activation"]),
         .target(name: "CoreTestSupport", dependencies: ["Domain"]),
-        .testTarget(name: "DomainTests", dependencies: ["Domain"]),
+        .testTarget(name: "DomainTests", dependencies: ["Domain", "CoreTestSupport"]),
         .testTarget(name: "CoreTestSupportTests", dependencies: ["CoreTestSupport", "Domain"]),
         .testTarget(name: "TextShapingTests", dependencies: ["TextShaping", "Domain", "CoreTestSupport"]),
         .testTarget(name: "ActivationTests", dependencies: ["Activation", "Domain"]),

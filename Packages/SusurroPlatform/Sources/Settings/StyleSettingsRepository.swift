@@ -3,8 +3,9 @@ import Domain
 /// The user's style settings on top of a `SettingsStore`: the tone of each category, and the overrides for apps and
 /// sites. Every value is a setting of its own (no single blob), so a damaged one costs only itself. The keys are
 /// `style.tone-<category>` and `style.override-<category|tone>-<bundle|host>-<target>`, where the target has its dots
-/// and percent signs escaped, because a key part may not hold a dot.
-public final class StyleSettingsRepository: Sendable {
+/// and percent signs escaped, because a key part may not hold a dot. `style.overrideTargets` lists the targets that have
+/// an override, in the order they were added, so the settings screen can show them.
+public final class StyleSettingsRepository: StylePreferencesStore {
     private let store: any SettingsStore
 
     public init(store: any SettingsStore) {
@@ -18,8 +19,18 @@ public final class StyleSettingsRepository: Sendable {
         store.value(for: toneKey(category))
     }
 
+    /// Sets the tone of a category. Setting the default tone is the same as never having changed it.
     public func setTone(_ tone: Tone, for category: AppCategory) {
-        store.set(tone, for: toneKey(category))
+        if tone == category.defaultTone {
+            store.remove(toneKey(category))
+        } else {
+            store.set(tone, for: toneKey(category))
+        }
+    }
+
+    /// Whether the user changed the tone of the category from the default.
+    public func isEdited(_ category: AppCategory) -> Bool {
+        tone(for: category) != category.defaultTone
     }
 
     /// Brings the category back to its default tone.
@@ -41,6 +52,22 @@ public final class StyleSettingsRepository: Sendable {
     public func setOverride(_ override: StyleOverride, for target: StyleTarget) {
         set(override.category?.rawValue, for: overrideKey("category", target))
         set(override.tone?.rawValue, for: overrideKey("tone", target))
+        var listed = store.value(for: Self.overrideTargets)
+        let name = Self.listName(of: target)
+        if override.isEmpty {
+            listed.removeAll { $0 == name }
+        } else if !listed.contains(name) {
+            listed.append(name)
+        }
+        store.set(listed, for: Self.overrideTargets)
+    }
+
+    /// The overrides the user stored, in the order they were added.
+    public func overrideEntries() -> [StyleOverrideEntry] {
+        store.value(for: Self.overrideTargets).compactMap { name in
+            guard let target = Self.target(listedAs: name), let override = override(for: target) else { return nil }
+            return StyleOverrideEntry(target: target, override: override)
+        }
     }
 
     public func removeOverride(for target: StyleTarget) {
@@ -65,6 +92,22 @@ public final class StyleSettingsRepository: Sendable {
     }
 
     // MARK: Keys
+
+    /// The targets that have an override, as `bundle:<id>` or `host:<host>`.
+    static let overrideTargets = SettingKey<[String]>.json(area: "style", name: "overrideTargets", default: [])
+
+    static func listName(of target: StyleTarget) -> String {
+        switch target {
+        case .bundle(let id): "bundle:\(id)"
+        case .host(let host): "host:\(host)"
+        }
+    }
+
+    static func target(listedAs name: String) -> StyleTarget? {
+        if name.hasPrefix("bundle:") { return .bundle(String(name.dropFirst("bundle:".count))) }
+        if name.hasPrefix("host:") { return .host(String(name.dropFirst("host:".count))) }
+        return nil
+    }
 
     private func toneKey(_ category: AppCategory) -> SettingKey<Tone> {
         SettingKey<Tone>(area: "style", name: "tone-\(category.rawValue)", default: category.defaultTone)

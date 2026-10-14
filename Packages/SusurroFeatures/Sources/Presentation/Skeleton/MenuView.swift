@@ -13,6 +13,8 @@ struct MenuView: View {
     let onPreference: (MenuContent.Preference.Kind, Bool) -> Void
     let onQuit: () -> Void
     var onShowHistory: () -> Void = {}
+    /// Opens the settings. With none, the menu has no Settings item.
+    var onSettings: (() -> Void)?
 
     var body: some View {
         if let message = content.restrictionMessage {
@@ -38,6 +40,10 @@ struct MenuView: View {
         }
         Text(content.modelLine)
         Divider()
+        if let onSettings {
+            Button("Settings…", action: onSettings)
+                .keyboardShortcut(",")
+        }
         Button("Quit Susurro", action: onQuit)
             .keyboardShortcut("q")
     }

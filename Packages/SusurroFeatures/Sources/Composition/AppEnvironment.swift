@@ -47,6 +47,45 @@ public final class AppEnvironment {
             }
         }
 
+        /// What the settings window needs from the app, beyond what the rest of the graph already holds. A graph without it
+        /// has no Settings item in the menu.
+        public struct SettingsScreen {
+            /// Makes the window of the settings, which shows the view model in the theme.
+            public var window: @MainActor (SettingsViewModel, ThemeModel) -> any SettingsSurface
+            /// Whether the key store has a key for the account. The key itself is never read for the settings.
+            public var hasKey: @Sendable (SecretAccount) -> Bool
+            public var hotkey: @Sendable () -> HotkeyDescription
+            public var secureInputActive: @Sendable () -> Bool
+            public var overlayVariants: [OverlayVariantOption]
+            public var style: any StylePreferencesStore
+            public var dictionary: any DictionaryTermStore
+            /// How a local speech provider stands, by provider id.
+            public var speechReadiness: @Sendable (String) async -> RecognizerReadiness
+            public var appleIntelligenceAvailable: @Sendable () async -> Bool
+
+            public init(
+                window: @escaping @MainActor (SettingsViewModel, ThemeModel) -> any SettingsSurface,
+                hasKey: @escaping @Sendable (SecretAccount) -> Bool,
+                hotkey: @escaping @Sendable () -> HotkeyDescription,
+                secureInputActive: @escaping @Sendable () -> Bool,
+                overlayVariants: [OverlayVariantOption],
+                style: any StylePreferencesStore,
+                dictionary: any DictionaryTermStore,
+                speechReadiness: @escaping @Sendable (String) async -> RecognizerReadiness,
+                appleIntelligenceAvailable: @escaping @Sendable () async -> Bool
+            ) {
+                self.window = window
+                self.hasKey = hasKey
+                self.hotkey = hotkey
+                self.secureInputActive = secureInputActive
+                self.overlayVariants = overlayVariants
+                self.style = style
+                self.dictionary = dictionary
+                self.speechReadiness = speechReadiness
+                self.appleIntelligenceAvailable = appleIntelligenceAvailable
+            }
+        }
+
         public var hotkeys: any HotkeySource
         public var capture: any AudioCaptureSource
         /// Where each recording is written while it is captured, and read back from to be transcribed.
@@ -85,11 +124,18 @@ public final class AppEnvironment {
         /// A recognizer that honors the language it is asked for, to transcribe again a clip that the main one answered
         /// in the wrong language. Nil when the app has none.
         public var languageRecognizer: (any SpeechRecognizer)?
+        /// The other recognizers the user can select, such as the cloud and local Whisper ones. A failure of one falls
+        /// back to `recognizer`.
+        public var otherRecognizers: [any SpeechRecognizer]
+        /// Whether a cloud recognizer has its key. Without a key it cannot be used.
+        public var credentials: any ProviderCredentials
         /// Cleans the transcript before it is inserted. Nil inserts the raw transcript.
         public var cleanup: CleanupStage?
         /// Builds the vocabulary of each dictation from the user's dictionary, the context, and the screen. Nil gives the
         /// recognizer and the cleaner no vocabulary.
         public var vocabulary: VocabularyPipeline?
+        /// The settings window, or nil for a graph that has none.
+        public var settingsScreen: SettingsScreen?
 
         public init(
             hotkeys: any HotkeySource,
@@ -112,8 +158,11 @@ public final class AppEnvironment {
             vad: any VoiceActivityDetector = FakeVoiceActivityDetector(),
             languageDetector: any LanguageDetecting = FakeLanguageDetector(),
             languageRecognizer: (any SpeechRecognizer)? = nil,
+            otherRecognizers: [any SpeechRecognizer] = [],
+            credentials: any ProviderCredentials = NoProviderCredentials(),
             cleanup: CleanupStage? = nil,
-            vocabulary: VocabularyPipeline? = nil
+            vocabulary: VocabularyPipeline? = nil,
+            settingsScreen: SettingsScreen? = nil
         ) {
             self.hotkeys = hotkeys
             self.capture = capture
@@ -135,8 +184,17 @@ public final class AppEnvironment {
             self.vad = vad
             self.languageDetector = languageDetector
             self.languageRecognizer = languageRecognizer
+            self.otherRecognizers = otherRecognizers
+            self.credentials = credentials
             self.cleanup = cleanup
             self.vocabulary = vocabulary
+            self.settingsScreen = settingsScreen
+        }
+
+        /// The recognizers of the app, as the registry and the runner take them.
+        public var recognizerSet: RecognizerSet {
+            RecognizerSet(
+                main: recognizer, language: languageRecognizer, others: otherRecognizers, credentials: credentials)
         }
 
         /// What turns a clip into a raw transcript: the recognizers the app has, which of them is selected, the wait for
@@ -146,38 +204,56 @@ public final class AppEnvironment {
             sleep: @escaping @Sendable (Duration) async throws -> Void
         ) -> RecognitionRunner {
             Self.recognitionRunner(
-                recognizer: recognizer, languageRecognizer: languageRecognizer, settings: settings,
-                languageDetector: languageDetector, diagnostics: diagnostics, sleep: sleep)
+                recognizers: recognizerSet, settings: settings, languageDetector: languageDetector,
+                diagnostics: diagnostics, sleep: sleep)
         }
 
-        /// The recognizers of the app: Parakeet, the default, and the one that honors the language when there is one.
+        /// The recognizers of the app: Parakeet, the default, the one that honors the language when there is one, and
+        /// the others the user can select.
         public var recognizerRegistry: RecognizerRegistry {
-            Self.recognizerRegistry(recognizer: recognizer, languageRecognizer: languageRecognizer, settings: settings)
-        }
-
-        static func recognizerRegistry(
-            recognizer: any SpeechRecognizer, languageRecognizer: (any SpeechRecognizer)?, settings: any SettingsStore
-        ) -> RecognizerRegistry {
-            RecognizerRegistry(
-                providers: [recognizer] + (languageRecognizer.map { [$0] } ?? []),
-                defaultProvider: recognizer.id,
-                languageProvider: languageRecognizer?.id,
-                settings: settings
-            )
+            recognizerSet.registry(settings: settings)
         }
 
         static func recognitionRunner(
-            recognizer: any SpeechRecognizer, languageRecognizer: (any SpeechRecognizer)?, settings: any SettingsStore,
-            languageDetector: any LanguageDetecting, diagnostics: any DiagnosticsLog,
-            sleep: @escaping @Sendable (Duration) async throws -> Void
+            recognizers: RecognizerSet, settings: any SettingsStore, languageDetector: any LanguageDetecting,
+            diagnostics: any DiagnosticsLog, sleep: @escaping @Sendable (Duration) async throws -> Void
         ) -> RecognitionRunner {
             RecognitionRunner(
-                registry: recognizerRegistry(
-                    recognizer: recognizer, languageRecognizer: languageRecognizer, settings: settings),
+                registry: recognizers.registry(settings: settings),
                 language: SettingsLanguagePreference(settings: settings),
                 languageGuard: LanguageGuard(detector: languageDetector),
                 diagnostics: diagnostics,
                 sleep: sleep
+            )
+        }
+    }
+
+    /// The recognizers of the app and what decides whether a cloud one may be used.
+    public struct RecognizerSet: Sendable {
+        /// The default, which runs on this Mac and which a failure falls back to.
+        public var main: any SpeechRecognizer
+        /// The one that honors the language it is asked for.
+        public var language: (any SpeechRecognizer)?
+        public var others: [any SpeechRecognizer]
+        public var credentials: any ProviderCredentials
+
+        public init(
+            main: any SpeechRecognizer, language: (any SpeechRecognizer)? = nil, others: [any SpeechRecognizer] = [],
+            credentials: any ProviderCredentials = NoProviderCredentials()
+        ) {
+            self.main = main
+            self.language = language
+            self.others = others
+            self.credentials = credentials
+        }
+
+        func registry(settings: any SettingsStore) -> RecognizerRegistry {
+            RecognizerRegistry(
+                providers: [main] + (language.map { [$0] } ?? []) + others,
+                defaultProvider: main.id,
+                languageProvider: language?.id,
+                settings: settings,
+                credentials: credentials
             )
         }
     }
@@ -197,6 +273,8 @@ public final class AppEnvironment {
     let historyModel: HistoryViewModel
     /// What the overlay shows, over the pipeline's states.
     let overlayModel: OverlayViewModel
+    /// The settings screen's view model, when the graph has a settings window.
+    let settingsModel: SettingsViewModel?
 
     private let dependencies: Dependencies
     private let coordinator: DictationCoordinator
@@ -266,9 +344,25 @@ public final class AppEnvironment {
         preferences = MenuPreferences(
             settings: dependencies.settings,
             ocr: OCRPreferenceController(settings: dependencies.settings, monitor: monitor))
+        var showSettings: (@MainActor () -> Void)?
+        if let screen = dependencies.settingsScreen {
+            let model = SettingsViewModel(
+                SettingsDependencies(
+                    settings: dependencies.settings, hasKey: screen.hasKey, permissions: dependencies.permissions,
+                    hotkey: screen.hotkey, secureInputActive: screen.secureInputActive,
+                    overlayVariants: screen.overlayVariants, style: screen.style, dictionary: screen.dictionary,
+                    speechReadiness: screen.speechReadiness,
+                    appleIntelligenceAvailable: screen.appleIntelligenceAvailable,
+                    themes: dependencies.theming.store, themeModel: themeModel, clock: clock))
+            let surface = screen.window(model, themeModel)
+            settingsModel = model
+            showSettings = { surface.show() }
+        } else {
+            settingsModel = nil
+        }
         menu = MenuModel(
             monitor: monitor, showOnboarding: { onboardingPresenter.show() }, showHistory: { historyWindow.show() },
-            preferences: preferences)
+            preferences: preferences, showSettings: showSettings)
     }
 
     /// Starts the app's work: the overlay, the hotkey, the model, the permission monitor and the onboarding, and the
@@ -278,6 +372,7 @@ public final class AppEnvironment {
         hasStarted = true
         let launchedAt = dependencies.history.dates.now()
         dependencies.diagnostics.record(.appLaunched)
+        themeModel.appearance = dependencies.settings.value(for: AppearanceSettings.mode).override
         monitor.start()
         // The overlay listens before the coordinator can publish, and the coordinator registers the hotkey when it runs.
         run { await $0.overlayModel.run(states: $0.coordinator.states) }

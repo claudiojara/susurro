@@ -12,8 +12,9 @@ number, and add a row below. An accepted ADR is not edited; a later ADR supersed
 | [0005](0005-hotkeys-and-escape-semantics.md) | Hotkey strategy and Esc semantics | accepted |
 | [0006](0006-cloud-data-boundary.md) | Cloud requests cannot carry context | accepted |
 | [0007](0007-tooling-format-token-lint-snapshots.md) | swift-format, token lint test, snapshot tests | accepted |
-| [0012](0012-vad-placement-post-pass-on-the-persisted-file.md) | VAD runs as a post-pass; the stored file stays untrimmed | accepted |
 | [0008](0008-foundation-models-budget-and-plain-reply.md) | FoundationModels input budget and plain-text reply | accepted |
-| [0030](0030-busy-presses-use-a-fifo-processing-queue.md) | Busy presses use a FIFO ProcessingQueue | accepted |
+| [0009](0009-local-whisper-is-an-adapter.md) | Local Whisper is an adapter for the user's existing install | accepted |
+| [0012](0012-vad-placement-post-pass-on-the-persisted-file.md) | VAD runs as a post-pass; the stored file stays untrimmed | accepted |
 | [0013](0013-parakeet-takes-whole-clips.md) | Parakeet takes whole clips; chunking is for providers with a limit | accepted |
 | [0014](0014-keep-spanish-dictation-in-spanish.md) | Language mode, drift guard, and a second recognizer keep Spanish in Spanish | accepted |
+| [0030](0030-busy-presses-use-a-fifo-processing-queue.md) | Busy presses use a FIFO ProcessingQueue | accepted |

@@ -56,6 +56,9 @@ public struct OSLogDiagnostics: DiagnosticsLog {
         case .historyWriteFailed(let step): (.error, "history write failed at \(step)")
         case .voiceDetectionFailed: (.error, "voice detection failed, the recording goes to the recognizer whole")
         case .languageDriftDetected: (.default, "transcript in the wrong language, transcribing again")
+        case .secretUnreadable(let account, let status):
+            (.error, "key store unreadable for \(account.rawValue): status \(status)")
+        case .cloudRequestFailed(let provider, let reason): (.error, "cloud request to \(provider) failed: \(reason)")
         }
     }
 

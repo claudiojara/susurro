@@ -76,6 +76,14 @@ struct DiagnosticDescriptionTests {
                 .voiceDetectionFailed, .error, "voice detection failed, the recording goes to the recognizer whole"
             ),
             (.languageDriftDetected, .default, "transcript in the wrong language, transcribing again"),
+            (
+                .secretUnreadable(account: .deepgram, status: -25308), .error,
+                "key store unreadable for deepgram: status -25308"
+            ),
+            (
+                .cloudRequestFailed(provider: "deepgram", reason: "http-401"), .error,
+                "cloud request to deepgram failed: http-401"
+            ),
         ])
     func descriptions(event: DiagnosticEvent, level: OSLogType, line: String) {
         let description = OSLogDiagnostics.describe(event)

@@ -6,7 +6,10 @@ let package = Package(
     name: "SusurroInference",
     platforms: [.macOS(.v26)],
     products: [
-        .library(name: "SusurroInference", targets: ["FluidAudioASR", "AppleSpeechASR", "AppleIntelligenceCleaner"])
+        .library(
+            name: "SusurroInference",
+            targets: ["FluidAudioASR", "AppleSpeechASR", "AppleIntelligenceCleaner", "CloudProviders", "LocalWhisper"]
+        )
     ],
     dependencies: [
         .package(path: "../SusurroCore"),
@@ -39,6 +42,28 @@ let package = Package(
             name: "AppleSpeechASRTests",
             dependencies: [
                 "AppleSpeechASR",
+                .product(name: "SusurroCore", package: "SusurroCore"),
+                .product(name: "CoreTestSupport", package: "SusurroCore"),
+            ]
+        ),
+        .target(name: "CloudProviders", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
+        .target(name: "LocalWhisper", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
+        // A web server inside the test process, so that no test reaches a network. Only test targets use it.
+        .target(name: "InferenceTestSupport"),
+        .testTarget(
+            name: "CloudProvidersTests",
+            dependencies: [
+                "CloudProviders",
+                "InferenceTestSupport",
+                .product(name: "SusurroCore", package: "SusurroCore"),
+                .product(name: "CoreTestSupport", package: "SusurroCore"),
+            ]
+        ),
+        .testTarget(
+            name: "LocalWhisperTests",
+            dependencies: [
+                "LocalWhisper",
+                "InferenceTestSupport",
                 .product(name: "SusurroCore", package: "SusurroCore"),
                 .product(name: "CoreTestSupport", package: "SusurroCore"),
             ]

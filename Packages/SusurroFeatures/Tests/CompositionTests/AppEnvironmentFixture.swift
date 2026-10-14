@@ -116,7 +116,8 @@ final class AppEnvironmentFixture {
         recognizer: FakeRecognizer = FakeRecognizer(transcript: "hola"),
         capture: FakeAudioCaptureSource = FakeAudioCaptureSource(),
         themeFiles: [String: String] = [:],
-        history: HistoryDependencies = .preview()
+        history: HistoryDependencies = .preview(),
+        settingsScreen: AppEnvironment.Dependencies.SettingsScreen? = nil
     ) {
         self.permissions = MutablePermissionsChecker(permissions)
         self.recognizer = recognizer
@@ -153,7 +154,8 @@ final class AppEnvironmentFixture {
                 theming: AppEnvironment.Dependencies.Theming(
                     store: themes, prepare: { themePreparations.increment() }),
                 clock: clock,
-                history: history
+                history: history,
+                settingsScreen: settingsScreen
             )
         )
     }

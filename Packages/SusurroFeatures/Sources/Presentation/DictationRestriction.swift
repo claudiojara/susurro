@@ -18,9 +18,13 @@ public struct DictationRestriction: Equatable, Sendable {
     /// What the user reads: a sentence for each cost, Microphone first because it is the bigger one.
     public var message: String {
         var sentences: [String] = []
-        if missing.contains(.microphone) { sentences.append("Dictation is off until Microphone is allowed.") }
+        if missing.contains(.microphone) {
+            sentences.append(L10n.string("restriction.microphone", "Dictation is off until Microphone is allowed."))
+        }
         if missing.contains(.accessibility) {
-            sentences.append("Dictated text goes to the clipboard until Accessibility is allowed.")
+            sentences.append(
+                L10n.string(
+                    "restriction.accessibility", "Dictated text goes to the clipboard until Accessibility is allowed."))
         }
         return sentences.joined(separator: " ")
     }

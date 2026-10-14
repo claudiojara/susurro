@@ -11,20 +11,24 @@ public final class MenuModel {
     @ObservationIgnored private let showOnboarding: @MainActor () -> Void
     @ObservationIgnored private let preferences: MenuPreferences?
     @ObservationIgnored private let showHistory: @MainActor () -> Void
+    @ObservationIgnored private let showSettings: (@MainActor () -> Void)?
     private var readiness = RecognizerReadiness.loading(progress: 0)
 
     /// - Parameters:
     ///   - showOnboarding: Opens the onboarding window, for the item that sets Susurro up.
     ///   - showHistory: Opens the history window, for the item that shows the past dictations.
     ///   - preferences: The switches the menu shows. Without them the menu has none.
+    ///   - showSettings: Opens the settings window, for the Settings item. With none, the menu has no such item.
     public init(
         monitor: PermissionsMonitor, showOnboarding: @escaping @MainActor () -> Void = {},
-        showHistory: @escaping @MainActor () -> Void = {}, preferences: MenuPreferences? = nil
+        showHistory: @escaping @MainActor () -> Void = {}, preferences: MenuPreferences? = nil,
+        showSettings: (@MainActor () -> Void)? = nil
     ) {
         self.monitor = monitor
         self.showOnboarding = showOnboarding
         self.preferences = preferences
         self.showHistory = showHistory
+        self.showSettings = showSettings
     }
 
     /// What the menu shows now. It reads the monitor's statuses, which are observable, so a view that reads it is drawn
@@ -68,5 +72,13 @@ public final class MenuModel {
     /// Opens the history of the dictations.
     public func openHistory() {
         showHistory()
+    }
+
+    /// Whether the menu has a Settings item.
+    public var hasSettings: Bool { showSettings != nil }
+
+    /// Opens the settings window.
+    public func openSettingsWindow() {
+        showSettings?()
     }
 }

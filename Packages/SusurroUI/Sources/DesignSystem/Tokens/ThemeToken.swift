@@ -67,6 +67,10 @@ public nonisolated enum SizeToken: String, ThemeToken {
 public nonisolated enum LayoutToken: String, ThemeToken {
     /// The width of the onboarding screen.
     case onboardingWidth
+    /// The width of the settings window.
+    case settingsWidth
+    /// The height of the settings window's content, which does not change from one tab to the next.
+    case settingsHeight
 
     public static var group: String { "layout" }
 }

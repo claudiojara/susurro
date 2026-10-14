@@ -43,7 +43,7 @@
   "spacing": { "xs": 4, "sm": 8, "md": 12, "lg": 16, "xl": 24 },
   "radii": { "sm": 6, "md": 10, "lg": 14 },
   "sizes": { "statusDot": 8, "levelBar": 4 },
-  "layout": { "onboardingWidth": 440 },
+  "layout": { "onboardingWidth": 440, "settingsWidth": 600, "settingsHeight": 480 },
   "motion": { "fast": 0.15, "standard": 0.25, "slow": 0.4, "springResponse": 0.35, "springDamping": 0.8 },
   "overlay": { "width": 380, "cornerRadius": 14, "offset": 80, "edge": "bottom" }
 }

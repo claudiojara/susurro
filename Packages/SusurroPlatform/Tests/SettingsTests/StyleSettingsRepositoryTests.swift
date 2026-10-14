@@ -32,6 +32,44 @@ struct StyleSettingsRepositoryTests {
         }
     }
 
+    @Test("setting the default tone back is the same as never having edited")
+    func backToDefault() {
+        let repository = StyleSettingsRepository(store: InMemorySettingsStore())
+        #expect(AppCategory.allCases.allSatisfy { !repository.isEdited($0) })
+
+        repository.setTone(.casual, for: .email)
+        #expect(repository.isEdited(.email))
+        repository.setTone(.formal, for: .email)
+
+        #expect(!repository.isEdited(.email))
+        #expect(repository.tone(for: .email) == .formal)
+    }
+
+    @Test("the settings screen lists the overrides in the order they were added, after a relaunch too")
+    func listedOverrides() {
+        let scratch = ScratchDefaults()
+        defer { scratch.remove() }
+        let before = StyleSettingsRepository(store: UserDefaultsSettingsStore(defaults: scratch.makeDefaults()))
+        before.setOverride(StyleOverride(category: .personalMessaging), for: .bundle("com.tinyspeck.slackmacgap"))
+        before.setOverride(StyleOverride(tone: .casual), for: .bundle("com.apple.Notes"))
+        before.setOverride(StyleOverride(category: .document, tone: .formal), for: .host("docs.google.com"))
+        before.setOverride(StyleOverride(tone: .formal), for: .bundle("com.apple.Notes"))  // replaced in place
+
+        let after = StyleSettingsRepository(store: UserDefaultsSettingsStore(defaults: scratch.makeDefaults()))
+        #expect(
+            after.overrideEntries() == [
+                StyleOverrideEntry(
+                    target: .bundle("com.tinyspeck.slackmacgap"), override: StyleOverride(category: .personalMessaging)),
+                StyleOverrideEntry(target: .bundle("com.apple.Notes"), override: StyleOverride(tone: .formal)),
+                StyleOverrideEntry(
+                    target: .host("docs.google.com"), override: StyleOverride(category: .document, tone: .formal)),
+            ])
+
+        after.removeOverride(for: .bundle("com.apple.Notes"))
+        after.setOverride(StyleOverride(), for: .host("docs.google.com"))
+        #expect(after.overrideEntries().map(\.target) == [.bundle("com.tinyspeck.slackmacgap")])
+    }
+
     @Test("editing the tone of email persists across a relaunch")
     func editedToneSurvivesARelaunch() {
         let scratch = ScratchDefaults()

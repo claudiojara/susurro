@@ -3,6 +3,8 @@ import AppKit
 import AppleIntelligenceCleaner
 import AppleSpeechASR
 import AudioIO
+import Carbon.HIToolbox
+import CloudProviders
 import DesignSystem
 import Diagnostics
 import Domain
@@ -11,18 +13,25 @@ import FluidAudioASR
 import Foundation
 import Hotkeys
 import LanguageDetection
+import LocalWhisper
 import Permissions
 import Pipeline
 import Presentation
 import ScreenOCR
+import Secrets
 import Settings
 import SusurroUI
+import SwiftUI
 import TextInsertion
 import TextShaping
 
+#if canImport(FoundationModels)
+    import FoundationModels
+#endif
+
 extension AppEnvironment {
-    /// The graph on the real adapters: the configured hotkey (Control+Option+D until the user changes it), the microphone, Parakeet, the pasteboard, the
-    /// system permissions, and the log. Build it once, at launch.
+    /// The graph on the real adapters: the configured hotkey (Control+Option+D until the user changes it), the
+    /// microphone, Parakeet, the pasteboard, the system permissions, and the log. Build it once, at launch.
     public static var live: AppEnvironment {
         AppEnvironment(Dependencies.live())
     }
@@ -40,23 +49,45 @@ extension AppEnvironment.Dependencies {
         let inserter = PasteTransaction(
             pasteboard: NSPasteboardAdapter(), keystrokes: CGEventKeystrokePoster(), frontmost: frontmost,
             diagnostics: diagnostics)
-        let themes = ThemeStore(directory: themesFolder)
         let clock = ContinuousClock()
         let settings = UserDefaultsSettingsStore(diagnostics: diagnostics)
+        let themes = ThemeStore(directory: themesFolder, activeID: settings.value(for: AppearanceSettings.theme))
         let vad = SileroVADDetector()
         let languageDetector = NLLanguageDetector()
         let languageRecognizer = AppleSpeechRecognizer()
         let sleep: @Sendable (Duration) async throws -> Void = { try await clock.sleep(for: $0) }
+        // The keys of the cloud providers are only looked up, in the external Keychain service (ADR 0003).
+        let keys = KeychainSecretStore(diagnostics: diagnostics)
+        // Deepgram and local Whisper can be selected; a failure of either falls back to Parakeet.
+        let recognizers = AppEnvironment.RecognizerSet(
+            main: recognizer, language: languageRecognizer,
+            others: [
+                DeepgramRecognizer(settings: settings, secrets: keys, diagnostics: diagnostics),
+                LocalWhisperRecognizer(settings: settings),
+            ],
+            credentials: KeychainProviderCredentials(keys: keys))
         // The history's retry runs the same recognition as a new dictation, from the stored file to the raw text.
         let reprocessor = PipelineReprocessor(
             detector: vad,
             runner: AppEnvironment.Dependencies.recognitionRunner(
-                recognizer: recognizer, languageRecognizer: languageRecognizer, settings: settings,
-                languageDetector: languageDetector, diagnostics: diagnostics, sleep: sleep))
+                recognizers: recognizers, settings: settings, languageDetector: languageDetector,
+                diagnostics: diagnostics, sleep: sleep))
         let cleanup = CleanupStage(
             settings: settings,
-            registry: CleanerRegistry(settings: settings, entries: [.local(AppleIntelligenceCleaner())]),
-            sleep: { try await clock.sleep(for: $0) })
+            registry: CleanerRegistry(
+                settings: settings,
+                entries: [
+                    .local(AppleIntelligenceCleaner()),
+                    .cloud(
+                        AnthropicCleaner(settings: settings, secrets: keys, diagnostics: diagnostics),
+                        isEnabled: { settings.value(for: CleanupSettings.anthropicEnabled) },
+                        hasKey: { keys.hasSecret(for: .anthropic) }),
+                    .cloud(
+                        OpenAICompatibleCleaner(settings: settings, secrets: keys, diagnostics: diagnostics),
+                        isEnabled: { settings.value(for: CleanupSettings.openAICompatibleEnabled) },
+                        hasKey: { keys.hasSecret(for: .openAICompatible) }),
+                ]),
+            sleep: sleep)
         let vocabulary = VocabularyPipeline(
             dictionary: DictionaryStore(settings: settings),
             builder: VocabularyBuilder(tagger: NLTaggerEntityTagger()),
@@ -89,8 +120,11 @@ extension AppEnvironment.Dependencies {
             vad: vad,
             languageDetector: languageDetector,
             languageRecognizer: languageRecognizer,
+            otherRecognizers: recognizers.others,
+            credentials: recognizers.credentials,
             cleanup: cleanup,
-            vocabulary: vocabulary
+            vocabulary: vocabulary,
+            settingsScreen: settingsScreen(settings: settings, recognizer: recognizer, diagnostics: diagnostics)
         )
     }
 
@@ -111,6 +145,63 @@ extension AppEnvironment.Dependencies {
     /// Where the recordings are kept: `Audio` in the app's folder of Application Support.
     private static var recordingsFolder: URL {
         URL.applicationSupportDirectory.appending(path: "Susurro/Audio", directoryHint: .isDirectory)
+    }
+
+    /// What the settings window reads from the system. The key store is the user's Keychain, asked only whether a key is
+    /// there. The hotkey shown is the configured one (`HotkeySettings`); there is no recorder yet, so it is changed in
+    /// the settings store only.
+    @MainActor
+    private static func settingsScreen(
+        settings: any SettingsStore, recognizer: ParakeetRecognizer, diagnostics: any DiagnosticsLog
+    ) -> SettingsScreen {
+        let keys = KeychainSecretStore(diagnostics: diagnostics)
+        return SettingsScreen(
+            window: { SettingsWindowController(model: $0, themes: $1) },
+            hasKey: { keys.hasSecret(for: $0) },
+            hotkey: { Self.describe(settings.hotkeyConfiguration()) },
+            secureInputActive: { IsSecureEventInputEnabled() },
+            overlayVariants: [OverlayVariantOption(id: OverlayVariantOption.defaultID, title: "Default")],
+            style: StyleSettingsRepository(store: settings),
+            dictionary: DictionaryStore(settings: settings),
+            speechReadiness: { id in
+                switch id {
+                case ProviderID.parakeetV3: await recognizer.readiness()
+                case ProviderID.localWhisper: await LocalWhisperRecognizer(settings: settings).readiness()
+                default: .notInstalled
+                }
+            },
+            appleIntelligenceAvailable: { Self.appleIntelligenceIsAvailable }
+        )
+    }
+
+    /// The configured hotkey as key caps, from the setting the hotkey service reads.
+    private static func describe(_ configuration: HotkeyConfiguration) -> HotkeyDescription {
+        let modifiers = configuration.combo.modifiers
+        let caps: [(HotkeyModifiers, String)] = [
+            (.function, "fn"), (.control, "⌃"), (.option, "⌥"), (.shift, "⇧"), (.command, "⌘"),
+        ]
+        var keys = caps.filter { modifiers.contains($0.0) }.map { $0.1 }
+        if let code = configuration.combo.keyCode { keys.append(keyName(code)) }
+        return HotkeyDescription(keys: keys, isModifierOnly: configuration.kind == .modifierOnly)
+    }
+
+    /// The letter of a virtual key code on the ANSI layout, or its number when it is not a letter.
+    private static func keyName(_ code: Int) -> String {
+        let letters: [Int: String] = [
+            0: "A", 1: "S", 2: "D", 3: "F", 4: "H", 5: "G", 6: "Z", 7: "X", 8: "C", 9: "V", 11: "B", 12: "Q", 13: "W",
+            14: "E", 15: "R", 16: "Y", 17: "T", 31: "O", 32: "U", 34: "I", 35: "P", 37: "L", 38: "J", 40: "K", 45: "N",
+            46: "M", 49: "Space",
+        ]
+        return letters[code] ?? "Key \(code)"
+    }
+
+    /// Whether Apple's on-device model can clean text on this Mac.
+    private static var appleIntelligenceIsAvailable: Bool {
+        #if canImport(FoundationModels)
+            SystemLanguageModel.default.availability == .available
+        #else
+            false
+        #endif
     }
 
     /// Where the user puts theme files: `Themes` in the app's folder of Application Support.
@@ -146,5 +237,14 @@ extension AppEnvironment.Dependencies {
             }
             continuation.onTermination = { _ in listening.cancel() }
         }
+    }
+}
+
+/// Whether a cloud recognizer has its key in the Keychain. The key itself is not read.
+private struct KeychainProviderCredentials: ProviderCredentials {
+    let keys: KeychainSecretStore
+
+    func hasKey(for provider: ASRProviderID) -> Bool {
+        SecretAccount(rawValue: provider.rawValue).map { keys.hasSecret(for: $0) } ?? false
     }
 }

@@ -2,18 +2,10 @@ import Domain
 import Foundation
 import Synchronization
 
-/// Why a dictionary edit was refused.
-public enum DictionaryError: Error, Sendable, Equatable {
-    case empty
-    case duplicate
-    case tooLong
-    case notFound
-}
-
 /// The user's dictionary: names and words the recognizer and the cleaner should get right. The list is one setting
 /// (`dictionary.terms`), so it persists with the other settings and survives a relaunch. Terms keep the spelling the user
 /// typed; two terms that differ only in case are one term.
-public final class DictionaryStore: UserDictionary {
+public final class DictionaryStore: UserDictionary, DictionaryTermStore {
     private let settings: any SettingsStore
     /// Serializes a read-change-write, so two edits at once cannot lose one of them.
     private let edits = Mutex(())
@@ -44,6 +36,15 @@ public final class DictionaryStore: UserDictionary {
             others.remove(at: index)
             guard !Self.contains(new, in: others) else { throw DictionaryError.duplicate }
             terms[index] = new
+        }
+    }
+
+    /// Replaces `old` with `new` for the settings screen, where a term that is gone already changes nothing.
+    public func edit(_ old: String, to new: String) throws {
+        do {
+            try replace(old, with: new)
+        } catch DictionaryError.notFound {
+            return
         }
     }
 

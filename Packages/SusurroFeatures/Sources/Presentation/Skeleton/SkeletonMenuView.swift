@@ -17,7 +17,8 @@ public struct SkeletonMenuView: View {
             onOpenSettings: { model.openSettings(for: $0) },
             onPreference: { kind, value in Task { await model.setPreference(kind, to: value) } },
             onQuit: { NSApplication.shared.terminate(nil) },
-            onShowHistory: { model.openHistory() }
+            onShowHistory: { model.openHistory() },
+            onSettings: model.hasSettings ? { model.openSettingsWindow() } : nil
         )
     }
 }

@@ -1,0 +1,55 @@
+import DesignSystem
+import SwiftUI
+
+/// The Dictionary tab: the words and names the user wants spelled as given. A term is edited in place and removed with the
+/// button beside it. The field that adds a term keeps what the user is typing until Add is pressed.
+struct DictionaryEditor: View {
+    @Environment(\.theme) private var theme
+    private let state: DictionarySettingsState
+    private let actions: DictionaryActions
+    @State private var newTerm = ""
+
+    init(_ state: DictionarySettingsState, actions: DictionaryActions) {
+        self.state = state
+        self.actions = actions
+    }
+
+    var body: some View {
+        SettingsCard("Your words", footer: Copy.footer) {
+            HStack(spacing: theme.spacing(.sm)) {
+                TextInput("New term", value: newTerm, placeholder: "A name or a word", commitsWhileTyping: true) {
+                    newTerm = $0
+                }
+                ActionButton("Add", kind: .primary, action: add)
+            }
+            if let error = state.error { TextLabel(error, style: .caption, tint: .error) }
+            if state.terms.isEmpty {
+                TextLabel(Copy.empty, tint: .neutral)
+            }
+            ForEach(state.terms, id: \.self) { term in
+                HStack(spacing: theme.spacing(.sm)) {
+                    TextInput("Term", value: term) { actions.edit(term, $0) }
+                    Button {
+                        actions.remove(term)
+                    } label: {
+                        Icon("trash", tint: .error, label: "Remove \(term)")
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func add() {
+        actions.add(newTerm)
+        if !newTerm.trimmingCharacters(in: .whitespaces).isEmpty { newTerm = "" }
+    }
+
+    private enum Copy {
+        static let footer =
+            "The speech model and the cleanup are asked to spell these terms as written. Nothing here is sent anywhere except to a cloud provider you turned on."
+        static let empty = "No words yet."
+    }
+}
+
+#Preview("DictionaryEditor") { PreviewMatrix { DictionaryEditor.Gallery() } }
