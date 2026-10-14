@@ -233,18 +233,28 @@ struct PermissionsMonitorTests {
         arguments: [
             (
                 [Permission.microphone: PermissionStatus.denied, .accessibility: .denied],
-                [Permission.microphone, .accessibility]
+                [Permission.microphone, .accessibility],
+                "Dictation is off until Microphone and Accessibility are allowed."
             ),
-            ([.microphone: .granted, .accessibility: .notDetermined], [.accessibility]),
-            ([.microphone: .notDetermined, .accessibility: .granted], [.microphone]),
+            (
+                [.microphone: .granted, .accessibility: .notDetermined], [.accessibility],
+                "Dictation is off until Accessibility is allowed."
+            ),
+            (
+                [.microphone: .notDetermined, .accessibility: .granted], [.microphone],
+                "Dictation is off until Microphone is allowed."
+            ),
         ]
     )
-    func reasonNamesTheMissingOnes(statuses: [Permission: PermissionStatus], expected: [Permission]) async {
+    func reasonNamesTheMissingOnes(
+        statuses: [Permission: PermissionStatus], expected: [Permission], message: String
+    ) async {
         let rig = Rig(statuses)
 
         await rig.monitor.refresh()
 
         #expect(rig.monitor.disabledReason?.permissions == expected)
+        #expect(rig.monitor.disabledReason?.message == message)
         #expect(rig.monitor.blocking == expected)
     }
 
