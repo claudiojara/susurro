@@ -45,6 +45,26 @@ struct DiagnosticDescriptionTests {
                 .launchPermissions(microphone: "granted", accessibility: "denied"), .default,
                 "permissions at launch: microphone granted, accessibility denied"
             ),
+            (
+                .permissionStatusChanged(permission: .microphone, from: nil, to: .granted), .default,
+                "permission microphone: unread -> granted"
+            ),
+            (
+                .permissionStatusChanged(permission: .inputMonitoring, from: .notDetermined, to: .denied), .default,
+                "permission inputMonitoring: notDetermined -> denied"
+            ),
+            (
+                .permissionStatusChanged(permission: .accessibility, from: .granted, to: .denied), .default,
+                "permission accessibility revoked: granted -> denied"
+            ),
+            (
+                .permissionGuidanceShown(permission: .screenRecording), .default,
+                "permission screenRecording: troubleshooting steps shown"
+            ),
+            (
+                .permissionRequestEnded(permission: .accessibility, status: .denied), .default,
+                "permission accessibility: request ended, now denied"
+            ),
         ])
     func descriptions(event: DiagnosticEvent, level: OSLogType, line: String) {
         let description = OSLogDiagnostics.describe(event)

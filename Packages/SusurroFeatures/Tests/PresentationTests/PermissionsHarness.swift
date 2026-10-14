@@ -16,6 +16,7 @@ struct Rig {
     let board: MutablePermissionsChecker
     let clock = ManualClock()
     let panes = Panes()
+    let diagnostics = RecordingDiagnostics()
     let monitor: PermissionsMonitor
 
     init(_ statuses: [Permission: PermissionStatus], needs: PermissionNeeds = PermissionNeeds()) {
@@ -24,7 +25,8 @@ struct Rig {
         let panes = panes
         self.board = board
         monitor = PermissionsMonitor(
-            checker: board, openSettings: { panes.opened.append($0) }, clock: clock, needs: needs)
+            checker: board, openSettings: { panes.opened.append($0) }, clock: clock, needs: needs,
+            diagnostics: diagnostics)
     }
 
     /// Lets work that was started and is not waiting on the clock run to its end.

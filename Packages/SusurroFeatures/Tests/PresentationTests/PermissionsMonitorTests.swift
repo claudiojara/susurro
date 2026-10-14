@@ -368,6 +368,74 @@ struct PermissionsMonitorTests {
         #expect(clock.suspendedSleeps == 1)
     }
 
+    // MARK: Diagnostics
+
+    @Test(
+        "the first read and every change of a status are recorded, a revocation among them, and an unchanged read is not"
+    )
+    func statusChangesAreRecorded() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .denied])
+
+        await rig.monitor.refresh()
+        let firstRead = rig.diagnostics.events
+        await rig.monitor.refresh()
+        let unchanged = rig.diagnostics.events
+        rig.board.set(.accessibility, to: .granted)
+        await rig.monitor.refresh()
+        rig.board.set(.microphone, to: .denied)
+        await rig.monitor.refresh()
+
+        #expect(
+            firstRead == [
+                .permissionStatusChanged(permission: .microphone, from: nil, to: .granted),
+                .permissionStatusChanged(permission: .accessibility, from: nil, to: .denied),
+            ])
+        #expect(unchanged == firstRead)
+        #expect(
+            rig.diagnostics.events.dropFirst(2) == [
+                .permissionStatusChanged(permission: .accessibility, from: .denied, to: .granted),
+                .permissionStatusChanged(permission: .microphone, from: .granted, to: .denied),
+            ])
+    }
+
+    @Test("the troubleshooting steps being shown is recorded once, when they show and not before")
+    func guidanceShownIsRecorded() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .denied])
+        await rig.monitor.refresh()
+        rig.monitor.openSettings(for: .accessibility)
+        await rig.monitor.appDidBecomeActive()
+        await rig.clock.waitForSleeps(1)
+        let whileCounting = rig.diagnostics.events.contains(.permissionGuidanceShown(permission: .accessibility))
+
+        rig.clock.advance(by: .seconds(30))
+        await waitUntil { rig.monitor.followUps[.accessibility] == .stale }
+        await rig.monitor.appDidBecomeActive()
+
+        #expect(!whileCounting)
+        #expect(
+            rig.diagnostics.events.filter { $0 == .permissionGuidanceShown(permission: .accessibility) }.count == 1)
+    }
+
+    @Test("the outcome of a request is recorded after the status it left, and a refused request records nothing")
+    func requestOutcomeIsRecorded() async {
+        let checker = AnsweringChecker([.microphone: .notDetermined, .accessibility: .granted], answering: .denied)
+        let diagnostics = RecordingDiagnostics()
+        let monitor = PermissionsMonitor(
+            checker: checker, openSettings: { _ in }, clock: ManualClock(), diagnostics: diagnostics)
+        await monitor.refresh()
+
+        await monitor.request(.screenRecording)
+        let refused = diagnostics.events.count
+        await monitor.request(.microphone)
+
+        #expect(refused == 2)
+        #expect(
+            diagnostics.events.dropFirst(2) == [
+                .permissionStatusChanged(permission: .microphone, from: .notDetermined, to: .denied),
+                .permissionRequestEnded(permission: .microphone, status: .denied),
+            ])
+    }
+
     // MARK: Requests, Settings, and the waiting state
 
     @Test("a request asks the system and shows the permission as waiting while its prompt is up")
