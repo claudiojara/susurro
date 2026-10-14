@@ -47,16 +47,18 @@ open), with the 79-character Spanish sentence:
 | Isolated cleaner calls, back to back | 3.9 to 7.3 s |
 | After 25 s idle, no prewarm | 8.2, 8.3, and 24.8 s |
 | Prewarmed 3 s before the call | 3.9, 7.0, and 14.5 s |
-| `RealPipelineTests.releaseToTextWithCleanup`, warm runs | cleaned 0 of 6, timeout 6 of 6, median 2.1 s |
-| The same without the prewarm | cleaned 0 of 6, timeout 6 of 6, median 2.1 s |
+| `RealPipelineTests.releaseToTextWithCleanup`, three runs of 6 with the prewarm | cleaned 0 of 6 each time (timeout 6 of 6); warm median 4.9, 2.1, and 5.0 s |
+| The same, one run of 6 without the prewarm | cleaned 0 of 6 (timeout 6 of 6); warm median 2.1 s |
 
 On this Mac in this state the model does not answer within 1.83 s with or without the warm-up, so the raw text is pasted
-2.0 to 2.2 s after the release (the 1.83 s of the limit plus recognition). The prewarm was faster than the cold call in
+2.0 to 2.2 s after the release when recognition is fast (the 1.83 s of the limit plus recognition), and 3 to 5 s when
+recognition is slowed (below). The prewarm was faster than the cold call in
 all three pairs, but three pairs under that load are a direction and not a measurement. The check asserts the warm median
 under 2 s and prints the hit rate, so that both numbers are tracked on a quiet machine instead of read once.
 
 A second effect shows in the same runs: after a call that timed out, the model keeps running for a while and slows the
-next recognition (Parakeet took 1.3 to 3.1 s in 3 of 6 runs, with or without the warm-up).
+next recognition (Parakeet took 1.3 to 3.1 s instead of 0.1 to 0.2 s in about half of the runs, with or without the
+warm-up).
 
 ### Consequences
 
