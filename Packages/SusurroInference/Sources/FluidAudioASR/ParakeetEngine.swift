@@ -10,8 +10,9 @@ protocol ParakeetEngine: Sendable {
     /// may report them out of order, and more than once for each stage.
     func load(progress: @escaping @Sendable (Double) -> Void) async throws
 
-    /// Transcribes a whole 16 kHz mono clip. A `language` of nil lets the engine detect it.
-    func transcribe(_ samples: [Float], language: String?) async throws -> String
+    /// Transcribes a whole 16 kHz mono clip. A `language` of nil lets the engine detect it. `boost` holds the user's
+    /// dictionary terms: the engine rescores its transcript against them, and with none it does no extra work.
+    func transcribe(_ samples: [Float], language: String?, boost: [String]) async throws -> String
 }
 
 /// Thrown by `ParakeetEngine.load` when the weights have to be downloaded and the disk is nearly full. Freeing space

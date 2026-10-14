@@ -30,14 +30,21 @@ actor LiveParakeetEngine: ParakeetEngine {
     nonisolated let modelsDirectory: URL
 
     private var manager: AsrManager?
+    /// Rescores the transcript against the user's dictionary, with a second model that is fetched only when a dictation
+    /// has terms to boost.
+    private let booster: VocabularyBooster
 
     init(
-        modelsRoot: URL = URL.applicationSupportDirectory.appending(path: "Susurro/Models", directoryHint: .isDirectory)
+        modelsRoot: URL = URL.applicationSupportDirectory.appending(
+            path: "Susurro/Models", directoryHint: .isDirectory),
+        booster: VocabularyBooster? = nil
     ) {
         modelsDirectory = modelsRoot.appending(
             path: AsrModels.defaultCacheDirectory(for: .v3).lastPathComponent,
             directoryHint: .isDirectory
         )
+        self.booster =
+            booster ?? VocabularyBooster(load: { try await LiveBoostingModel.load(modelsRoot: modelsRoot) })
     }
 
     /// Points FluidAudio at Hugging Face and at the pinned commit. Setting the host also overrides the registry
@@ -115,7 +122,7 @@ actor LiveParakeetEngine: ParakeetEngine {
         }
     }
 
-    func transcribe(_ samples: [Float], language: String?) async throws -> String {
+    func transcribe(_ samples: [Float], language: String?, boost: [String]) async throws -> String {
         guard let manager else { throw RecognitionError.notReady }
         // Each clip starts from a fresh decoder state, so one dictation never leaks into the next.
         var decoderState = TdtDecoderState.make(decoderLayers: await manager.decoderLayerCount)
@@ -123,6 +130,9 @@ actor LiveParakeetEngine: ParakeetEngine {
         if let language, hint == nil {
             Self.logger.notice("FluidAudio has no language \(language, privacy: .public); detecting it instead")
         }
-        return try await manager.transcribe(samples, decoderState: &decoderState, language: hint).text
+        let result = try await manager.transcribe(samples, decoderState: &decoderState, language: hint)
+        // A user without a dictionary pays nothing: the booster is not even asked.
+        guard !boost.isEmpty else { return result.text }
+        return await booster.boost(result.text, timings: result.tokenTimings, samples: samples, terms: boost)
     }
 }

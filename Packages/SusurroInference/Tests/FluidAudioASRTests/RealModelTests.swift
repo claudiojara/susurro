@@ -210,6 +210,178 @@ struct RealModelTests {
         #expect(Double(found) / Double(repetitions) >= Self.requiredShareOfSentences)
     }
 
+    // MARK: Dictionary terms (the gate of ADR 0016)
+
+    /// The name that Parakeet v3 writes as "Kyle Thorn" without help, and the sentences it is spoken in.
+    private static let boostedTerm = "Kaelthorn"
+    private static let boostedSentence = "Mañana tengo una reunión con Kaelthorn para revisar el contrato."
+    private static let boostedOtherSentence = "Le escribí a Kaelthorn ayer por la tarde."
+    /// About five seconds of Spanish with no dictionary term in it, and the dictionary that must leave it alone: a short
+    /// brand that sounds like common words, a name with an accent, and the name of the other test.
+    private static let plainSentence = "Hola, quería confirmar la reunión de mañana a las diez con el equipo de ventas."
+    private static let bystanders = [boostedTerm, "Acme", "González"]
+
+    /// A recognizer over the real engine whose CTC model has arrived. Reports how long the arrival took, which includes
+    /// the download the first time.
+    private static func boostedRecognizer() async -> (ParakeetRecognizer, Duration) {
+        let booster = VocabularyBooster(load: { try await LiveBoostingModel.load(modelsRoot: Self.modelsRoot) })
+        let recognizer = ParakeetRecognizer(engine: LiveParakeetEngine(booster: booster))
+        var changes = await recognizer.readinessChanges().makeAsyncIterator()
+        await recognizer.prepare()
+        while let readiness = await changes.next(), readiness != .ready {}
+        let started = ContinuousClock.now
+        await booster.prepare()
+        return (recognizer, ContinuousClock.now - started)
+    }
+
+    private static let modelsRoot = URL.applicationSupportDirectory.appending(
+        path: "Susurro/Models", directoryHint: .isDirectory)
+
+    private static func transcript(
+        of samples: [Float], by recognizer: ParakeetRecognizer, boosting terms: [String] = []
+    ) async throws -> (text: String, latency: Duration) {
+        let started = ContinuousClock.now
+        let text = try await recognizer.transcribe(
+            AudioClip(samples: samples),
+            options: RecognitionOptions(language: "es", vocabulary: terms, boostTerms: terms)
+        ).text
+        return (text, ContinuousClock.now - started)
+    }
+
+    @Test("the CTC model is in the app's folder, at the pinned commit")
+    func boostModelIsPinned() async throws {
+        _ = await Self.boostedRecognizer()
+
+        let folder = LiveBoostingModel.directory(in: Self.modelsRoot)
+        #expect(LiveBoostingModel.holdsPinnedRevision(at: folder))
+        #expect(CtcModels.modelsExist(at: folder))
+    }
+
+    @Test("a dictionary term spoken in Spanish is written when it is boosted, and is not without it")
+    func dictionaryTermIsRecovered() async throws {
+        let (recognizer, loadTime) = await Self.boostedRecognizer()
+        print("REAL-MODEL boost model ready in \(loadTime)")
+        // Paulina and Mónica, each with and without a second and a half of silence before the speech, and a second
+        // sentence for the last run.
+        let runs: [(voice: String, lead: Double, sentence: String)] = [
+            ("Paulina", 0, Self.boostedSentence), ("Paulina", 1.5, Self.boostedSentence),
+            ("Mónica", 0, Self.boostedSentence), ("Mónica", 1.5, Self.boostedSentence),
+            ("Paulina", 0, Self.boostedOtherSentence),
+        ]
+
+        var recovered = 0
+        for run in runs {
+            let speech = try Self.speak(run.sentence, voice: run.voice)
+            let samples = [Float](repeating: 0, count: Int(run.lead * 16_000)) + speech
+            let plain = try await Self.transcript(of: samples, by: recognizer).text
+            let boosted = try await Self.transcript(of: samples, by: recognizer, boosting: [Self.boostedTerm]).text
+            let success = boosted.contains(Self.boostedTerm) && !plain.contains(Self.boostedTerm)
+            if success { recovered += 1 }
+            print(
+                "REAL-MODEL boost \(run.voice) lead \(run.lead) s: without \"\(plain)\"; with \"\(boosted)\"; \(success ? "recovered" : "NOT recovered")"
+            )
+        }
+        print("REAL-MODEL boost recall: \(recovered) of \(runs.count)")
+
+        #expect(recovered >= 4)
+    }
+
+    @Test("a dictionary that does not occur in the speech changes nothing")
+    func noFalseReplacement() async throws {
+        let (recognizer, _) = await Self.boostedRecognizer()
+
+        var replaced = 0
+        for voice in ["Paulina", "Mónica"] {
+            let samples = try Self.speak(Self.plainSentence, voice: voice)
+            let plain = try await Self.transcript(of: samples, by: recognizer).text
+            let boosted = try await Self.transcript(of: samples, by: recognizer, boosting: Self.bystanders).text
+            if boosted != plain { replaced += 1 }
+            print("REAL-MODEL boost bystanders \(voice): without \"\(plain)\"; with \"\(boosted)\"")
+            #expect(boosted == plain)
+        }
+        print("REAL-MODEL boost false replacements: \(replaced) of 2")
+    }
+
+    /// More sentences with no dictionary term in them, and two with a first name that sounds like a surname of the
+    /// dictionary.
+    private static let unrelatedSentences = [
+        "El informe de ventas del trimestre está listo para revisión.",
+        "Necesito que me envíes el contrato firmado antes del viernes.",
+        "Vamos a cenar con los clientes en el restaurante de siempre.",
+        "El equipo de soporte atendió doscientos tickets durante la última semana.",
+        "Por favor, confirma la reunión con Carlos para el lunes a las nueve.",
+    ]
+    private static let lookalikeSentences = [
+        "Ayer hablé con Gonzalo sobre el pedido de la semana pasada.",
+        "Mi hermano Fernando llega mañana por la tarde desde Valparaíso.",
+    ]
+    private static let wideDictionary = ["Kaelthorn", "González", "Fernández", "Susurro", "Mapfre", "Acme Corp"]
+
+    /// How many clips of `sentences` the dictionary changes, with the voices Paulina and Mónica.
+    private static func replacements(
+        in sentences: [String], by recognizer: ParakeetRecognizer
+    ) async throws -> (replaced: Int, clips: Int) {
+        var clips = 0
+        var replaced = 0
+        for sentence in sentences {
+            for voice in ["Paulina", "Mónica"] {
+                let samples = try speak(sentence, voice: voice)
+                let plain = try await transcript(of: samples, by: recognizer).text
+                let boosted = try await transcript(of: samples, by: recognizer, boosting: wideDictionary).text
+                clips += 1
+                if boosted != plain {
+                    replaced += 1
+                    print("REAL-MODEL boost REPLACED \(voice): without \"\(plain)\"; with \"\(boosted)\"")
+                }
+            }
+        }
+        return (replaced, clips)
+    }
+
+    @Test("a wider dictionary changes nothing in sentences that do not hold its terms")
+    func unrelatedSentencesAreLeftAlone() async throws {
+        let (recognizer, _) = await Self.boostedRecognizer()
+
+        let unrelated = try await Self.replacements(in: Self.unrelatedSentences, by: recognizer)
+        print("REAL-MODEL boost false replacements on unrelated sentences: \(unrelated.replaced) of \(unrelated.clips)")
+        // A first name that sounds like a surname of the dictionary is the known limit of keyword spotting: the audio
+        // fits the term about as well as the word that was said. It is measured and printed, not required to pass, so that
+        // a new FluidAudio version shows in the numbers (ADR 0016).
+        let lookalikes = try await Self.replacements(in: Self.lookalikeSentences, by: recognizer)
+        print("REAL-MODEL boost lookalike names replaced: \(lookalikes.replaced) of \(lookalikes.clips)")
+
+        #expect(unrelated.replaced == 0)
+    }
+
+    @Test("boosting adds under half a second to a clip of about five seconds")
+    func boostingLatency() async throws {
+        let (recognizer, _) = await Self.boostedRecognizer()
+        let samples = try Self.speak(Self.plainSentence)
+        let seconds = Double(samples.count) / 16_000
+        // The first runs include warming up the models, so they are made and not counted.
+        for _ in 0..<2 {
+            _ = try await Self.transcript(of: samples, by: recognizer)
+            _ = try await Self.transcript(of: samples, by: recognizer, boosting: Self.bystanders)
+        }
+
+        // Alternating the two kinds of run would time the switch between the models on the Neural Engine as well, which
+        // a dictation does not pay when the next one is also a dictation with a dictionary.
+        var plain: [Double] = []
+        for _ in 0..<7 { plain.append(try await Self.transcript(of: samples, by: recognizer).latency.milliseconds) }
+        var boosted: [Double] = []
+        for _ in 0..<7 {
+            boosted.append(
+                try await Self.transcript(of: samples, by: recognizer, boosting: Self.bystanders).latency.milliseconds)
+        }
+        let median = { (values: [Double]) in values.sorted()[values.count / 2] }
+        let added = median(boosted) - median(plain)
+        print(
+            "REAL-MODEL boost latency on \(seconds) s: without \(plain.map { Int($0) }) ms, with \(boosted.map { Int($0) }) ms; medians \(median(plain)) and \(median(boosted)) ms, added \(added) ms"
+        )
+
+        #expect(added < 500)
+    }
+
     @Test("Silero finds the speech between two seconds of silence, and nothing in silence alone")
     func sileroSegments() async throws {
         let speech = try Self.speak(Self.sentence)
@@ -227,5 +399,12 @@ struct RealModelTests {
         #expect(first.start > .seconds(1.5) && first.start < .seconds(2.6))
         #expect(last.end > .seconds(2) + AudioClip.duration(ofSamples: speech.count) - .seconds(0.6))
         #expect(none.segments.isEmpty)
+    }
+}
+
+extension Duration {
+    /// Milliseconds, for the numbers the checks print.
+    fileprivate var milliseconds: Double {
+        Double(components.seconds) * 1_000 + Double(components.attoseconds) / 1e15
     }
 }
