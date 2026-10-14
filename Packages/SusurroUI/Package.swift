@@ -33,7 +33,7 @@ let package = Package(
             swiftSettings: [.defaultIsolation(MainActor.self)]
         ),
         .testTarget(name: "DesignSystemTests", dependencies: ["DesignSystem", "UITestSupport"], exclude: ["Fixtures"]),
-        .testTarget(name: "SusurroUITests", dependencies: ["SusurroUI", "UITestSupport"]),
+        .testTarget(name: "SusurroUITests", dependencies: ["SusurroUI", "DesignSystem", "UITestSupport"]),
     ],
     swiftLanguageModes: [.v6]
 )

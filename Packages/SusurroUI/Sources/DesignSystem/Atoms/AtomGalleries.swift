@@ -8,14 +8,14 @@ import SwiftUI
     private let bundledThemes: [Theme] = [.default]
 
     /// A preview of `content` on the window color of each bundled theme, in light and in dark.
-    struct PreviewMatrix<Content: View>: View {
+    public struct PreviewMatrix<Content: View>: View {
         private let content: Content
 
-        init(@ViewBuilder content: () -> Content) {
+        public init(@ViewBuilder content: () -> Content) {
             self.content = content()
         }
 
-        var body: some View {
+        public var body: some View {
             VStack(spacing: 0) {
                 ForEach(bundledThemes, id: \.name) { theme in
                     HStack(spacing: 0) {

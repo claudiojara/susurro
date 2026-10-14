@@ -1,0 +1,2 @@
+macOS: 27.0.1 (26A434)
+Xcode: Xcode 27.0 (27A266a)
