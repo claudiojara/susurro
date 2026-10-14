@@ -25,7 +25,9 @@ struct CleanupFlowTests {
             enrichment: ContextEnrichment? = nil
         ) async {
             self.cleaner = cleaner
-            let sleeper = FakeSleeper()
+            // The 300 ms wait for the context is a pause, which a plain sleeper ends at once: the context would then
+            // lose the race against its own capture. Blocking pauses lets the capture finish, as it does in the app.
+            let sleeper = FakeSleeper(blocksPauses: true)
             let settings = InMemorySettingsStore()
             settings.set(enabled, for: CleanupSettings.enabled)
             settings.set(cleaner.id.rawValue, for: CleanupSettings.provider)
@@ -145,9 +147,11 @@ struct CleanupFlowTests {
             })
         var f = await Fixture(dictionary: [], tagger: tagger, enrichment: enrichment)
         await f.harness.startRecording()
-        // The reading ends once the app is checked again, which is its last step.
+        // The reading ends once the app is checked again, which is its last step. What is left to do then is a store of the
+        // lines in a task of utility priority, with nothing to wait on from outside: on a busy machine the scheduler can
+        // leave that task idle for longer than any number of yields, so it is given real time to finish.
         await read.wait()
-        for _ in 0..<50 { await Task.yield() }
+        try await Task.sleep(for: .milliseconds(200))
         _ = await f.harness.release()
 
         #expect(f.harness.recognizer.transcribedOptions.map(\.vocabulary) == [["Acme Corp"]])
