@@ -56,6 +56,8 @@ public struct SettingsDependencies {
     public var executableProblem: @Sendable (String) -> ExecutablePath.Problem?
     public var themes: any ThemeSelecting
     public var themeModel: ThemeModel
+    /// Paces the reads of the permission and of Secure Event Input. Tests pass a `ManualClock`.
+    public var clock: any Clock<Duration>
 
     public init(
         settings: any SettingsStore,
@@ -70,8 +72,10 @@ public struct SettingsDependencies {
         appleIntelligenceAvailable: @escaping @Sendable () async -> Bool,
         executableProblem: @escaping @Sendable (String) -> ExecutablePath.Problem? = { ExecutablePath.validate($0) },
         themes: any ThemeSelecting,
-        themeModel: ThemeModel
+        themeModel: ThemeModel,
+        clock: any Clock<Duration> = ContinuousClock()
     ) {
+        self.clock = clock
         self.settings = settings
         self.hasKey = hasKey
         self.permissions = permissions

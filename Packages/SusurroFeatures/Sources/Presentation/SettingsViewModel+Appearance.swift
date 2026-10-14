@@ -9,7 +9,9 @@ extension SettingsViewModel {
         // A theme that is chosen and no longer in the folder stays in the list, so the picker shows what is in use.
         if !ids.contains(selected) { ids.append(selected) }
         return AppearanceSettingsState(
-            themes: ids.map { SettingsChoice(id: $0, title: $0 == ThemeStore.defaultID ? SettingsCopy.defaultTheme : $0) },
+            themes: ids.map {
+                SettingsChoice(id: $0, title: $0 == ThemeStore.defaultID ? SettingsCopy.defaultTheme : $0)
+            },
             selectedTheme: selected,
             modes: AppearanceMode.allCases.map { SettingsChoice(id: $0.rawValue, title: SettingsCopy.mode($0)) },
             selectedMode: settings.value(for: AppearanceSettings.mode).rawValue,

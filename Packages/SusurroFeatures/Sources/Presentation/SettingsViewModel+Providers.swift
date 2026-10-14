@@ -15,7 +15,8 @@ extension SettingsViewModel {
             localWhisperRow(selected: selected == ProviderID.localWhisper),
             cloudRow(
                 id: ProviderID.deepgram, title: "Deepgram", account: .deepgram, what: "audio",
-                isSelected: selected == ProviderID.deepgram, isEnabled: settings.value(for: SpeechSettings.deepgramEnabled),
+                isSelected: selected == ProviderID.deepgram,
+                isEnabled: settings.value(for: SpeechSettings.deepgramEnabled),
                 fields: []),
         ]
     }
@@ -46,9 +47,11 @@ extension SettingsViewModel {
         case .http:
             fields.append(
                 ProviderFieldState(
-                    id: "style", label: "Server", value: settings.value(for: SpeechSettings.localWhisperServerStyle).rawValue,
+                    id: "style", label: "Server",
+                    value: settings.value(for: SpeechSettings.localWhisperServerStyle).rawValue,
                     choices: [
-                        SettingsChoice(id: LocalWhisperServerStyle.openAICompatible.rawValue, title: "OpenAI-compatible"),
+                        SettingsChoice(
+                            id: LocalWhisperServerStyle.openAICompatible.rawValue, title: "OpenAI-compatible"),
                         SettingsChoice(id: LocalWhisperServerStyle.whisperCpp.rawValue, title: "whisper.cpp server"),
                     ]))
             fields.append(
@@ -57,7 +60,8 @@ extension SettingsViewModel {
                     placeholder: "http://127.0.0.1:8080/v1/audio/transcriptions", error: endpointError))
             fields.append(
                 ProviderFieldState(
-                    id: "model", label: "Model (optional)", value: settings.value(for: SpeechSettings.localWhisperModel),
+                    id: "model", label: "Model (optional)",
+                    value: settings.value(for: SpeechSettings.localWhisperModel),
                     placeholder: "whisper-1"))
         case .cli:
             fields.append(
@@ -97,7 +101,8 @@ extension SettingsViewModel {
             appleIntelligenceRow(selected: selected == ProviderID.appleIntelligence),
             cloudRow(
                 id: ProviderID.anthropic, title: "Anthropic", account: .anthropic, what: "transcript",
-                isSelected: selected == ProviderID.anthropic, isEnabled: settings.value(for: CleanupSettings.anthropicEnabled),
+                isSelected: selected == ProviderID.anthropic,
+                isEnabled: settings.value(for: CleanupSettings.anthropicEnabled),
                 fields: [
                     ProviderFieldState(
                         id: "model", label: "Model", value: settings.value(for: CleanupSettings.anthropicModel),

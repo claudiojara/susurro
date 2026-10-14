@@ -44,15 +44,34 @@ public final class SettingsViewModel: SettingsViewModeling {
         )
     }
 
-    /// Follows the settings store until the stream ends, so that a setting changed elsewhere (the menu's toggles) shows.
+    /// Follows the settings store, so that a setting changed elsewhere (the menu's toggles) shows, and reads the
+    /// permission and Secure Event Input every second, until the task is cancelled.
     public func run() async {
+        async let following: Void = followSettings()
+        async let polling: Void = pollSystem()
+        _ = await (following, polling)
+    }
+
+    private func followSettings() async {
         for await _ in settings.changes() { changed() }
     }
 
-    /// Reads what can change without the screen's help.
-    public func refresh() async {
+    private func pollSystem() async {
+        while !Task.isCancelled {
+            // The two values are observed properties, so a read that finds them as they were redraws nothing.
+            await readSystem()
+            try? await dependencies.clock.sleep(for: .seconds(1))
+        }
+    }
+
+    private func readSystem() async {
         inputMonitoring = await dependencies.permissions.status(.inputMonitoring)
         secureInputActive = dependencies.secureInputActive()
+    }
+
+    /// Reads everything that can change without the screen's help.
+    public func refresh() async {
+        await readSystem()
         themeIDs = await dependencies.themes.themeIDs()
         appleIntelligenceAvailable = await dependencies.appleIntelligenceAvailable()
         for id in [ProviderID.parakeetV3, ProviderID.localWhisper] {
@@ -72,7 +91,9 @@ public final class SettingsViewModel: SettingsViewModeling {
         let storedVariant = settings.value(for: GeneralSettings.overlayVariant)
         let known = variants.contains { $0.id == storedVariant }
         return GeneralSettingsState(
-            languages: SpeechLanguage.allCases.map { SettingsChoice(id: $0.rawValue, title: SettingsCopy.language($0)) },
+            languages: SpeechLanguage.allCases.map {
+                SettingsChoice(id: $0.rawValue, title: SettingsCopy.language($0))
+            },
             selectedLanguage: settings.value(for: SpeechSettings.language).rawValue,
             appContextEnabled: settings.value(for: GeneralSettings.appContextEnabled),
             ocrEnabled: settings.value(for: GeneralSettings.ocrEnabled),

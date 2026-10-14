@@ -116,13 +116,17 @@ struct SettingsViewModelTests {
         let model = rig.model()
         rig.knobs.setReadiness(ProviderID.parakeetV3, .loading(progress: 0.4))
         await model.refresh()
-        #expect(model.state.speech(ProviderID.parakeetV3)?.status == ProviderStatusState(level: .pending, text: "Loading the model, 40 %."))
+        #expect(
+            model.state.speech(ProviderID.parakeetV3)?.status
+                == ProviderStatusState(level: .pending, text: "Loading the model, 40 %."))
         rig.knobs.setReadiness(ProviderID.parakeetV3, .notInstalled)
         await model.refresh()
         #expect(model.state.speech(ProviderID.parakeetV3)?.status.level == .warning)
         rig.knobs.setReadiness(ProviderID.parakeetV3, .unavailable("No disk space.", retryable: false))
         await model.refresh()
-        #expect(model.state.speech(ProviderID.parakeetV3)?.status == ProviderStatusState(level: .error, text: "No disk space."))
+        #expect(
+            model.state.speech(ProviderID.parakeetV3)?.status
+                == ProviderStatusState(level: .error, text: "No disk space."))
     }
 
     @Test("the selected provider is kept across a relaunch")

@@ -54,14 +54,16 @@ struct StyleSettingsViewModelTests {
     func overrides() {
         let rig = SettingsRig()
         let model = rig.model()
-        model.addOverride(identifier: "com.tinyspeck.slackmacgap", isSite: false, category: "personal_messaging", tone: nil)
+        model.addOverride(
+            identifier: "com.tinyspeck.slackmacgap", isSite: false, category: "personal_messaging", tone: nil)
         model.addOverride(identifier: "com.apple.Notes", isSite: false, category: nil, tone: "casual")
         model.addOverride(identifier: "docs.google.com", isSite: true, category: "document", tone: "formal")
         let overrides = model.state.style.overrides
         #expect(overrides.map(\.kind) == ["App", "App", "Site"])
-        #expect(overrides.map(\.summary) == [
-            "Category: Personal messaging", "Tone: Casual", "Category: Document, Tone: Formal",
-        ])
+        #expect(
+            overrides.map(\.summary) == [
+                "Category: Personal messaging", "Tone: Casual", "Category: Document, Tone: Formal",
+            ])
         #expect(model.state.style.overrideError == nil)
 
         model.removeOverride(overrides[1].id)
@@ -72,7 +74,8 @@ struct StyleSettingsViewModelTests {
     func siteHost() {
         let rig = SettingsRig()
         let model = rig.model()
-        model.addOverride(identifier: "https://WWW.Mail.Google.com/mail/u/0", isSite: true, category: "email", tone: nil)
+        model.addOverride(
+            identifier: "https://WWW.Mail.Google.com/mail/u/0", isSite: true, category: "email", tone: nil)
         #expect(model.state.style.overrides.map(\.identifier) == ["mail.google.com"])
         model.addOverride(identifier: "mail.google.com", isSite: true, category: nil, tone: "casual")
         #expect(model.state.style.overrides.count == 1)

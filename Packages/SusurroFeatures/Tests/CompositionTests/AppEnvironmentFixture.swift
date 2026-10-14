@@ -105,7 +105,8 @@ final class AppEnvironmentFixture {
         permissions: [Permission: PermissionStatus] = [.microphone: .granted, .accessibility: .granted],
         recognizer: FakeRecognizer = FakeRecognizer(transcript: "hola"),
         capture: FakeAudioCaptureSource = FakeAudioCaptureSource(),
-        themeFiles: [String: String] = [:]
+        themeFiles: [String: String] = [:],
+        settingsScreen: AppEnvironment.Dependencies.SettingsScreen? = nil
     ) {
         self.permissions = MutablePermissionsChecker(permissions)
         self.recognizer = recognizer
@@ -140,7 +141,8 @@ final class AppEnvironmentFixture {
                 ),
                 theming: AppEnvironment.Dependencies.Theming(
                     store: themes, prepare: { themePreparations.increment() }),
-                clock: clock
+                clock: clock,
+                settingsScreen: settingsScreen
             )
         )
     }

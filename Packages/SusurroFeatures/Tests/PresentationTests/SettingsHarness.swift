@@ -2,8 +2,8 @@ import CoreTestSupport
 import DesignSystem
 import Domain
 import Settings
-import Synchronization
 import SusurroUI
+import Synchronization
 
 @testable import Presentation
 
@@ -45,7 +45,9 @@ final class SettingsKnobs: Sendable {
     var hotkey: HotkeyDescription { state.withLock { $0.hotkey } }
     func setSecureInput(_ on: Bool) { state.withLock { $0.secureInput = on } }
     var secureInput: Bool { state.withLock { $0.secureInput } }
-    func setReadiness(_ id: String, _ readiness: RecognizerReadiness) { state.withLock { $0.readiness[id] = readiness } }
+    func setReadiness(_ id: String, _ readiness: RecognizerReadiness) {
+        state.withLock { $0.readiness[id] = readiness }
+    }
     func readiness(_ id: String) -> RecognizerReadiness { state.withLock { $0.readiness[id] ?? .notInstalled } }
     func setAppleIntelligence(_ available: Bool) { state.withLock { $0.appleIntelligence = available } }
     var appleIntelligence: Bool { state.withLock { $0.appleIntelligence } }

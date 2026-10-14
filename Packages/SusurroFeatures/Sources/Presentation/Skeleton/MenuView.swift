@@ -11,6 +11,8 @@ struct MenuView: View {
     let onRequest: (Permission) -> Void
     let onOpenSettings: (Permission) -> Void
     let onQuit: () -> Void
+    /// Opens the settings. With none, the menu has no Settings item.
+    var onSettings: (() -> Void)?
 
     var body: some View {
         if let message = content.restrictionMessage {
@@ -25,6 +27,10 @@ struct MenuView: View {
         Divider()
         Text(content.modelLine)
         Divider()
+        if let onSettings {
+            Button("Settings…", action: onSettings)
+                .keyboardShortcut(",")
+        }
         Button("Quit Susurro", action: onQuit)
             .keyboardShortcut("q")
     }

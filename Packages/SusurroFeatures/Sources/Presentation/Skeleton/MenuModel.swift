@@ -9,12 +9,19 @@ import Observation
 public final class MenuModel {
     @ObservationIgnored private let monitor: PermissionsMonitor
     @ObservationIgnored private let showOnboarding: @MainActor () -> Void
+    @ObservationIgnored private let showSettings: (@MainActor () -> Void)?
     private var readiness = RecognizerReadiness.loading(progress: 0)
 
-    /// - Parameter showOnboarding: Opens the onboarding window, for the item that sets Susurro up.
-    public init(monitor: PermissionsMonitor, showOnboarding: @escaping @MainActor () -> Void = {}) {
+    /// - Parameters:
+    ///   - showOnboarding: Opens the onboarding window, for the item that sets Susurro up.
+    ///   - showSettings: Opens the settings window, for the Settings item. With none, the menu has no such item.
+    public init(
+        monitor: PermissionsMonitor, showOnboarding: @escaping @MainActor () -> Void = {},
+        showSettings: (@MainActor () -> Void)? = nil
+    ) {
         self.monitor = monitor
         self.showOnboarding = showOnboarding
+        self.showSettings = showSettings
     }
 
     /// What the menu shows now. It reads the monitor's statuses, which are observable, so a view that reads it is drawn
@@ -48,5 +55,13 @@ public final class MenuModel {
     /// Opens the onboarding, where the missing permissions are asked for.
     public func setUp() {
         showOnboarding()
+    }
+
+    /// Whether the menu has a Settings item.
+    public var hasSettings: Bool { showSettings != nil }
+
+    /// Opens the settings window.
+    public func openSettingsWindow() {
+        showSettings?()
     }
 }

@@ -14,7 +14,7 @@ struct OnboardingWindowContent: View {
 
     var body: some View {
         OnboardingContainer(model: model, maxHeight: maxHeight, onDone: onDone)
-            .themed(themes.theme)
+            .themed(themes.theme, override: themes.appearance)
     }
 }
 

@@ -44,6 +44,45 @@ public final class AppEnvironment {
             }
         }
 
+        /// What the settings window needs from the app, beyond what the rest of the graph already holds. A graph without it
+        /// has no Settings item in the menu.
+        public struct SettingsScreen {
+            /// Makes the window of the settings, which shows the view model in the theme.
+            public var window: @MainActor (SettingsViewModel, ThemeModel) -> any SettingsSurface
+            /// Whether the key store has a key for the account. The key itself is never read for the settings.
+            public var hasKey: @Sendable (SecretAccount) -> Bool
+            public var hotkey: @Sendable () -> HotkeyDescription
+            public var secureInputActive: @Sendable () -> Bool
+            public var overlayVariants: [OverlayVariantOption]
+            public var style: any StylePreferencesStore
+            public var dictionary: any DictionaryTermStore
+            /// How a local speech provider stands, by provider id.
+            public var speechReadiness: @Sendable (String) async -> RecognizerReadiness
+            public var appleIntelligenceAvailable: @Sendable () async -> Bool
+
+            public init(
+                window: @escaping @MainActor (SettingsViewModel, ThemeModel) -> any SettingsSurface,
+                hasKey: @escaping @Sendable (SecretAccount) -> Bool,
+                hotkey: @escaping @Sendable () -> HotkeyDescription,
+                secureInputActive: @escaping @Sendable () -> Bool,
+                overlayVariants: [OverlayVariantOption],
+                style: any StylePreferencesStore,
+                dictionary: any DictionaryTermStore,
+                speechReadiness: @escaping @Sendable (String) async -> RecognizerReadiness,
+                appleIntelligenceAvailable: @escaping @Sendable () async -> Bool
+            ) {
+                self.window = window
+                self.hasKey = hasKey
+                self.hotkey = hotkey
+                self.secureInputActive = secureInputActive
+                self.overlayVariants = overlayVariants
+                self.style = style
+                self.dictionary = dictionary
+                self.speechReadiness = speechReadiness
+                self.appleIntelligenceAvailable = appleIntelligenceAvailable
+            }
+        }
+
         public var hotkeys: any HotkeySource
         public var capture: any AudioCaptureSource
         public var recognizer: any SpeechRecognizer
@@ -64,6 +103,8 @@ public final class AppEnvironment {
         /// troubleshooting steps, the pauses and limits of a dictation, the time an overlay indicator stays, and the
         /// delay before the model's progress shows. Tests pass a `ManualClock`.
         public var clock: any Clock<Duration>
+        /// The settings window, or nil for a graph that has none.
+        public var settingsScreen: SettingsScreen?
 
         public init(
             hotkeys: any HotkeySource,
@@ -78,7 +119,8 @@ public final class AppEnvironment {
             settings: any SettingsStore,
             onboarding: Onboarding,
             theming: Theming,
-            clock: any Clock<Duration> = ContinuousClock()
+            clock: any Clock<Duration> = ContinuousClock(),
+            settingsScreen: SettingsScreen? = nil
         ) {
             self.hotkeys = hotkeys
             self.capture = capture
@@ -93,6 +135,7 @@ public final class AppEnvironment {
             self.onboarding = onboarding
             self.theming = theming
             self.clock = clock
+            self.settingsScreen = settingsScreen
         }
     }
 
@@ -105,6 +148,8 @@ public final class AppEnvironment {
     let onboardingModel: OnboardingViewModel
     /// The theme the app's windows are drawn in, which follows the theme store.
     let themeModel: ThemeModel
+    /// The settings screen's view model, when the graph has a settings window.
+    let settingsModel: SettingsViewModel?
 
     private let dependencies: Dependencies
     private let coordinator: DictationCoordinator
@@ -141,7 +186,24 @@ public final class AppEnvironment {
         let onboardingPresenter = OnboardingPresenter(
             monitor: monitor, surface: dependencies.onboarding.window(onboardingModel, themeModel))
         self.onboardingPresenter = onboardingPresenter
-        menu = MenuModel(monitor: monitor, showOnboarding: { onboardingPresenter.show() })
+        var showSettings: (@MainActor () -> Void)?
+        if let screen = dependencies.settingsScreen {
+            let model = SettingsViewModel(
+                SettingsDependencies(
+                    settings: dependencies.settings, hasKey: screen.hasKey, permissions: dependencies.permissions,
+                    hotkey: screen.hotkey, secureInputActive: screen.secureInputActive,
+                    overlayVariants: screen.overlayVariants, style: screen.style, dictionary: screen.dictionary,
+                    speechReadiness: screen.speechReadiness,
+                    appleIntelligenceAvailable: screen.appleIntelligenceAvailable,
+                    themes: dependencies.theming.store, themeModel: themeModel, clock: clock))
+            let surface = screen.window(model, themeModel)
+            settingsModel = model
+            showSettings = { surface.show() }
+        } else {
+            settingsModel = nil
+        }
+        menu = MenuModel(
+            monitor: monitor, showOnboarding: { onboardingPresenter.show() }, showSettings: showSettings)
     }
 
     /// Starts the app's work: the overlay, the hotkey, the model, the permission monitor and the onboarding, and the
@@ -150,6 +212,7 @@ public final class AppEnvironment {
         guard !hasStarted else { return }
         hasStarted = true
         dependencies.diagnostics.record(.appLaunched)
+        themeModel.appearance = dependencies.settings.value(for: AppearanceSettings.mode).override
         monitor.start()
         // The overlay listens before the coordinator can publish, and the coordinator registers the hotkey when it runs.
         run { await $0.presenter.run(states: $0.coordinator.states) }

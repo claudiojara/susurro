@@ -102,7 +102,7 @@ enum SettingsCopy {
         case .neutral: "Neutral"
         case .casual: "Casual"
         case .veryCasual: "Very casual"
-        case .verbatim: "Verbatim (no cleanup)"
+        case .verbatim: "Verbatim"
         }
     }
 
