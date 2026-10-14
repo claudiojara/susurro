@@ -1,5 +1,5 @@
 /// What kind of app the user is dictating into. The raw values are how a category is stored.
-public enum AppCategory: String, Sendable, Equatable, Hashable, CaseIterable {
+public enum AppCategory: String, Sendable, Equatable, Hashable, CaseIterable, Codable {
     case email
     case workChat = "work_chat"
     case personalMessaging = "personal_messaging"
@@ -23,7 +23,7 @@ public enum AppCategory: String, Sendable, Equatable, Hashable, CaseIterable {
 }
 
 /// How the dictated text should read. The raw values are how a tone is stored.
-public enum Tone: String, Sendable, Equatable, Hashable, CaseIterable {
+public enum Tone: String, Sendable, Equatable, Hashable, CaseIterable, Codable {
     case formal
     case neutral
     case casual
@@ -32,7 +32,7 @@ public enum Tone: String, Sendable, Equatable, Hashable, CaseIterable {
 }
 
 /// Which rule decided a style.
-public enum StyleSource: String, Sendable, Equatable {
+public enum StyleSource: String, Sendable, Equatable, Codable {
     /// The user's override for the app or the site.
     case override
     /// The host of the page in a browser.

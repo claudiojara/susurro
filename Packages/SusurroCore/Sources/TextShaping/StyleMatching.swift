@@ -1,23 +1,17 @@
-import Foundation
+import Domain
 
 /// How bundle IDs and hosts are compared with the rules of a table. A rule matches at a dot: `slack.com` matches
 /// `app.slack.com` and not `notslack.com`, and `com.apple.Terminal` matches `com.apple.Terminal.helper` and not
 /// `com.apple.TerminalX`.
 enum StyleMatching {
-    /// The host of a page URL as it is compared: lower case, with a leading `www.` removed. A URL without a scheme, as
-    /// `mail.google.com/inbox`, reads as if it had one. Nil when there is no host.
+    /// The host of a page URL as it is compared: lower case, with a leading `www.` removed. Nil when there is no host.
     static func host(ofURL url: String) -> String? {
-        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-        let withScheme = trimmed.contains("://") ? trimmed : "https://\(trimmed)"
-        guard let host = URL(string: withScheme)?.host(percentEncoded: false), !host.isEmpty else { return nil }
-        return normalized(host: host)
+        URLHost.of(url)
     }
 
     /// A host as it is compared: lower case, without `www.`.
     static func normalized(host: String) -> String {
-        let lowered = host.lowercased()
-        return lowered.hasPrefix("www.") ? String(lowered.dropFirst(4)) : lowered
+        URLHost.normalized(host)
     }
 
     /// Whether `host` is the host of `rule` or a subdomain of it. Both are normalized first.
