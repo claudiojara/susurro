@@ -124,6 +124,20 @@ a track. `AtomTokenTests` changes the token an atom uses and the one it used to 
 the pixels. An animation takes a `DurationToken` (`fast`, `standard`, `slow`), so the numbers of the spring cannot be
 passed as a duration, and the spring is `theme.spring(motionEnabled:)`.
 
+## Contrast
+
+The default theme meets WCAG 2 level AA (4.5:1) for every pair of text and background the app draws, in light and in
+dark, and `ContrastTests` fails when a palette change breaks one. The pairs are the text roles (`text.primary`,
+`text.secondary`) and the tints (as the text of a pill or a label) on `surface.window`, `surface.raised`, and
+`surface.overlay`, and `text.onAccent` on the fills that carry it: `accent.primary`, `accent.recording`, and
+`status.error`. `RGBAColor.contrastRatio(against:)` computes the ratio, with a translucent color taken as it looks over
+what is behind it.
+
+In dark appearance `text.onAccent` is the dark ink, not white. The accents (`accent.primary`, `accent.recording`,
+`status.error`) are light enough there to be read as text on a dark surface, which the pills and the status lines do, and
+white on a color that light is only 2.8:1. A dark accent would fix the button and break the pill, since both use the same
+color. A theme file is not checked: a theme that changes the palette has to keep these pairs readable itself.
+
 ## Token lint
 
 `TokenLintTests.sourcesAreClean` reads every Swift file in `Sources/DesignSystem` and `Sources/SusurroUI` and fails on a
