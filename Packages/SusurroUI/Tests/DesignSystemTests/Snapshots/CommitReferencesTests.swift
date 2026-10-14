@@ -160,3 +160,90 @@ struct CommitReferencesTests {
         #expect(sandbox.writtenOutputs.isEmpty)
     }
 }
+
+/// `pack-references.sh` makes the archive that `commit-references.sh` unpacks. A first version of the workflow packed
+/// every `__Snapshots__` folder below `Packages`, which includes the ones of the dependencies in `.build/checkouts`,
+/// and the commit job refused the archive.
+@Suite("Pack references script")
+struct PackReferencesTests {
+    private static let snapshots = "Packages/SusurroUI/Tests/DesignSystemTests/Atoms/__Snapshots__"
+    private static let picture = "\(snapshots)/AtomSnapshotTests/labels-scheme.light.png"
+    private static let stamp = "\(snapshots)/environment.txt"
+
+    private func tree(in sandbox: ScriptSandbox, _ files: [String]) throws -> URL {
+        let root = sandbox.folder.file("repository")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        for file in files {
+            let url = root.appendingPathComponent(file)
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("contents of \(file)".utf8).write(to: url)
+        }
+        return root
+    }
+
+    private func entries(of archive: URL, in sandbox: ScriptSandbox) throws -> [String] {
+        try sandbox.tool("/usr/bin/tar", ["-tf", archive.path], in: sandbox.folder.url)
+            .split(separator: "\n").map(String.init)
+    }
+
+    @Test("it packs the pictures and the environment record of the packages' tests, and nothing else")
+    func packsOnlyTheReferences() throws {
+        let sandbox = try ScriptSandbox()
+        let root = try tree(
+            in: sandbox,
+            [
+                Self.picture, Self.stamp,
+                "Packages/SusurroUI/.build/checkouts/dependency/Tests/DependencyTests/__Snapshots__/DependencyTests/a.png",
+                "Packages/SusurroUI/Tests/DesignSystemTests/Notes.swift",
+                "\(Self.snapshots)/AtomSnapshotTests/notes.txt",
+                "Packages/SusurroCore/Sources/__Snapshots__/b.png",
+            ])
+        let archive = sandbox.folder.file("references.tar")
+
+        let result = try sandbox.run("pack-references.sh", arguments: [archive.path], in: root)
+
+        #expect(result.status == 0, "\(result.output)")
+        #expect(try entries(of: archive, in: sandbox) == [Self.picture, Self.stamp].sorted())
+    }
+
+    @Test("an archive it made is one the commit script accepts")
+    func theCommitScriptAcceptsIt() throws {
+        let sandbox = try ScriptSandbox()
+        let root = sandbox.folder.file("work")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try sandbox.git(["init", "--initial-branch=feat/x"], in: root)
+        try Data("base".utf8).write(to: root.appendingPathComponent("README.md"))
+        try sandbox.git(["add", "."], in: root)
+        try sandbox.git(["commit", "-m", "base"], in: root)
+        for file in [
+            Self.picture, Self.stamp,
+            "Packages/SusurroUI/.build/checkouts/dependency/Tests/DependencyTests/__Snapshots__/DependencyTests/a.png",
+        ] {
+            let url = root.appendingPathComponent(file)
+            try FileManager.default.createDirectory(
+                at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data("contents of \(file)".utf8).write(to: url)
+        }
+        let archive = sandbox.folder.file("references.tar")
+
+        #expect(try sandbox.run("pack-references.sh", arguments: [archive.path], in: root).status == 0)
+        let result = try sandbox.run("commit-references.sh", arguments: [archive.path], in: root)
+
+        #expect(result.status == 0, "\(result.output)")
+        let changed = try sandbox.git(["show", "--name-only", "--format=", "HEAD"], in: root)
+        #expect(changed.split(separator: "\n").map(String.init).sorted() == [Self.picture, Self.stamp].sorted())
+    }
+
+    @Test("with no references to pack it fails, so an empty archive is never uploaded")
+    func failsWithNothingToPack() throws {
+        let sandbox = try ScriptSandbox()
+        let root = try tree(in: sandbox, ["Packages/SusurroUI/Tests/DesignSystemTests/Notes.swift"])
+
+        let result = try sandbox.run(
+            "pack-references.sh", arguments: [sandbox.folder.file("references.tar").path], in: root)
+
+        #expect(result.status != 0)
+        #expect(result.output.contains("No snapshot references"), "\(result.output)")
+    }
+}

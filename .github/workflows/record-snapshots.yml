@@ -4,6 +4,11 @@ name: Record snapshots
 # will compare against them. Start it with `gh workflow run record-snapshots.yml --ref <branch>`, or from the Actions
 # tab. GitHub only runs a dispatch of a workflow that is on main, so on a branch that adds or changes this file, label
 # the pull request `record-snapshots` instead. See docs/snapshots.md.
+#
+# Three jobs, so that the code of a pull request never runs next to a token that can write:
+#   target  reads the open pull requests and refuses any branch but the one of an open pull request from this repository
+#   record  runs `make snapshots` on the pull request's code with a read-only token and hands the pictures on as an artifact
+#   commit  unpacks only pictures from the artifact and pushes them; it runs none of the pull request's code
 on:
   workflow_dispatch:
   pull_request:
@@ -15,25 +20,55 @@ concurrency:
 permissions: {}
 
 jobs:
-  record:
-    name: Record snapshots
-    permissions:
-      contents: write
-      actions: write
+  target:
+    name: Check the target
     # A pull request from a fork gets a read-only token, so it can not push.
     if: >-
       github.event_name == 'workflow_dispatch'
       || (github.event.label.name == 'record-snapshots'
       && github.event.pull_request.head.repo.full_name == github.repository)
-    runs-on: xcode-27
-    timeout-minutes: 30
-    env:
-      BRANCH: ${{ github.head_ref || github.ref_name }}
-      GH_TOKEN: ${{ github.token }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      branch: ${{ steps.guard.outputs.branch }}
+      sha: ${{ steps.guard.outputs.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ github.head_ref || github.ref_name }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+
+      - name: Check that the branch has an open pull request
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: .github/scripts/guard-record-target.sh
+
+  record:
+    name: Record snapshots
+    needs: target
+    runs-on: xcode-27
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.target.outputs.sha }}
+          persist-credentials: false
+
+      # The pictures depend on the macOS and Xcode of the image, so the log says which one this was.
+      - name: Runner image
+        run: |
+          sw_vers
+          xcodebuild -version
+          echo "Image: ${ImageOS:-unknown} ${ImageVersion:-unknown}"
 
       # Recording makes the tests fail on purpose, so this step may fail. The next one is the check.
       - name: Record
@@ -41,18 +76,60 @@ jobs:
         run: make snapshots RECORD=1
 
       - name: Check against the new references
+        env:
+          SNAPSHOT_ARTIFACTS: ${{ runner.temp }}/snapshot-failures
         run: make snapshots
 
-      - name: Commit the references
-        run: |
-          git add -A -- ':(glob)Packages/**/__Snapshots__/**'
-          if git diff --cached --quiet; then
-            echo "The references are up to date."
-            exit 0
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "test(ui): record snapshot references"
-          git push origin "HEAD:${BRANCH}"
-          # A push made with the workflow token starts no workflow, so start CI for the new commit by hand.
-          gh workflow run ci.yml --ref "${BRANCH}"
+      - name: Pack the references
+        run: .github/scripts/pack-references.sh "${RUNNER_TEMP}/references.tar"
+
+      - name: Upload the references
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: snapshot-references
+          path: ${{ runner.temp }}/references.tar
+          if-no-files-found: error
+          retention-days: 1
+
+      # The picture that failed, the reference, and the difference, for a check that does not pass.
+      - name: Upload the pictures of a failure
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: snapshot-failures
+          path: ${{ runner.temp }}/snapshot-failures
+          if-no-files-found: ignore
+
+  commit:
+    name: Commit the references
+    needs: [target, record]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.target.outputs.sha }}
+          persist-credentials: false
+
+      - name: Download the references
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: snapshot-references
+          path: ${{ runner.temp }}/references
+
+      # Only pictures are unpacked, and nothing of the pull request runs in this job.
+      - name: Unpack and commit the references
+        run: .github/scripts/commit-references.sh "${RUNNER_TEMP}/references/references.tar"
+
+      # The one step with a token that can write. If it fails after the push, run the workflow again: it finds nothing to
+      # commit and starts CI for the head if the head has no result.
+      - name: Push and start CI
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ needs.target.outputs.branch }}
+          SHA: ${{ needs.target.outputs.sha }}
+        run: .github/scripts/publish-references.sh

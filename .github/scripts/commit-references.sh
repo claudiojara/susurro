@@ -36,7 +36,12 @@ done <<<"$names"
 
 tar -xf "$archive" --no-same-owner
 
-git add -A -- ':(glob)Packages/**/__Snapshots__/**'
+# Only the files that were in the archive, which were all checked above.
+files=()
+while IFS= read -r name; do
+  files+=("$name")
+done <<<"$names"
+git add -A -- "${files[@]}"
 if git diff --cached --quiet; then
   echo "The references are up to date."
   echo "committed=false" >>"${GITHUB_OUTPUT:-/dev/stdout}"
