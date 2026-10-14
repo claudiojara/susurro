@@ -79,3 +79,34 @@ enum StoreKind: CaseIterable, Sendable, CustomTestStringConvertible {
         }
     }
 }
+
+/// A value stored as one kind of number and read as another. The two keys share a storage name, so the second reads what
+/// the first wrote, as an older version of the app or a person editing the preferences would leave it. Each read default
+/// differs from what a coerced read would give (1 as a Bool is true, true as an Int is 1, 5 as a Double is 5.0), so a
+/// store that converts is told from one that falls back to the default.
+struct Coercion: Sendable, CustomTestStringConvertible {
+    let testDescription: String
+    let check: @Sendable (any SettingsStore) -> Void
+
+    private init<Written: SettingStorable & Equatable, Read: SettingStorable & Equatable>(
+        _ description: String, written: Written, otherwise: Written, readDefault: Read
+    ) {
+        let writer = SettingKey<Written>(area: "coercion", name: "number", default: otherwise)
+        let reader = SettingKey<Read>(area: "coercion", name: "number", default: readDefault)
+        testDescription = description
+        check = { store in
+            store.set(written, for: writer)
+            #expect(store.value(for: writer) == written)
+            #expect(store.value(for: reader) == readDefault)
+        }
+    }
+
+    static let all: [Coercion] = [
+        Coercion("an Int is not a Bool", written: 1, otherwise: 0, readDefault: false),
+        Coercion("a Bool is not an Int", written: true, otherwise: false, readDefault: 7),
+        Coercion("an Int is not a Double", written: 5, otherwise: 0, readDefault: 0.3),
+        Coercion("a Double is not an Int", written: 2.0, otherwise: 0.0, readDefault: 7),
+        Coercion("a Double is not a Bool", written: 1.0, otherwise: 0.0, readDefault: false),
+        Coercion("a Bool is not a Double", written: true, otherwise: false, readDefault: 0.3),
+    ]
+}

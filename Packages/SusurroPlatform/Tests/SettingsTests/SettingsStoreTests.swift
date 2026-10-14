@@ -63,6 +63,11 @@ struct SettingsStoreTests {
         }
     }
 
+    @Test("a number is never read as another kind of number", arguments: StoreKind.allCases, Coercion.all)
+    func numbersAreNotCoerced(kind: StoreKind, coercion: Coercion) async {
+        await kind.withStore { store in coercion.check(store) }
+    }
+
     @Test(
         "a set emits the name of the key it changed, in order, and a read emits nothing", arguments: StoreKind.allCases)
     func changesFollowTheSets(kind: StoreKind) async {
