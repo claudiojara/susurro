@@ -18,6 +18,9 @@ public struct TextLabel: View {
         Text(text)
             .font(theme.font(style))
             .foregroundStyle(theme.swiftUIColor(tint.textColor))
+            // A label takes the lines its text needs at the width it is given. A stack that is a little short on height
+            // would otherwise cut a wrapped label to one line, with an ellipsis.
+            .fixedSize(horizontal: false, vertical: true)
     }
 }
 

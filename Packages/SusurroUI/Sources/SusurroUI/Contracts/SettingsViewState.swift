@@ -339,6 +339,10 @@ public protocol SettingsViewModeling: AnyObject {
     func selectTheme(_ id: String)
     func setAppearance(_ id: String)
 
-    /// Reads what can change without the screen's help (permission, Secure Event Input, readiness, the keys).
+    /// Reads everything that can change without the screen's help: the permission, Secure Event Input, how the providers
+    /// stand, the keys, and the themes. The screen calls it when it opens.
     func refresh() async
+    /// Follows the settings and the system while the screen is open, until the task is cancelled: a setting changed
+    /// elsewhere, such as a menu toggle, shows, and so do the permission and Secure Event Input.
+    func run() async
 }
