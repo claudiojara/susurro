@@ -54,15 +54,19 @@ public final class OnboardingWindowController: OnboardingSurface {
     var content: OnboardingWindowContent { host.rootView }
 
     public func show() {
-        if !hasBeenPlaced {
-            // The window has the size of its content before it is placed, so that it is centered by the size it will have
-            // and not by the one it has before its first layout.
-            window.setContentSize(host.view.fittingSize)
-            window.setFrameOrigin(Self.origin(of: window.frame.size, in: visibleFrame()))
-            hasBeenPlaced = true
-        }
+        placeIfNeeded()
         activate()
         window.makeKeyAndOrderFront(nil)
+    }
+
+    /// Places the window the first time, and leaves it where the user put it after that. The window has the size of its
+    /// content before it is placed, so that it is centered by the size it will have and not by the one it has before its
+    /// first layout.
+    func placeIfNeeded() {
+        guard !hasBeenPlaced else { return }
+        window.setContentSize(host.view.fittingSize)
+        window.setFrameOrigin(Self.origin(of: window.frame.size, in: visibleFrame()))
+        hasBeenPlaced = true
     }
 
     func close() {

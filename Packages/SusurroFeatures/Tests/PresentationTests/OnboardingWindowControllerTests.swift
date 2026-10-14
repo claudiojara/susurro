@@ -86,17 +86,29 @@ struct OnboardingWindowControllerTests {
         #expect(controller.window.isKeyWindow || controller.window.canBecomeKey)
     }
 
-    @Test("showing it again brings it forward again and does not move it")
+    @Test("showing it again brings it forward again")
     func showTwice() {
         let activations = Activations()
         let controller = makeController(activations: activations)
+
         controller.show()
         defer { controller.close() }
-        controller.window.setFrameOrigin(NSPoint(x: 123, y: 456))
-
         controller.show()
 
         #expect(activations.count == 2)
+        #expect(controller.window.isVisible)
+    }
+
+    @Test("it is placed the first time, and where the user moved it after that")
+    func placedOnce() {
+        let controller = makeController()
+        controller.placeIfNeeded()
+        let placed = controller.window.frame.origin
+        controller.window.setFrameOrigin(NSPoint(x: 123, y: 456))
+
+        controller.placeIfNeeded()
+
+        #expect(placed != NSPoint(x: 123, y: 456))
         #expect(controller.window.frame.origin == NSPoint(x: 123, y: 456))
     }
 
@@ -153,14 +165,14 @@ struct OnboardingWindowControllerTests {
 
     // MARK: Placement
 
-    @Test("the window opens centered across the screen, in its upper part, the first time it is shown")
+    @Test("the window is placed centered across the screen, in its upper part")
     func opensInTheUpperMiddle() {
         let controller = makeController()
-        controller.show()
-        defer { controller.close() }
+        controller.placeIfNeeded()
 
         let frame = controller.window.frame
 
+        #expect(frame.size.width == (try? Theme.default.resolved(for: .light).size(.onboardingWidth)))
         #expect(abs(frame.midX - Self.screen.midX) < 1)
         #expect(frame.maxY < Self.screen.maxY)
         #expect(frame.minY > Self.screen.minY)
