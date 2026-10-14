@@ -1,6 +1,6 @@
 import AppKit
 import DesignSystem
-import SnapshotTesting
+@_spi(Internals) import SnapshotTesting
 import SwiftUI
 
 /// Draws a view for a snapshot. Everything that could make two runs differ is fixed here: the size of the canvas, the
@@ -107,13 +107,68 @@ public enum SnapshotSupport {
 
 /// Compares a picture of `view` with the reference of the same name next to the calling test file, in
 /// `__Snapshots__`. A missing reference fails the test: record it with `make snapshots RECORD=1` on the CI image.
+///
+/// Before the picture, the environment is checked: recording writes `environment.txt` next to the references, and a run
+/// on CI on another macOS or Xcode than the one that recorded fails with that reason (`SnapshotEnvironment`). When the
+/// picture does not match, the reference and the difference are written beside the failed picture, in
+/// `SnapshotArtifacts.folder`.
 public func assertViewSnapshot<V: View>(
     of view: V, size: CGSize = SnapshotSupport.defaultSize, theme: Theme = .default, scheme: ColorScheme,
     named name: String, fileID: StaticString = #fileID, file: StaticString = #filePath, testName: String = #function,
     line: UInt = #line, column: UInt = #column
 ) {
-    assertSnapshot(
-        of: SnapshotSupport.nsImage(of: view, size: size, theme: theme, scheme: scheme),
-        as: .image(precision: SnapshotSupport.precision, perceptualPrecision: SnapshotSupport.perceptualPrecision),
-        named: name, fileID: fileID, file: file, testName: testName, line: line, column: column)
+    func report(_ message: String) {
+        recordIssue(message, fileID: fileID, filePath: file, line: line, column: column)
+    }
+    SnapshotSupport.checkEnvironment(testFile: "\(file)", report: report)
+    let strategy = Snapshotting<NSImage, NSImage>.image(
+        precision: SnapshotSupport.precision, perceptualPrecision: SnapshotSupport.perceptualPrecision)
+    let failure = verifySnapshot(
+        of: SnapshotSupport.nsImage(of: view, size: size, theme: theme, scheme: scheme), as: strategy, named: name,
+        fileID: fileID, file: file, testName: testName, line: line, column: column)
+    guard let failure else { return }
+    let saved = SnapshotSupport.saveComparison(testFile: "\(file)", testName: testName, name: name)
+    report(
+        saved.isEmpty ? failure : "\(failure)\n\nReference and difference: \(saved.map(\.path).joined(separator: ", "))"
+    )
+}
+
+extension SnapshotSupport {
+    /// The record of the references is written when they are being recorded and compared with this machine otherwise.
+    /// A mismatch fails the run on CI and is a note elsewhere.
+    static func checkEnvironment(
+        testFile: String, environment: [String: String] = ProcessInfo.processInfo.environment,
+        report: (String) -> Void
+    ) {
+        let url = SnapshotEnvironment.recordURL(forTestFile: testFile)
+        let current = SnapshotEnvironment.current()
+        if environment["SNAPSHOT_TESTING_RECORD"] == "all" {
+            try? current.write(to: url)
+            return
+        }
+        guard let problem = SnapshotEnvironment.problem(recorded: SnapshotEnvironment.read(from: url), current: current)
+        else { return }
+        if SnapshotEnvironment.mustMatch(environment) {
+            report(problem)
+        } else {
+            FileHandle.standardError.write(Data("note: \(problem)\n".utf8))
+        }
+    }
+
+    /// The names the library gives a reference: the test name and the picture name, each reduced to letters, digits,
+    /// and dashes.
+    static func saveComparison(testFile: String, testName: String, name: String) -> [URL] {
+        let fileURL = URL(fileURLWithPath: testFile)
+        let suite = fileURL.deletingPathExtension().lastPathComponent
+        let picture = "\(sanitized(testName)).\(sanitized(name)).png"
+        let reference = fileURL.deletingLastPathComponent().appendingPathComponent("__Snapshots__")
+            .appendingPathComponent(suite).appendingPathComponent(picture)
+        let failed = SnapshotArtifacts.folder.appendingPathComponent(suite).appendingPathComponent(picture)
+        return (try? SnapshotArtifacts.saveComparison(reference: reference, failed: failed)) ?? []
+    }
+
+    private static func sanitized(_ string: String) -> String {
+        string.replacingOccurrences(of: "\\W+", with: "-", options: .regularExpression)
+            .replacingOccurrences(of: "^-|-$", with: "", options: .regularExpression)
+    }
 }

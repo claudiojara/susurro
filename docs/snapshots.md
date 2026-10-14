@@ -57,10 +57,21 @@ CI run that passed, failed, or is still going (a run waiting for approval gives 
 `gh workflow run ci.yml --ref <branch>`. If the branch moved while the pictures were recorded, the push is refused and
 nothing is overwritten: run the workflow again.
 
+## The runner image
+
+`runs-on: xcode-27` is a label that GitHub moves to newer images; there is no way to pin an image version. So the
+references say which machine made them: recording writes `environment.txt` next to them (`__Snapshots__`), with the macOS
+version and build and the Xcode version and build. A run on CI that finds other values fails with "the runner image
+changed" and tells you to record again, instead of failing a list of pictures that look the same. A run on another Mac
+only prints a note, since it is known to differ. Both workflows log `sw_vers`, `xcodebuild -version`, and the image
+version at the start of the job.
+
+Because 99.9 % leaves little room for an image that moves the letters, expect to record again when the image changes.
+
 ## When a snapshot test fails
 
-The failure names the reference and the picture it got. On CI the picture that failed is in the artifact
-`snapshot-failures` of the run, and locally in the folder `$SNAPSHOT_ARTIFACTS`, or the temporary folder if it is not
-set. Both workflows log `sw_vers`, `xcodebuild -version`, and the image version at the start of the job. If the change is
-meant, record again. If it is not, fix the view. `make snapshots` on a Mac with another macOS version than the CI image can fail
+The failure names the reference and the picture it got. On CI the picture that failed, the reference
+(`<name>-reference.png`), and the difference (`<name>-difference.png`) are in the artifact `snapshot-failures` of the run.
+Locally they are in the folder `$SNAPSHOT_ARTIFACTS`, or the temporary folder if it is not set. If the change is meant,
+record again. If it is not, fix the view. `make snapshots` on a Mac with another macOS version than the CI image can fail
 on the edges of text without any change to the code; run it there to see the difference, and trust the CI run.
