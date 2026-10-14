@@ -16,7 +16,9 @@ make bootstrap   # generates App/Susurro.xcodeproj
 make run         # builds the app, quits a copy that is already running, and opens it
 ```
 
-`make run` builds into `build/`. The app has no Dock icon: look for the waveform icon in the menu bar.
+`make run` builds into `build/`. The app has no Dock icon: look for the waveform icon in the menu bar. If the notch hides
+the icon, open Susurro again (double-click `Susurro.app`, `open` it, or use Spotlight): a running app then opens Settings,
+or the onboarding window while a permission is missing.
 
 `make build` resolves the packages with SwiftPM first and then tells `xcodebuild` to use them as they are. This is on
 purpose. `xcodebuild` resolves FluidAudio's binary artifact by itself, and on a Mac with several `github.com` entries in

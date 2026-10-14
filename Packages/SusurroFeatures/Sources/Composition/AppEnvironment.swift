@@ -396,6 +396,18 @@ public final class AppEnvironment {
         run { await $0.dependencies.theming.prepare() }
     }
 
+    /// What the app does when the user opens it again while it runs (a double-click in Finder, `open`, Spotlight). The
+    /// menu bar icon can be hidden behind the notch, and the app has no Dock icon, so this is the way to its options: it
+    /// opens the onboarding while a required permission is missing, and the settings otherwise, each through the item of
+    /// the menu that opens it.
+    public func handleReopen() {
+        if monitor.needsOnboarding {
+            menu.setUp()
+        } else {
+            menu.openSettingsWindow()
+        }
+    }
+
     /// Stops the permission poll and the coordinator, which stops a recording and waits a moment for a paste to put the
     /// clipboard back, and then the rest. The app calls it when the user quits.
     public func shutdown() async {
