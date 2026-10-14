@@ -195,11 +195,11 @@ struct AppEnvironmentTests {
         f.environment.start()
         await f.eventually("the first read") { f.environment.monitor.hasReadStatuses }
         await f.clock.waitForSleeps(1)
-        let granted = f.environment.monitor.blocking
+        let granted = f.environment.monitor.missingRequired
 
         f.permissions.set(.accessibility, to: .denied)
         f.clock.advance(by: .seconds(1))
-        await f.eventually("the revocation") { f.environment.monitor.blocking == [.accessibility] }
+        await f.eventually("the revocation") { f.environment.monitor.missingRequired == [.accessibility] }
 
         #expect(granted.isEmpty)
         await f.environment.shutdown()
@@ -220,22 +220,34 @@ struct AppEnvironmentTests {
         await f.environment.shutdown()
     }
 
-    @Test("the menu says why dictation is off while a required permission is missing, and stops when it is granted")
-    func menuShowsTheDisabledReason() async {
+    @Test("the menu says what a missing required permission costs, and stops when it is granted")
+    func menuShowsTheRestriction() async {
         let f = AppEnvironmentFixture(permissions: [.microphone: .denied, .accessibility: .granted])
         f.environment.start()
-        await f.eventually("the reason") { f.environment.menu.content.disabledMessage != nil }
-        let message = f.environment.menu.content.disabledMessage
+        await f.eventually("the restriction") { f.environment.menu.content.restrictionMessage != nil }
+        let message = f.environment.menu.content.restrictionMessage
 
         f.permissions.set(.microphone, to: .granted)
         f.activations.continuation.yield()
-        await f.eventually("the reason to go") { f.environment.menu.content.disabledMessage == nil }
+        await f.eventually("the restriction to go") { f.environment.menu.content.restrictionMessage == nil }
 
         #expect(message == "Dictation is off until Microphone is allowed.")
         await f.environment.shutdown()
     }
 
-    @Test("the onboarding sees what the monitor reads: the rows and the permissions that block dictation")
+    @Test("with Accessibility missing the menu says the text goes to the clipboard, not that dictation is off")
+    func menuSaysTheClipboardForAccessibility() async {
+        let f = AppEnvironmentFixture(permissions: [.microphone: .granted, .accessibility: .denied])
+        f.environment.start()
+        await f.eventually("the restriction") { f.environment.menu.content.restrictionMessage != nil }
+
+        #expect(
+            f.environment.menu.content.restrictionMessage
+                == "Dictated text goes to the clipboard until Accessibility is allowed.")
+        await f.environment.shutdown()
+    }
+
+    @Test("the onboarding sees what the monitor reads: the rows and what the missing permissions cost")
     func onboardingFollowsTheMonitor() async {
         let f = AppEnvironmentFixture(permissions: [.microphone: .granted, .accessibility: .denied])
         f.environment.start()
@@ -246,7 +258,7 @@ struct AppEnvironmentTests {
         #expect(state.rows.map(\.id) == [.microphone, .accessibility])
         #expect(state.rows.map(\.status) == [.granted, .denied])
         #expect(!state.isDoneEnabled)
-        #expect(state.dictationDisabledMessage == "Dictation is off until Accessibility is allowed.")
+        #expect(state.restrictionMessage == "Dictated text goes to the clipboard until Accessibility is allowed.")
         await f.environment.shutdown()
     }
 

@@ -141,19 +141,19 @@ struct PermissionsMonitorTests {
         let rig = Rig([.microphone: .granted, .accessibility: .granted])
         rig.monitor.start()
         await rig.clock.waitForSleeps(1)
-        let beforeTheRevoke = (rig.monitor.disabledReason, rig.monitor.needsOnboarding)
+        let beforeTheRevoke = (rig.monitor.restriction, rig.monitor.needsOnboarding)
 
         rig.board.set(.accessibility, to: .denied)
         rig.clock.advance(by: .milliseconds(999))
         await rig.settle()
-        let justBeforeTheSecond = rig.monitor.disabledReason
+        let justBeforeTheSecond = rig.monitor.restriction
         rig.clock.advance(by: .milliseconds(1))
         await rig.clock.waitForSleeps(2)
 
         #expect(beforeTheRevoke.0 == nil)
         #expect(beforeTheRevoke.1 == false)
         #expect(justBeforeTheSecond == nil)
-        #expect(rig.monitor.disabledReason?.permissions == [.accessibility])
+        #expect(rig.monitor.restriction?.missing == [.accessibility])
         #expect(rig.monitor.needsOnboarding)
     }
 
@@ -227,53 +227,74 @@ struct PermissionsMonitorTests {
         #expect(rig.clock.pendingSleeps == 0)
     }
 
-    // MARK: Revocation and the disabled reason
+    // MARK: Revocation and the restriction
 
-    @Test("a permission revoked while the app runs is published as denied and disables dictation with a reason")
+    @Test("a permission revoked while the app runs is published as denied and restricts dictation with a reason")
     func revocation() async {
         let rig = Rig([.microphone: .granted, .accessibility: .granted])
         await rig.monitor.refresh()
-        let before = (rig.monitor.disabledReason, rig.monitor.needsOnboarding)
+        let before = (rig.monitor.restriction, rig.monitor.needsOnboarding)
 
-        rig.board.set(.accessibility, to: .denied)
+        rig.board.set(.microphone, to: .denied)
         await rig.monitor.appDidBecomeActive()
 
         #expect(before.0 == nil)
         #expect(before.1 == false)
+        #expect(rig.monitor.statuses[.microphone] == .denied)
+        #expect(rig.monitor.blocking == [.microphone])
+        #expect(rig.monitor.restriction?.missing == [.microphone])
+        #expect(rig.monitor.needsOnboarding)
+    }
+
+    @Test("Accessibility revoked does not block recording: the onboarding comes back and the restriction says the clipboard")
+    func accessibilityRevoked() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .granted])
+        await rig.monitor.refresh()
+
+        rig.board.set(.accessibility, to: .denied)
+        await rig.monitor.appDidBecomeActive()
+
         #expect(rig.monitor.statuses[.accessibility] == .denied)
-        #expect(rig.monitor.blocking == [.accessibility])
-        #expect(rig.monitor.disabledReason?.permissions == [.accessibility])
+        #expect(rig.monitor.blocking.isEmpty)
+        #expect(rig.monitor.missingRequired == [.accessibility])
+        #expect(rig.monitor.restriction?.missing == [.accessibility])
+        #expect(
+            rig.monitor.restriction?.message
+                == "Dictated text goes to the clipboard until Accessibility is allowed.")
+        #expect(!rig.monitor.isOnboardingComplete)
         #expect(rig.monitor.needsOnboarding)
     }
 
     @Test(
-        "the reason names every missing required permission, in the order of the onboarding",
+        "the restriction names every missing required permission, in the order of the onboarding, and only Microphone blocks",
         arguments: [
             (
                 [Permission.microphone: PermissionStatus.denied, .accessibility: .denied],
-                [Permission.microphone, .accessibility],
-                "Dictation is off until Microphone and Accessibility are allowed."
+                [Permission.microphone, .accessibility], [Permission.microphone],
+                "Dictation is off until Microphone is allowed. "
+                    + "Dictated text goes to the clipboard until Accessibility is allowed."
             ),
             (
-                [.microphone: .granted, .accessibility: .notDetermined], [.accessibility],
-                "Dictation is off until Accessibility is allowed."
+                [.microphone: .granted, .accessibility: .notDetermined], [.accessibility], [],
+                "Dictated text goes to the clipboard until Accessibility is allowed."
             ),
             (
-                [.microphone: .notDetermined, .accessibility: .granted], [.microphone],
+                [.microphone: .notDetermined, .accessibility: .granted], [.microphone], [.microphone],
                 "Dictation is off until Microphone is allowed."
             ),
         ]
     )
-    func reasonNamesTheMissingOnes(
-        statuses: [Permission: PermissionStatus], expected: [Permission], message: String
+    func restrictionNamesTheMissingOnes(
+        statuses: [Permission: PermissionStatus], missing: [Permission], blocking: [Permission], message: String
     ) async {
         let rig = Rig(statuses)
 
         await rig.monitor.refresh()
 
-        #expect(rig.monitor.disabledReason?.permissions == expected)
-        #expect(rig.monitor.disabledReason?.message == message)
-        #expect(rig.monitor.blocking == expected)
+        #expect(rig.monitor.restriction?.missing == missing)
+        #expect(rig.monitor.restriction?.message == message)
+        #expect(rig.monitor.missingRequired == missing)
+        #expect(rig.monitor.blocking == blocking)
     }
 
     @Test("a denied or unread conditional permission neither disables dictation nor brings the onboarding back")
@@ -286,35 +307,37 @@ struct PermissionsMonitorTests {
             await rig.monitor.refresh()
 
             #expect(rig.monitor.statuses[.screenRecording] == status)
-            #expect(rig.monitor.disabledReason == nil)
+            #expect(rig.monitor.restriction == nil)
             #expect(rig.monitor.blocking.isEmpty)
+            #expect(rig.monitor.missingRequired.isEmpty)
             #expect(rig.monitor.isOnboardingComplete)
             #expect(!rig.monitor.needsOnboarding)
         }
     }
 
-    @Test("no reason is given before the first read, when nothing is known yet, and it is given after")
-    func noReasonBeforeTheFirstRead() async {
+    @Test("no restriction is given before the first read, when nothing is known yet, and it is given after")
+    func noRestrictionBeforeTheFirstRead() async {
         let rig = Rig([.microphone: .denied, .accessibility: .granted])
-        let before = (rig.monitor.disabledReason, rig.monitor.blocking)
+        let before = (rig.monitor.restriction, rig.monitor.blocking, rig.monitor.missingRequired)
 
         await rig.monitor.refresh()
 
         #expect(before.0 == nil)
-        // An unread permission is missing, so only the reason waits for the first read.
-        #expect(before.1 == [.microphone, .accessibility])
-        #expect(rig.monitor.disabledReason?.permissions == [.microphone])
+        // An unread permission is missing, so only the restriction waits for the first read.
+        #expect(before.1 == [.microphone])
+        #expect(before.2 == [.microphone, .accessibility])
+        #expect(rig.monitor.restriction?.missing == [.microphone])
     }
 
-    @Test("a missing required permission is the reason even when the conditional ones are missing too")
-    func reasonIgnoresConditionalPermissions() async {
+    @Test("a missing required permission is the restriction even when the conditional ones are missing too")
+    func restrictionIgnoresConditionalPermissions() async {
         let rig = Rig(
             [.microphone: .denied, .accessibility: .granted, .inputMonitoring: .denied, .screenRecording: .denied],
             needs: PermissionNeeds(modifierOnlyHotkey: true, ocrEnabled: true))
 
         await rig.monitor.refresh()
 
-        #expect(rig.monitor.disabledReason?.permissions == [.microphone])
+        #expect(rig.monitor.restriction?.missing == [.microphone])
     }
 
     @Test(

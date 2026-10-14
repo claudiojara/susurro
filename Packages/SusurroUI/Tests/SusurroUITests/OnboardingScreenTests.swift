@@ -48,7 +48,7 @@ struct OnboardingScreenTests {
     func bannerFollowsTheMessage() {
         let off = state(.fresh)
         let withoutMessage = OnboardingViewState(
-            rows: off.rows, isDoneEnabled: off.isDoneEnabled, dictationDisabledMessage: nil)
+            rows: off.rows, isDoneEnabled: off.isDoneEnabled, restrictionMessage: nil)
 
         let with = Probe.height(of: screen(off), width: 440)
         let without = Probe.height(of: screen(withoutMessage), width: 440)
@@ -60,8 +60,8 @@ struct OnboardingScreenTests {
     func rowsAreInTheChecklist() {
         let two = state(.fresh)
         let four = OnboardingViewState(
-            rows: OnboardingFixtures.rows(.withOptional), isDoneEnabled: true, dictationDisabledMessage: nil)
-        let twoWithout = OnboardingViewState(rows: two.rows, isDoneEnabled: true, dictationDisabledMessage: nil)
+            rows: OnboardingFixtures.rows(.withOptional), isDoneEnabled: true, restrictionMessage: nil)
+        let twoWithout = OnboardingViewState(rows: two.rows, isDoneEnabled: true, restrictionMessage: nil)
 
         #expect(Probe.height(of: screen(four), width: 440) > Probe.height(of: screen(twoWithout), width: 440) + 100)
     }
@@ -90,7 +90,7 @@ struct OnboardingScreenTests {
     @Test("Done is the main button once it is enabled, and is quiet while it is not", arguments: [true, false])
     func doneButton(isEnabled: Bool) throws {
         let granted = state(.allGranted)
-        let state = OnboardingViewState(rows: granted.rows, isDoneEnabled: isEnabled, dictationDisabledMessage: nil)
+        let state = OnboardingViewState(rows: granted.rows, isDoneEnabled: isEnabled, restrictionMessage: nil)
         for scheme in Probe.schemes {
             let theme = try Probe.theme(scheme)
             let view = screen(state)

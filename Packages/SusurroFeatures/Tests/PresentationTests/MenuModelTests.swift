@@ -21,7 +21,7 @@ struct MenuModelTests {
         #expect(
             model.content
                 == MenuContent.make(
-                    microphone: .notDetermined, accessibility: .notDetermined, disabledReason: nil,
+                    microphone: .notDetermined, accessibility: .notDetermined, restriction: nil,
                     readiness: .loading(progress: 0)))
     }
 
@@ -54,18 +54,29 @@ struct MenuModelTests {
         #expect(!model.content.microphone.isGranted)
     }
 
-    @Test("a required permission that is missing turns the reason on, naming it, and granting it turns it off")
-    func disabledReason() async {
+    @Test("a required permission that is missing turns the restriction on, naming it, and granting it turns it off")
+    func restriction() async {
         let rig = Rig([.microphone: .granted, .accessibility: .denied])
         let model = MenuModel(monitor: rig.monitor)
 
         await rig.monitor.refresh()
-        let off = model.content.disabledMessage
+        let clipboard = model.content.restrictionMessage
+        rig.board.set(.microphone, to: .denied)
+        await rig.monitor.refresh()
+        let both = model.content.restrictionMessage
         rig.board.set(.accessibility, to: .granted)
         await rig.monitor.refresh()
+        let off = model.content.restrictionMessage
+        rig.board.set(.microphone, to: .granted)
+        await rig.monitor.refresh()
 
-        #expect(off == "Dictation is off until Accessibility is allowed.")
-        #expect(model.content.disabledMessage == nil)
+        #expect(clipboard == "Dictated text goes to the clipboard until Accessibility is allowed.")
+        #expect(
+            both
+                == "Dictation is off until Microphone is allowed. "
+                + "Dictated text goes to the clipboard until Accessibility is allowed.")
+        #expect(off == "Dictation is off until Microphone is allowed.")
+        #expect(model.content.restrictionMessage == nil)
     }
 
     @Test("a denied permission that dictation does not need leaves the menu without a reason")
@@ -76,7 +87,7 @@ struct MenuModelTests {
 
         await rig.monitor.refresh()
 
-        #expect(model.content.disabledMessage == nil)
+        #expect(model.content.restrictionMessage == nil)
     }
 
     @Test("a SwiftUI view that reads the content is told when the monitor reads a change")

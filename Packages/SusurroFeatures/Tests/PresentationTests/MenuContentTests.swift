@@ -8,7 +8,7 @@ struct MenuContentTests {
     @Test("the hotkey hint names the key to hold")
     func hotkeyHint() {
         let content = MenuContent.make(
-            microphone: .granted, accessibility: .granted, disabledReason: nil, readiness: .ready)
+            microphone: .granted, accessibility: .granted, restriction: nil, readiness: .ready)
 
         #expect(content.hotkeyHint == "Hold Control-Option-D to dictate")
     }
@@ -22,7 +22,7 @@ struct MenuContentTests {
         ]
     )
     func microphoneRow(status: PermissionStatus, title: String, isGranted: Bool, action: String?) {
-        let row = MenuContent.make(microphone: status, accessibility: .granted, disabledReason: nil, readiness: .ready)
+        let row = MenuContent.make(microphone: status, accessibility: .granted, restriction: nil, readiness: .ready)
             .microphone
 
         #expect(row.permission == .microphone)
@@ -40,7 +40,7 @@ struct MenuContentTests {
         ]
     )
     func accessibilityRow(status: PermissionStatus, title: String, isGranted: Bool, action: String?) {
-        let row = MenuContent.make(microphone: .granted, accessibility: status, disabledReason: nil, readiness: .ready)
+        let row = MenuContent.make(microphone: .granted, accessibility: status, restriction: nil, readiness: .ready)
             .accessibility
 
         #expect(row.permission == .accessibility)
@@ -71,7 +71,7 @@ struct MenuContentTests {
     )
     func modelLine(readiness: RecognizerReadiness, line: String) {
         let content = MenuContent.make(
-            microphone: .granted, accessibility: .granted, disabledReason: nil, readiness: readiness)
+            microphone: .granted, accessibility: .granted, restriction: nil, readiness: readiness)
 
         #expect(content.modelLine == line)
     }
@@ -80,7 +80,7 @@ struct MenuContentTests {
     func longReasonIsCut() {
         let reason = String(repeating: "x", count: 300)
         let line = MenuContent.make(
-            microphone: .granted, accessibility: .granted, disabledReason: nil,
+            microphone: .granted, accessibility: .granted, restriction: nil,
             readiness: .unavailable(reason, retryable: true)
         ).modelLine
 
@@ -90,36 +90,46 @@ struct MenuContentTests {
                 + "Susurro will retry loading the model shortly.")
     }
 
-    @Test("the menu says why dictation is off, with the reason the onboarding shows")
-    func disabledMessage() throws {
-        let reason = try #require(DictationDisabledReason(blocking: [.microphone, .accessibility]))
+    @Test(
+        "the menu says what the missing required permissions cost, with the words the onboarding shows",
+        arguments: [
+            (
+                [Permission.microphone, .accessibility],
+                "Dictation is off until Microphone is allowed. "
+                    + "Dictated text goes to the clipboard until Accessibility is allowed."
+            ),
+            ([.microphone], "Dictation is off until Microphone is allowed."),
+            ([.accessibility], "Dictated text goes to the clipboard until Accessibility is allowed."),
+        ]
+    )
+    func restrictionMessage(missing: [Permission], expected: String) throws {
+        let restriction = try #require(DictationRestriction(missing: missing))
 
-        let off = MenuContent.make(
-            microphone: .denied, accessibility: .denied, disabledReason: reason, readiness: .ready)
-        let single = MenuContent.make(
-            microphone: .granted, accessibility: .denied,
-            disabledReason: DictationDisabledReason(blocking: [.accessibility]), readiness: .ready)
-
-        #expect(off.disabledMessage == "Dictation is off until Microphone and Accessibility are allowed.")
-        #expect(single.disabledMessage == "Dictation is off until Accessibility is allowed.")
-    }
-
-    @Test("with nothing holding dictation back the menu says nothing about it")
-    func noDisabledMessage() {
         let content = MenuContent.make(
-            microphone: .granted, accessibility: .granted, disabledReason: nil, readiness: .ready)
+            microphone: .denied, accessibility: .denied, restriction: restriction, readiness: .ready)
 
-        #expect(content.disabledMessage == nil)
+        #expect(content.restrictionMessage == expected)
     }
 
-    @Test("while dictation is off the menu offers to set Susurro up, and otherwise it does not")
-    func setUpItem() throws {
-        let reason = try #require(DictationDisabledReason(blocking: [.accessibility]))
+    @Test("with nothing missing the menu says nothing about dictation")
+    func noRestrictionMessage() {
+        let content = MenuContent.make(
+            microphone: .granted, accessibility: .granted, restriction: nil, readiness: .ready)
+
+        #expect(content.restrictionMessage == nil)
+    }
+
+    @Test(
+        "while a required permission is missing the menu offers to set Susurro up, and otherwise it does not",
+        arguments: [Permission.microphone, .accessibility]
+    )
+    func setUpItem(missing: Permission) throws {
+        let restriction = try #require(DictationRestriction(missing: [missing]))
 
         let off = MenuContent.make(
-            microphone: .granted, accessibility: .denied, disabledReason: reason, readiness: .ready)
+            microphone: .granted, accessibility: .denied, restriction: restriction, readiness: .ready)
         let on = MenuContent.make(
-            microphone: .granted, accessibility: .granted, disabledReason: nil, readiness: .ready)
+            microphone: .granted, accessibility: .granted, restriction: nil, readiness: .ready)
 
         #expect(off.setUpTitle == "Set up Susurro…")
         #expect(on.setUpTitle == nil)
