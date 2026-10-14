@@ -47,6 +47,9 @@ public struct OSLogDiagnostics: DiagnosticsLog {
             (.default, "permission \(permission): troubleshooting steps shown")
         case .permissionRequestEnded(let permission, let status):
             (.default, "permission \(permission): request ended, now \(status)")
+        case .secretUnreadable(let account, let status):
+            (.error, "key store unreadable for \(account.rawValue): status \(status)")
+        case .cloudRequestFailed(let provider, let reason): (.error, "cloud request to \(provider) failed: \(reason)")
         }
     }
 

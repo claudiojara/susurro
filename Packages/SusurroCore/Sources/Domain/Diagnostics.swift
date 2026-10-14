@@ -53,6 +53,12 @@ public enum DiagnosticEvent: Sendable, Equatable {
     case permissionGuidanceShown(permission: Permission)
     /// A request to the system for the permission returned, and a read after it found the permission in `status`.
     case permissionRequestEnded(permission: Permission, status: PermissionStatus)
+    /// The key store could not be read for an account. Only the account and the system's status code are recorded: never
+    /// a key, and never a message that could quote one.
+    case secretUnreadable(account: SecretAccount, status: Int32)
+    /// A request to a cloud provider failed. `reason` is a fixed word such as "http-401", "timeout", "network", or
+    /// "response": never the body of the response and never anything that was sent.
+    case cloudRequestFailed(provider: String, reason: String)
 }
 
 /// Where the pipeline reports what it would otherwise swallow. The live log lives in the platform package.
