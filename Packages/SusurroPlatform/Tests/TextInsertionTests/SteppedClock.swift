@@ -3,14 +3,13 @@ import Synchronization
 
 /// A clock for tests. It moves only when the code under test sleeps, by the time it sleeps, or when a test advances it.
 /// A sleep returns at once. Like `Task.sleep`, it throws when its task has been cancelled.
+///
+/// Use it when the code under test should run through its sleeps without waiting and the test only reads which sleeps it
+/// asked for (`sleeps`), which ran to their end (`completedSleeps`) and how far the time moved (`elapsed`), or hooks
+/// into each sleep to stand in for what happens meanwhile. When the test must decide when a timer fires, use
+/// `ManualClock`: its sleeps stay suspended until the test advances the clock.
 final class SteppedClock: Clock, Sendable {
-    struct Instant: InstantProtocol {
-        let offset: Duration
-
-        func advanced(by duration: Duration) -> Instant { Instant(offset: offset + duration) }
-        func duration(to other: Instant) -> Duration { other.offset - offset }
-        static func < (lhs: Instant, rhs: Instant) -> Bool { lhs.offset < rhs.offset }
-    }
+    typealias Instant = TestInstant
 
     /// Runs on the main actor each time a sleep ends, standing in for whatever happens meanwhile. It may throw.
     typealias SleepHook = @MainActor (Duration) throws -> Void

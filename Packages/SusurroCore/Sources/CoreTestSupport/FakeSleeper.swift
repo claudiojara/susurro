@@ -1,9 +1,13 @@
 import Synchronization
 
-/// A `sleep` for tests. A pause (under a second) returns at once and is counted. A deadline whose duration is in
+/// A `sleep` for code that takes a `sleep` closure and not a `Clock` (the coordinator and its limits); for code that
+/// takes a clock, use `ManualClock` or `SteppedClock`. A pause (under a second) returns at once and is counted. A deadline whose duration is in
 /// `expiring` also returns at once. Every other deadline waits until its task is cancelled, so it never fires, unless
 /// the test calls `fire(_:)` for its duration. A sleeper that `blocksPauses` makes pauses wait too, which holds a
 /// polling loop in place. A test that needs to know the code under test has reached a deadline waits on `entered(_:)`.
+///
+/// Deadlines are told apart by their duration, so two deadlines of one duration cannot be fired apart: give every limit
+/// the code under test waits on a duration of its own.
 public final class FakeSleeper: Sendable {
     private struct State {
         var pauses = 0
