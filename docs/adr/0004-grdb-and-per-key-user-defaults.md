@@ -21,6 +21,11 @@ and reviewable. SwiftData's `ModelContext` is not `Sendable` and its migrations 
 Settings sit behind a `SettingsStore` port backed by one `UserDefaults` key per setting, named `<area>.<name>`. A corrupt
 key falls back to its default and cannot damage the others.
 
+A key is declared in code as `SettingKey(area:name:default:)`, which fixes the `<area>.<name>` form and the type of the
+value. Basic values are stored as themselves, an enum as its raw value, and any `Codable` value as JSON data. The port
+has two implementations, `UserDefaultsSettingsStore` and the `InMemorySettingsStore` fake, and one contract suite runs
+against both.
+
 ### Consequences
 
 - Good: fast in-memory repository tests; isolated failures for settings.

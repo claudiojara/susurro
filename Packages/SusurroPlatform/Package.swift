@@ -8,7 +8,7 @@ let package = Package(
     products: [
         .library(
             name: "SusurroPlatform",
-            targets: ["Permissions", "Hotkeys", "AudioIO", "TextInsertion", "Diagnostics"]
+            targets: ["Permissions", "Hotkeys", "AudioIO", "TextInsertion", "Diagnostics", "Settings"]
         )
     ],
     dependencies: [
@@ -27,6 +27,7 @@ let package = Package(
         .target(name: "AudioIO", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .target(name: "TextInsertion", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .target(name: "Diagnostics", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
+        .target(name: "Settings", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .testTarget(
             name: "PermissionsTests",
             dependencies: ["Permissions", .product(name: "SusurroCore", package: "SusurroCore")]
@@ -50,6 +51,14 @@ let package = Package(
         .testTarget(
             name: "DiagnosticsTests",
             dependencies: ["Diagnostics", .product(name: "SusurroCore", package: "SusurroCore")]
+        ),
+        .testTarget(
+            name: "SettingsTests",
+            dependencies: [
+                "Settings",
+                .product(name: "SusurroCore", package: "SusurroCore"),
+                .product(name: "CoreTestSupport", package: "SusurroCore"),
+            ]
         ),
         .testTarget(
             name: "HotkeysTests",
