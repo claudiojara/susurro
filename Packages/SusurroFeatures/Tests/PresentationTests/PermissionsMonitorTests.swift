@@ -87,7 +87,7 @@ struct PermissionsMonitorTests {
     @Test("a read that finishes after a newer one does not put its older statuses back")
     func olderReadIsDropped() async {
         let checker = SlowFirstReadChecker()
-        let monitor = PermissionsMonitor(checker: checker, clock: ManualClock())
+        let monitor = PermissionsMonitor(checker: checker, openSettings: { _ in }, clock: ManualClock())
         let slow = Task { await monitor.refresh() }
         await checker.firstReadEntered.wait()
 
@@ -179,7 +179,7 @@ struct PermissionsMonitorTests {
         #expect(rig.clock.suspendedSleeps == 0)
     }
 
-    @Test("each activation the app reports is a read, until the stream ends")
+    @Test("each activation the app reports is a return to the app: a read, and the wait for stale guidance")
     func activationStream() async {
         let rig = Rig([.microphone: .granted, .accessibility: .denied])
         let (activations, continuation) = AsyncStream.makeStream(of: Void.self)
@@ -187,13 +187,17 @@ struct PermissionsMonitorTests {
 
         continuation.yield()
         await waitUntil { rig.monitor.statuses[.accessibility] == .denied }
+        rig.monitor.openSettings(for: .accessibility)
+        continuation.yield()
+        await rig.clock.waitForSleeps(1)
         rig.board.set(.accessibility, to: .granted)
         continuation.yield()
         await waitUntil { rig.monitor.statuses[.accessibility] == .granted }
         continuation.finish()
         await running.value
 
-        #expect(rig.board.statusReads == 4)
+        #expect(rig.board.statusReads == 6)
+        #expect(rig.clock.pendingSleeps == 0)
     }
 
     // MARK: Revocation and the disabled reason
@@ -325,7 +329,7 @@ struct PermissionsMonitorTests {
     func letGoEndsThePoll() async {
         let clock = ManualClock()
         var monitor: PermissionsMonitor? = PermissionsMonitor(
-            checker: MutablePermissionsChecker([.microphone: .granted]), clock: clock)
+            checker: MutablePermissionsChecker([.microphone: .granted]), openSettings: { _ in }, clock: clock)
         monitor?.setOnboardingVisible(true)
         await clock.waitForSleeps(1)
 
@@ -335,5 +339,330 @@ struct PermissionsMonitorTests {
 
         #expect(clock.pendingSleeps == 0)
         #expect(clock.suspendedSleeps == 1)
+    }
+
+    // MARK: Requests, Settings, and the waiting state
+
+    @Test("a request asks the system and shows the permission as waiting while its prompt is up")
+    func requestWaitsForTheAnswer() async {
+        let checker = FakePermissionsChecker([.microphone: .notDetermined], gatedRequests: true)
+        let monitor = PermissionsMonitor(checker: checker, openSettings: { _ in }, clock: ManualClock())
+        await monitor.refresh()
+        let before = monitor.waiting
+
+        let asking = Task { await monitor.request(.microphone) }
+        await checker.requestEntered.wait()
+        let whileThePromptIsUp = monitor.waiting
+        checker.releaseRequest()
+        await asking.value
+
+        #expect(before.isEmpty)
+        #expect(whileThePromptIsUp == [.microphone])
+        #expect(checker.requested == [.microphone])
+    }
+
+    @Test("a request does not ask again while its prompt is up")
+    func requestIsNotRepeated() async {
+        let checker = FakePermissionsChecker([.microphone: .notDetermined], gatedRequests: true)
+        let monitor = PermissionsMonitor(checker: checker, openSettings: { _ in }, clock: ManualClock())
+        let asking = Task { await monitor.request(.microphone) }
+        await checker.requestEntered.wait()
+
+        await monitor.request(.microphone)
+        checker.releaseRequest()
+        await asking.value
+
+        #expect(checker.requested == [.microphone])
+    }
+
+    @Test("the answer ends the waiting: granted or denied, the status changed")
+    func answerEndsTheWaiting() async {
+        for answer in [PermissionStatus.granted, .denied] {
+            let checker = AnsweringChecker([.microphone: .notDetermined], answering: answer)
+            let monitor = PermissionsMonitor(checker: checker, openSettings: { _ in }, clock: ManualClock())
+            await monitor.refresh()
+
+            await monitor.request(.microphone)
+
+            #expect(monitor.statuses[.microphone] == answer)
+            #expect(monitor.waiting.isEmpty)
+        }
+    }
+
+    @Test("a request made before the first read ends with the answer too")
+    func requestBeforeTheFirstRead() async {
+        let checker = AnsweringChecker([.microphone: .notDetermined], answering: .denied)
+        let monitor = PermissionsMonitor(checker: checker, openSettings: { _ in }, clock: ManualClock())
+
+        await monitor.request(.microphone)
+
+        #expect(monitor.statuses[.microphone] == .denied)
+        #expect(monitor.waiting.isEmpty)
+    }
+
+    @Test("a permission whose status did not change after the request stays waiting until it does")
+    func unchangedStatusKeepsWaiting() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .denied])
+        await rig.monitor.refresh()
+
+        await rig.monitor.request(.accessibility)
+        await rig.monitor.refresh()
+        let whileDenied = rig.monitor.waiting
+        rig.board.set(.accessibility, to: .granted)
+        await rig.monitor.refresh()
+
+        #expect(rig.board.requested == [.accessibility])
+        #expect(whileDenied == [.accessibility])
+        #expect(rig.monitor.waiting.isEmpty)
+    }
+
+    @Test("a permission that is already granted is not requested")
+    func grantedIsNotRequested() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .granted])
+        await rig.monitor.refresh()
+
+        await rig.monitor.request(.microphone)
+
+        #expect(rig.board.requested.isEmpty)
+        #expect(rig.monitor.waiting.isEmpty)
+    }
+
+    @Test("opening System Settings opens the pane of the permission and waits for the status to change")
+    func openSettingsWaits() async {
+        let rig = Rig([.microphone: .denied, .accessibility: .denied])
+        await rig.monitor.refresh()
+
+        rig.monitor.openSettings(for: .accessibility)
+        rig.monitor.openSettings(for: .microphone)
+
+        #expect(rig.panes.opened == [.accessibility, .microphone])
+        #expect(rig.monitor.waiting == [.accessibility, .microphone])
+    }
+
+    @Test("a request can be made again once the first one is over")
+    func requestCanBeRepeated() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .denied])
+        await rig.monitor.refresh()
+
+        await rig.monitor.request(.accessibility)
+        await rig.monitor.request(.accessibility)
+
+        #expect(rig.board.requested == [.accessibility, .accessibility])
+    }
+
+    @Test("opening System Settings for a permission that is granted waits for nothing")
+    func openSettingsForGranted() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .granted])
+        await rig.monitor.refresh()
+
+        rig.monitor.openSettings(for: .accessibility)
+
+        #expect(rig.panes.opened == [.accessibility])
+        #expect(rig.monitor.waiting.isEmpty)
+    }
+
+    // MARK: Stale grants
+
+    @Test("a permission still denied 30 seconds after the user came back from System Settings gets the troubleshooting")
+    func staleAfterThirtySeconds() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .denied])
+        await rig.monitor.refresh()
+        rig.monitor.openSettings(for: .accessibility)
+
+        await rig.monitor.appDidBecomeActive()
+        await rig.clock.waitForSleeps(1)
+        rig.clock.advance(by: .milliseconds(29_999))
+        await rig.settle()
+        let justBefore = rig.monitor.staleGuidance
+        rig.clock.advance(by: .milliseconds(1))
+        await waitUntil { !rig.monitor.staleGuidance.isEmpty }
+
+        #expect(justBefore.isEmpty)
+        #expect(rig.monitor.staleGuidance == [.accessibility])
+    }
+
+    @Test("the bounded time is a setting of the monitor")
+    func staleTimeIsInjected() async {
+        let board = MutablePermissionsChecker([.microphone: .granted, .accessibility: .denied])
+        let clock = ManualClock()
+        let monitor = PermissionsMonitor(
+            checker: board, openSettings: { _ in }, clock: clock, staleAfter: .seconds(5))
+        await monitor.refresh()
+        monitor.openSettings(for: .accessibility)
+
+        await monitor.appDidBecomeActive()
+        await clock.waitForSleeps(1)
+        clock.advance(by: .seconds(5))
+        await waitUntil { !monitor.staleGuidance.isEmpty }
+
+        #expect(monitor.staleGuidance == [.accessibility])
+    }
+
+    @Test("the time counts from the return, not from opening System Settings")
+    func timeCountsFromTheReturn() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .denied])
+        await rig.monitor.refresh()
+
+        rig.monitor.openSettings(for: .accessibility)
+        await rig.settle()
+        rig.clock.advance(by: .seconds(60))
+        await rig.settle()
+        let whileAway = rig.monitor.staleGuidance
+        await rig.monitor.appDidBecomeActive()
+        await rig.clock.waitForSleeps(1)
+        rig.clock.advance(by: .seconds(29))
+        await rig.settle()
+
+        #expect(whileAway.isEmpty)
+        #expect(rig.monitor.staleGuidance.isEmpty)
+    }
+
+    @Test("a grant before the time is up cancels the troubleshooting")
+    func grantBeforeTheTimeCancels() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .denied])
+        await rig.monitor.refresh()
+        rig.monitor.openSettings(for: .accessibility)
+        await rig.monitor.appDidBecomeActive()
+        await rig.clock.waitForSleeps(1)
+
+        rig.board.set(.accessibility, to: .granted)
+        rig.clock.advance(by: .seconds(10))
+        await rig.monitor.refresh()
+        let pendingAfterTheGrant = rig.clock.pendingSleeps
+        rig.clock.advance(by: .seconds(60))
+        await rig.settle()
+
+        #expect(pendingAfterTheGrant == 0)
+        #expect(rig.monitor.staleGuidance.isEmpty)
+        #expect(rig.monitor.waiting.isEmpty)
+    }
+
+    @Test("the troubleshooting goes away when the permission is granted at last")
+    func staleEndsWithTheGrant() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .denied])
+        await rig.monitor.refresh()
+        rig.monitor.openSettings(for: .accessibility)
+        await rig.monitor.appDidBecomeActive()
+        await rig.clock.waitForSleeps(1)
+        rig.clock.advance(by: .seconds(30))
+        await waitUntil { !rig.monitor.staleGuidance.isEmpty }
+
+        rig.board.set(.accessibility, to: .granted)
+        await rig.monitor.refresh()
+
+        #expect(rig.monitor.staleGuidance.isEmpty)
+    }
+
+    @Test("coming back to a permission that is granted by then starts no timer")
+    func grantedOnReturn() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .denied])
+        await rig.monitor.refresh()
+        rig.monitor.openSettings(for: .accessibility)
+
+        rig.board.set(.accessibility, to: .granted)
+        await rig.monitor.appDidBecomeActive()
+        await rig.settle()
+
+        #expect(rig.clock.suspendedSleeps == 0)
+        #expect(rig.monitor.staleGuidance.isEmpty)
+    }
+
+    @Test("only the permission that stays denied gets the troubleshooting")
+    func staleIsPerPermission() async {
+        let rig = Rig([.microphone: .denied, .accessibility: .denied])
+        await rig.monitor.refresh()
+        rig.monitor.openSettings(for: .microphone)
+        rig.monitor.openSettings(for: .accessibility)
+
+        rig.board.set(.accessibility, to: .granted)
+        await rig.monitor.appDidBecomeActive()
+        await rig.clock.waitForSleeps(1)
+        rig.clock.advance(by: .seconds(30))
+        await waitUntil { !rig.monitor.staleGuidance.isEmpty }
+
+        #expect(rig.monitor.staleGuidance == [.microphone])
+    }
+
+    @Test("a request that leaves the permission denied, as Accessibility does, is followed up the same way")
+    func staleAfterARequest() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .denied])
+        await rig.monitor.refresh()
+        await rig.monitor.request(.accessibility)
+
+        await rig.monitor.appDidBecomeActive()
+        await rig.clock.waitForSleeps(1)
+        rig.clock.advance(by: .seconds(30))
+        await waitUntil { !rig.monitor.staleGuidance.isEmpty }
+
+        #expect(rig.monitor.staleGuidance == [.accessibility])
+    }
+
+    @Test("a prompt the user answered with Deny is not a trip to System Settings, so it gets no troubleshooting")
+    func deniedPromptIsNotStale() async {
+        let checker = AnsweringChecker([.microphone: .notDetermined], answering: .denied)
+        let clock = ManualClock()
+        let monitor = PermissionsMonitor(checker: checker, openSettings: { _ in }, clock: clock)
+        await monitor.refresh()
+        await monitor.request(.microphone)
+
+        await monitor.appDidBecomeActive()
+        for _ in 0..<20 { await Task.yield() }
+
+        #expect(clock.suspendedSleeps == 0)
+        #expect(monitor.staleGuidance.isEmpty)
+    }
+
+    @Test("a prompt that is still up when the app becomes active starts no timer")
+    func promptStillUpStartsNoTimer() async {
+        let checker = FakePermissionsChecker([.microphone: .notDetermined], gatedRequests: true)
+        let clock = ManualClock()
+        let monitor = PermissionsMonitor(checker: checker, openSettings: { _ in }, clock: clock)
+        let asking = Task { await monitor.request(.microphone) }
+        await checker.requestEntered.wait()
+
+        await monitor.appDidBecomeActive()
+        for _ in 0..<20 { await Task.yield() }
+        let sleepsWhileThePromptIsUp = clock.suspendedSleeps
+        checker.releaseRequest()
+        await asking.value
+
+        #expect(sleepsWhileThePromptIsUp == 0)
+    }
+
+    @Test("coming back twice, or again after the troubleshooting shows, starts one timer at most")
+    func oneTimerPerPermission() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .denied])
+        await rig.monitor.refresh()
+        rig.monitor.openSettings(for: .accessibility)
+
+        await rig.monitor.appDidBecomeActive()
+        await rig.monitor.appDidBecomeActive()
+        await rig.clock.waitForSleeps(1)
+        await rig.settle()
+        let whileCounting = rig.clock.pendingSleeps
+        rig.clock.advance(by: .seconds(30))
+        await waitUntil { !rig.monitor.staleGuidance.isEmpty }
+        await rig.monitor.appDidBecomeActive()
+        await rig.settle()
+
+        #expect(whileCounting == 1)
+        #expect(rig.clock.suspendedSleeps == 1)
+    }
+
+    @Test("a grant the monitor has not seen yet is read when the time is up, and is not stale")
+    func grantUnseenAtTheEnd() async {
+        let rig = Rig([.microphone: .granted, .accessibility: .denied])
+        await rig.monitor.refresh()
+        rig.monitor.openSettings(for: .accessibility)
+        await rig.monitor.appDidBecomeActive()
+        await rig.clock.waitForSleeps(1)
+
+        rig.board.set(.accessibility, to: .granted)
+        rig.clock.advance(by: .seconds(30))
+        await waitUntil { rig.monitor.statuses[.accessibility] == .granted }
+        await rig.settle()
+
+        #expect(rig.monitor.staleGuidance.isEmpty)
+        #expect(rig.monitor.waiting.isEmpty)
     }
 }
