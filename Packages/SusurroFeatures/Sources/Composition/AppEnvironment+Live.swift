@@ -41,6 +41,7 @@ extension AppEnvironment.Dependencies {
             openSettings: { NSWorkspace.shared.open(permissions.settingsURL(for: $0)) },
             activations: Self.applicationActivations,
             restoreClipboardNow: { inserter.restoreForTermination() },
+            onboardingWindow: { OnboardingWindowController(model: $0, themes: $1) },
             settings: UserDefaultsSettingsStore(diagnostics: diagnostics),
             themes: themes,
             watchThemes: Self.themeWatcher(for: themes)

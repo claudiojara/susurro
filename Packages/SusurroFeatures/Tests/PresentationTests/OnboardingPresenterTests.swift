@@ -87,7 +87,7 @@ struct OnboardingPresenterTests {
         #expect(surface.shown == 1)
     }
 
-    @Test("it opens once for a missing permission, however many reads find it missing")
+    @Test("it opens once for a missing permission, however many reads find it missing or change what is missing")
     func opensOncePerEpisode() async {
         let rig = Rig([.microphone: .denied, .accessibility: .granted])
         let (surface, _, running) = start(rig)
@@ -95,6 +95,10 @@ struct OnboardingPresenterTests {
         await rig.monitor.refresh()
         await waitUntil { surface.shown == 1 }
         await rig.monitor.refresh()
+        // Still missing, but not in the same way: the monitor's state changes, and the window is already open for it.
+        rig.board.set(.microphone, to: .notDetermined)
+        await rig.monitor.refresh()
+        rig.board.set(.accessibility, to: .denied)
         await rig.monitor.refresh()
         await rig.settle()
         running.cancel()

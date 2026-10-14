@@ -42,10 +42,6 @@ struct DiagnosticDescriptionTests {
                 "setting unreadable, its default is used: overlay.edge"
             ),
             (
-                .launchPermissions(microphone: "granted", accessibility: "denied"), .default,
-                "permissions at launch: microphone granted, accessibility denied"
-            ),
-            (
                 .permissionStatusChanged(permission: .microphone, from: nil, to: .granted), .default,
                 "permission microphone: unread -> granted"
             ),

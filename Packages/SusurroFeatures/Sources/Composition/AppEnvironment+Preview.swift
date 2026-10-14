@@ -26,6 +26,7 @@ extension AppEnvironment.Dependencies {
             openSettings: { _ in },
             activations: { AsyncStream { _ in } },
             restoreClipboardNow: {},
+            onboardingWindow: { _, _ in NoOnboardingWindow() },
             settings: InMemorySettingsStore(),
             themes: ThemeStore(directory: .temporaryDirectory.appending(path: "susurro-preview-themes"))
         )
@@ -36,4 +37,10 @@ extension AppEnvironment.Dependencies {
 @MainActor
 private struct NoOverlay: OverlaySurface {
     func display(_ indicator: OverlayIndicator?) {}
+}
+
+/// An onboarding window that shows nothing.
+@MainActor
+private struct NoOnboardingWindow: OnboardingSurface {
+    func show() {}
 }
