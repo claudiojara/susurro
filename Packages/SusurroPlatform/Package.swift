@@ -8,7 +8,10 @@ let package = Package(
     products: [
         .library(
             name: "SusurroPlatform",
-            targets: ["Permissions", "Hotkeys", "AudioIO", "TextInsertion", "Diagnostics", "Settings", "Persistence"]
+            targets: [
+                "Permissions", "Hotkeys", "AudioIO", "TextInsertion", "Diagnostics", "Settings", "Persistence",
+                "AccessibilityContext",
+            ]
         )
     ],
     dependencies: [
@@ -28,6 +31,7 @@ let package = Package(
         .target(name: "AudioIO", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .target(name: "TextInsertion", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .target(name: "Diagnostics", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
+        .target(name: "AccessibilityContext", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .target(name: "Settings", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .target(
             name: "Persistence",
@@ -52,6 +56,14 @@ let package = Package(
             name: "TextInsertionTests",
             dependencies: [
                 "TextInsertion",
+                .product(name: "SusurroCore", package: "SusurroCore"),
+                .product(name: "CoreTestSupport", package: "SusurroCore"),
+            ]
+        ),
+        .testTarget(
+            name: "AccessibilityContextTests",
+            dependencies: [
+                "AccessibilityContext",
                 .product(name: "SusurroCore", package: "SusurroCore"),
                 .product(name: "CoreTestSupport", package: "SusurroCore"),
             ]

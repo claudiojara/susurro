@@ -25,6 +25,12 @@ public enum DiagnosticEvent: Sendable, Equatable {
     case pasteboardWriteRefused
     /// The pasteboard refused to take the user's old contents back.
     case clipboardRestoreFailed
+    /// The paste landed but the user's old clipboard was not put back, because the snapshot of it was incomplete.
+    /// `reason` is a fixed name such as "typeWithoutData" or "tooLarge".
+    case clipboardNotRestored(reason: String)
+    /// The style chosen for a dictation: the names of its category, tone, and the rule that decided. Nothing of the
+    /// context it was chosen from is recorded.
+    case styleResolved(category: String, tone: String, source: String)
     /// The app asked the inserter to put the clipboard back as it terminated. `restored` is false when there was
     /// nothing to put back: no paste was under way, or the user had copied something since.
     case clipboardRestoreAtTermination(restored: Bool)

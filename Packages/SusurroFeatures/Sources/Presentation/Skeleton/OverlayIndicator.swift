@@ -88,7 +88,7 @@ public struct OverlayIndicator: Equatable, Sendable {
             case .timedOut(.readiness): "The speech model is taking too long to load."
             case .timedOut(.capture): "The microphone did not stop in time."
             case .timedOut(.transcription): "Transcription took too long."
-            case .timedOut(.insertion): "Pasting took too long."
+            case .timedOut(.insertion): "Pasting took too long. The text may already be there."
             case .notInserted(.clipboardChanged): "Not pasted: the clipboard changed meanwhile."
             case .notInserted(.clipboardWriteFailed): "The text could not be pasted or copied."
             }
@@ -97,6 +97,7 @@ public struct OverlayIndicator: Equatable, Sendable {
             case .permissions: "Open the Susurro menu to turn it on."
             case .settings: "Open the Susurro menu."
             case .retry: "Hold the key to try again."
+            case .check: "Check the app before you dictate again."
             }
         return "\(headline) \(wayOut)"
     }

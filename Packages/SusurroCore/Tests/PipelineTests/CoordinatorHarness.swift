@@ -19,13 +19,15 @@ struct CoordinatorHarness {
         capture: FakeAudioCaptureSource = FakeAudioCaptureSource(),
         recognizer: FakeRecognizer = FakeRecognizer(),
         inserter: FakeTextInserter = FakeTextInserter(),
-        sleeper: FakeSleeper = FakeSleeper()
+        sleeper: FakeSleeper = FakeSleeper(),
+        frontmost: FakeFrontmostAppProvider? = nil,
+        context: ContextPipeline? = nil,
+        diagnostics: RecordingDiagnostics = RecordingDiagnostics()
     ) async {
         self.capture = capture
         self.recognizer = recognizer
         self.inserter = inserter
         self.sleeper = sleeper
-        let diagnostics = RecordingDiagnostics()
         self.diagnostics = diagnostics
         let coordinator = DictationCoordinator(
             hotkeys: hotkeys,
@@ -33,6 +35,8 @@ struct CoordinatorHarness {
             recognizer: recognizer,
             inserter: inserter,
             permissions: permissions,
+            frontmost: frontmost,
+            context: context,
             diagnostics: diagnostics,
             sleep: { try await sleeper.sleep($0) }
         )

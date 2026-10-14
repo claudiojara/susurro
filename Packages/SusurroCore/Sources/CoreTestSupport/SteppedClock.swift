@@ -1,4 +1,3 @@
-import CoreTestSupport
 import Synchronization
 
 /// A clock for tests. It moves only when the code under test sleeps, by the time it sleeps, or when a test advances it.
@@ -8,11 +7,11 @@ import Synchronization
 /// asked for (`sleeps`), which ran to their end (`completedSleeps`) and how far the time moved (`elapsed`), or hooks
 /// into each sleep to stand in for what happens meanwhile. When the test must decide when a timer fires, use
 /// `ManualClock`: its sleeps stay suspended until the test advances the clock.
-final class SteppedClock: Clock, Sendable {
-    typealias Instant = TestInstant
+public final class SteppedClock: Clock, Sendable {
+    public typealias Instant = TestInstant
 
     /// Runs on the main actor each time a sleep ends, standing in for whatever happens meanwhile. It may throw.
-    typealias SleepHook = @MainActor (Duration) throws -> Void
+    public typealias SleepHook = @MainActor (Duration) throws -> Void
 
     private struct State {
         var offset = Duration.zero
@@ -23,34 +22,37 @@ final class SteppedClock: Clock, Sendable {
     }
 
     /// Holds the next sleep until `release` is opened, and opens `entered` when that sleep has begun.
-    struct Suspension: Sendable {
-        let entered = Gate()
-        let release = Gate()
+    public struct Suspension: Sendable {
+        public let entered = Gate()
+        public let release = Gate()
     }
 
     private let state = Mutex(State())
 
-    var now: Instant { Instant(offset: elapsed) }
-    var minimumResolution: Duration { .nanoseconds(1) }
+    public init() {}
+
+    public var now: Instant { Instant(offset: elapsed) }
+    public var minimumResolution: Duration { .nanoseconds(1) }
 
     /// The time that has passed since the clock was created.
-    var elapsed: Duration { state.withLock { $0.offset } }
+    public var elapsed: Duration { state.withLock { $0.offset } }
     /// Every sleep that was asked for, in order.
-    var sleeps: [Duration] { state.withLock { $0.requested } }
+    public var sleeps: [Duration] { state.withLock { $0.requested } }
     /// The sleeps that ran to their end instead of being cancelled.
-    var completedSleeps: [Duration] { state.withLock { $0.completed } }
+    public var completedSleeps: [Duration] { state.withLock { $0.completed } }
 
-    func setHook(_ hook: SleepHook?) { state.withLock { $0.hook = hook } }
+    public func setHook(_ hook: SleepHook?) { state.withLock { $0.hook = hook } }
 
     /// Makes the next sleep wait for the returned suspension to be released. A sleep that waits does not move the time.
-    func suspendNextSleep() -> Suspension {
+    public func suspendNextSleep() -> Suspension {
         let suspension = Suspension()
         state.withLock { $0.suspension = suspension }
         return suspension
     }
-    func advance(by duration: Duration) { state.withLock { $0.offset += duration } }
 
-    func sleep(until deadline: Instant, tolerance: Duration?) async throws {
+    public func advance(by duration: Duration) { state.withLock { $0.offset += duration } }
+
+    public func sleep(until deadline: Instant, tolerance: Duration?) async throws {
         let requested = state.withLock { state -> Duration in
             let requested = deadline.offset - state.offset
             state.requested.append(requested)

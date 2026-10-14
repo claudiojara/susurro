@@ -8,6 +8,7 @@ public final class FakeTextInserter: TextInserter {
     public let entered = Gate()
     public let drainEntered = Gate()
     private let texts = Mutex<[String]>([])
+    private let targetsSeen = Mutex<[AppIdentity?]>([])
     private let drains = Mutex(0)
     private let outcome: InsertionOutcome
     private let release: Gate?
@@ -20,13 +21,20 @@ public final class FakeTextInserter: TextInserter {
     }
 
     public var insertedTexts: [String] { texts.withLock { $0 } }
+    /// The target each insertion was given, in order. Nil is an insertion with no target.
+    public var targets: [AppIdentity?] { targetsSeen.withLock { $0 } }
     public var drainCount: Int { drains.withLock { $0 } }
 
     public func releaseInsertion() { release?.open() }
     public func releaseDrain() { drainRelease?.open() }
 
     public func insert(_ text: String) async -> InsertionOutcome {
+        await insert(text, into: nil)
+    }
+
+    public func insert(_ text: String, into target: AppIdentity?) async -> InsertionOutcome {
         texts.withLock { $0.append(text) }
+        targetsSeen.withLock { $0.append(target) }
         entered.open()
         await release?.wait()
         return outcome

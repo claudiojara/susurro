@@ -1,7 +1,6 @@
-import Pipeline
 import Testing
 
-@testable import TextInsertion
+@testable import Pipeline
 
 @Suite("Paste timing")
 struct PasteTimingTests {

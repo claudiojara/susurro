@@ -5,7 +5,8 @@ import Domain
 enum PasteChord {
     typealias MakeEvent = (_ keyCode: CGKeyCode, _ keyDown: Bool) -> CGEvent?
 
-    /// The V key on an ANSI layout. Other layouts put V elsewhere, which a later change resolves.
+    /// The V key on an ANSI layout. It is where the key code of "v" is looked up from when the layout in use offers none
+    /// (see `KeyLayout`).
     static let ansiVKeyCode: CGKeyCode = 9
 
     /// A bit that macOS 26 sets in the flags of a new key event and in the HID state at rest. It was observed, not

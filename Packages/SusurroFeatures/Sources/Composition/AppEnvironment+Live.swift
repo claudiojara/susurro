@@ -1,3 +1,4 @@
+import AccessibilityContext
 import AppKit
 import AudioIO
 import DesignSystem
@@ -7,9 +8,11 @@ import FluidAudioASR
 import Foundation
 import Hotkeys
 import Permissions
+import Pipeline
 import Presentation
 import Settings
 import TextInsertion
+import TextShaping
 
 extension AppEnvironment {
     /// The graph on the real adapters: the Control+Option+D hotkey, the microphone, Parakeet, the pasteboard, the
@@ -27,9 +30,13 @@ extension AppEnvironment.Dependencies {
         let diagnostics = OSLogDiagnostics()
         let permissions = SystemPermissionsChecker()
         let recognizer = ParakeetRecognizer()
-        let inserter = SimplePasteInserter(diagnostics: diagnostics)
+        let frontmost = NSWorkspaceFrontmostAppProvider()
+        let inserter = PasteTransaction(
+            pasteboard: NSPasteboardAdapter(), keystrokes: CGEventKeystrokePoster(), frontmost: frontmost,
+            diagnostics: diagnostics)
         let themes = ThemeStore(directory: themesFolder)
         let clock = ContinuousClock()
+        let settings = UserDefaultsSettingsStore(diagnostics: diagnostics)
         return AppEnvironment.Dependencies(
             hotkeys: HotkeyService(),
             capture: AVAudioEngineCaptureSource(diagnostics: diagnostics),
@@ -40,7 +47,7 @@ extension AppEnvironment.Dependencies {
             diagnostics: diagnostics,
             overlay: SkeletonOverlayController(),
             restoreClipboardNow: { inserter.restoreForTermination() },
-            settings: UserDefaultsSettingsStore(diagnostics: diagnostics),
+            settings: settings,
             onboarding: Onboarding(
                 window: { OnboardingWindowController(model: $0, themes: $1) },
                 openSettings: { NSWorkspace.shared.open(permissions.settingsURL(for: $0)) },
@@ -48,8 +55,24 @@ extension AppEnvironment.Dependencies {
             ),
             theming: Theming(store: themes, prepare: Self.prepareThemes(for: themes)),
             clock: clock,
-            history: .live(recognizer: recognizer, sleep: { try await clock.sleep(for: $0) })
+            history: .live(recognizer: recognizer, sleep: { try await clock.sleep(for: $0) }),
+            frontmost: frontmost,
+            context: Self.contextPipeline(settings: settings)
         )
+    }
+
+    /// The text around the cursor is read through Accessibility, the style is chosen from the app and the page with the
+    /// user's style settings, and the setting "use app context" decides whether the text is read at all.
+    private static func contextPipeline(settings: UserDefaultsSettingsStore) -> ContextPipeline {
+        let resolver = StyleResolver()
+        let styles = StyleSettingsRepository(store: settings)
+        return ContextPipeline(
+            source: ContextCapture(
+                reader: AXContextReader(), useAppContext: { settings.value(for: ContextSettings.useAppContext) }),
+            resolver: resolver,
+            styleSettings: { bundleID, url in
+                styles.settings(for: resolver.candidateTargets(bundleID: bundleID, url: url))
+            })
     }
 
     /// Where the user puts theme files: `Themes` in the app's folder of Application Support.

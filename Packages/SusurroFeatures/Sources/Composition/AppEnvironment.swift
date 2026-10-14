@@ -67,6 +67,11 @@ public final class AppEnvironment {
         public var clock: any Clock<Duration>
         /// The dictation history: where the records live, and what its screen, its retention job, and its retry use.
         public var history: HistoryDependencies
+        /// Tells which app is in front as a dictation starts, so its text goes only to that app. Without it the text is
+        /// pasted wherever the focus is when it is ready.
+        public var frontmost: (any FrontmostAppProvider)?
+        /// Captures the context of each dictation and chooses its style. Without it no context is captured.
+        public var context: ContextPipeline?
 
         public init(
             hotkeys: any HotkeySource,
@@ -82,7 +87,9 @@ public final class AppEnvironment {
             onboarding: Onboarding,
             theming: Theming,
             clock: any Clock<Duration> = ContinuousClock(),
-            history: HistoryDependencies = .preview()
+            history: HistoryDependencies = .preview(),
+            frontmost: (any FrontmostAppProvider)? = nil,
+            context: ContextPipeline? = nil
         ) {
             self.hotkeys = hotkeys
             self.capture = capture
@@ -98,6 +105,8 @@ public final class AppEnvironment {
             self.theming = theming
             self.clock = clock
             self.history = history
+            self.frontmost = frontmost
+            self.context = context
         }
     }
 
@@ -132,6 +141,8 @@ public final class AppEnvironment {
             recognizer: dependencies.recognizer,
             inserter: dependencies.inserter,
             permissions: dependencies.permissions,
+            frontmost: dependencies.frontmost,
+            context: dependencies.context,
             diagnostics: dependencies.diagnostics,
             sleep: sleep
         )
