@@ -95,6 +95,24 @@ These are known and each has a later change:
 - The hotkey is fixed.
 - The overlay is unthemed. The onboarding window grows with its rows and can run past the bottom of a small display.
 
+## Checks that need no person
+
+Some of the manual checks run without a keyboard, a microphone, or a prompt, against the real models and a speech
+voice (`say -v Paulina`). They are off unless `SUSURRO_REAL_MODELS=1`, so `make test` and CI skip them. The first run
+downloads the speech models (about 600 MB) into the app's model folder; Apple Intelligence must be on for the cleaner
+checks, and `whisper-server`, `whisper-cli`, and a `ggml-*.bin` model in `~/.local/share/whisper-cpp/models` (or
+`SUSURRO_WHISPER_MODEL`) must be installed for the Local Whisper ones. A check whose model or tool is missing is skipped.
+
+    SUSURRO_REAL_MODELS=1 swift test --package-path Packages/SusurroFeatures --filter RealModelPipelineTests
+    SUSURRO_REAL_MODELS=1 swift test --package-path Packages/SusurroInference --filter RealModelTests
+    SUSURRO_REAL_MODELS=1 swift test --package-path Packages/SusurroInference --filter RealSocketBoundaryTests
+
+The first one runs Silero on a CAF written by the recording store, the time from the release of the key to the text with
+the real VAD and Parakeet, the dictionary term, and Local Whisper over HTTP and through a wrapper script. The second
+holds the Parakeet and Apple Intelligence checks, including the tone of the same dictation in Mail, Slack, Terminal, and
+ChatGPT. The third reads what the cloud cleaners send from a real socket. Each prints its numbers on lines that start
+with `REAL-WORLD` or `REAL-MODEL`.
+
 ## What still needs a person
 
 The launch, the log lines, the model load, and the build are checked by script. These need a person at the keyboard (the

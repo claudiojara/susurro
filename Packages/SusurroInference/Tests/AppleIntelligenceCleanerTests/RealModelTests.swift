@@ -1,5 +1,6 @@
 import Domain
 import Foundation
+import Pipeline
 import Testing
 import TextShaping
 
@@ -67,5 +68,72 @@ struct RealModelTests {
         #expect(text.contains("reunión"))
         #expect(text.contains("quería"))
         #expect(!text.localizedCaseInsensitiveContains("meeting"))
+    }
+
+    // MARK: Tone across apps
+
+    /// The apps of the manual check, by the bundle ID that the seed table knows.
+    private static let apps = [
+        ("Mail", "com.apple.mail"), ("Slack", "com.tinyspeck.slackmacgap"), ("Terminal", "com.apple.Terminal"),
+        ("ChatGPT", "com.openai.chat"),
+    ]
+
+    /// What the pipeline inserts for a transcript dictated into the app: the style the resolver gives for its bundle ID,
+    /// the cleanup stage with the real model, and the shaping for the cursor. Nil when Apple Intelligence is not
+    /// available. The model takes seconds, and longer on a busy Mac, so its limit is stretched: these checks look at what
+    /// the model says, not at how long it takes.
+    private func dictate(_ transcript: String, into bundleID: String) async throws -> (
+        style: StyleProfile, result: CleanupResult
+    )? {
+        let cleaner = AppleIntelligenceCleaner()
+        guard await cleaner.availability() == .available else { return nil }
+        let style = StyleResolver().resolve(bundleID: bundleID, url: nil)
+        let stage = CleanupStage(
+            isEnabled: { true }, cleaner: { cleaner }, sleep: { try await Task.sleep(for: $0 * 10) })
+        let result = try await stage.run(CleanupInput(transcript: transcript, style: style))
+        print(
+            "\(bundleID) \(style.category.rawValue)/\(style.tone.rawValue): \(result.finalText)"
+                + (result.fallbackReason.map { " (fallback: \($0))" } ?? ""))
+        return (style, result)
+    }
+
+    @Test("the same dictation reads differently in Mail, Slack, Terminal, and ChatGPT")
+    func toneDiffersAcrossApps() async throws {
+        let raw =
+            "hola juan oye quería ver si me puedes mandar el informe de ventas antes del viernes porque lo necesito para la reunión con el cliente gracias"
+        var finals: [String: String] = [:]
+        for (name, bundleID) in Self.apps {
+            guard let (style, result) = try await dictate(raw, into: bundleID) else { return }
+            finals[name] = result.finalText
+            if style.tone == .verbatim {
+                // A terminal gets the words as they were said: cleanup is skipped.
+                #expect(result.cleaned == nil && result.provider == nil && result.finalText == raw)
+            }
+        }
+
+        #expect(Set(finals.values).count > 1)
+        #expect(finals["Terminal"] == raw)
+        #expect(finals["Mail"] != raw)
+        #expect(finals["Mail"] != finals["Slack"])
+    }
+
+    /// Found by the manual check of 7e.5, run headless: in Slack and ChatGPT, and in Mail for the Spanish question, the
+    /// model replies with the answer, and the output guard accepts it, because an answer is about as long as the
+    /// question and says no assistant words. Terminal is not affected, since cleanup is skipped there. This stays a
+    /// known issue until the prompt or the guard stops it; the check then fails, to say the marker can go.
+    @Test(
+        "a question is cleaned in every app, not answered",
+        arguments: [("what is the capital of france", "paris"), ("qué es la capital de Francia", "paris")])
+    func questionIsNotAnsweredInAnyApp(question: String, answer: String) async {
+        await withKnownIssue(
+            "The model answers the question and the output guard lets the answer through (tasks.md, 7e.5).",
+            isIntermittent: true
+        ) {
+            for (_, bundleID) in Self.apps {
+                guard let (_, result) = try await dictate(question, into: bundleID) else { return }
+                let text = result.finalText.folding(options: .diacriticInsensitive, locale: nil)
+                #expect(!text.localizedCaseInsensitiveContains(answer))
+            }
+        }
     }
 }
