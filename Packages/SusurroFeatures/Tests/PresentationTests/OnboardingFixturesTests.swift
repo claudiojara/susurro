@@ -12,7 +12,7 @@ import Testing
 @MainActor
 @Suite("Onboarding fixtures", .timeLimit(.minutes(1)))
 struct OnboardingFixturesTests {
-    private struct RowCase: Sendable, CustomTestStringConvertible {
+    fileprivate struct RowCase: Sendable, CustomTestStringConvertible {
         let fixture: OnboardingFixtures.Row
         let permission: Permission
         let status: PermissionStatus

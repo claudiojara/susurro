@@ -26,32 +26,24 @@ struct OnboardingScreen: View {
     var body: some View {
         VStack(alignment: .leading, spacing: theme.spacing(.lg)) {
             VStack(alignment: .leading, spacing: theme.spacing(.xs)) {
-                TextLabel(Copy.title, style: .title)
+                TextLabel(state.title, style: .title)
                     .accessibilityAddTraits(.isHeader)
-                TextLabel(Copy.subtitle, tint: .neutral)
+                TextLabel(state.subtitle, tint: .neutral)
             }
             if let message = state.restrictionMessage {
                 Banner(message)
             }
             PermissionChecklist(state.rows, onAction: onAction)
             HStack(spacing: theme.spacing(.sm)) {
-                ActionButton(Copy.checkAgain, action: onRecheck)
+                ActionButton(state.recheckTitle, action: onRecheck)
                 Spacer(minLength: theme.spacing(.sm))
-                ActionButton(Copy.done, kind: .primary, action: onDone)
+                ActionButton(state.doneTitle, kind: .primary, action: onDone)
                     .disabled(!state.isDoneEnabled)
             }
         }
         .padding(theme.spacing(.xl))
         .frame(width: theme.layout(.onboardingWidth))
         .background(theme.swiftUIColor(.surfaceWindow))
-    }
-
-    /// The words of the screen that are not part of the state.
-    private enum Copy {
-        static let title = "Set up Susurro"
-        static let subtitle = "Susurro needs these permissions to hear you and to type what you say."
-        static let checkAgain = "Check again"
-        static let done = "Done"
     }
 }
 

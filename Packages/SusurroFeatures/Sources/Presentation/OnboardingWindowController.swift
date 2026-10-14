@@ -45,7 +45,7 @@ public final class OnboardingWindowController: OnboardingSurface {
         host = NSHostingController(rootView: OnboardingWindowContent(model: model, themes: themes, onDone: {}))
         host.sizingOptions = [.preferredContentSize]
         window = NSWindow(contentViewController: host)
-        window.title = "Set up Susurro"
+        window.title = model.state.title
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         host.rootView = OnboardingWindowContent(model: model, themes: themes, onDone: { [weak self] in self?.close() })
