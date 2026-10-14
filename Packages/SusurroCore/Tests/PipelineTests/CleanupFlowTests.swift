@@ -76,6 +76,17 @@ struct CleanupFlowTests {
         #expect(tagger.taggedTexts == [before])
     }
 
+    @Test("only the dictionary is offered for boosting: the names around the cursor and on the screen are not")
+    func recognizerBoostsTheDictionaryAlone() async {
+        let before = "Meeting with Maria Gonzalez about Acme tomorrow"
+        let tagger = FakeEntityTagger([before: ["Maria Gonzalez", "Acme", "Zed"]])
+        var f = await Fixture(
+            before: before, dictionary: ["Zed", " Yara ", "zed", String(repeating: "x", count: 41)], tagger: tagger)
+        _ = await f.dictate()
+        // The dictionary as the vocabulary holds it: trimmed, without repeats, within the length limit.
+        #expect(f.harness.recognizer.transcribedOptions.map(\.boostTerms) == [["Zed", "Yara"]])
+    }
+
     @Test("a cloud cleaner gets the vocabulary and none of the context")
     func cloudCleanerGetsNoContext() async throws {
         let cloud = FakeCleaner(id: CleanerProviderID("cloud"), locality: .cloud, answer: .text("Hola, Acme."))
@@ -129,6 +140,7 @@ struct CleanupFlowTests {
         await harness.startRecording()
         _ = await harness.release()
         #expect(recognizer.transcribedOptions.map(\.vocabulary) == [[]])
+        #expect(recognizer.transcribedOptions.map(\.boostTerms) == [[]])
     }
 
     @Test("names read from the screen join the vocabulary, and the screen text itself goes nowhere else")

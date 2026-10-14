@@ -23,10 +23,16 @@ public struct RecognitionOptions: Sendable, Equatable {
     public var language: String?
     /// Terms the recognizer should favor. A recognizer that cannot bias its output ignores them.
     public var vocabulary: [String]
+    /// The user's dictionary alone, for a recognizer that rescores its transcript against known terms. The names found
+    /// around the cursor and on the screen are in `vocabulary` and never here: a term that merely sits near the cursor
+    /// is not one the user said, and rescoring toward it would write it over a different word. A recognizer that cannot
+    /// rescore ignores them, without an error.
+    public var boostTerms: [String]
 
-    public init(language: String? = nil, vocabulary: [String] = []) {
+    public init(language: String? = nil, vocabulary: [String] = [], boostTerms: [String] = []) {
         self.language = language
         self.vocabulary = vocabulary
+        self.boostTerms = boostTerms
     }
 }
 

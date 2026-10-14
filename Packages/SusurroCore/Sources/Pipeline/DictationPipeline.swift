@@ -186,7 +186,9 @@ public struct DictationPipeline: Sendable {
         let early: ResolvedContext? = if job.vocabulary != nil { await resolution?.value } else { nil }
         let vocabulary = job.vocabulary?.terms(for: early?.context) ?? []
         let input = found.flatMap { SpeechSpan.input(from: clip, result: $0) } ?? clip
-        let recognition = try await runner.run(input, vocabulary: vocabulary) { progress in
+        let recognition = try await runner.run(
+            input, vocabulary: vocabulary, boostTerms: job.vocabulary?.dictionaryTerms ?? []
+        ) { progress in
             if progress == nil { tracker.enter(.transcription) }
             await report(.transcribing(progress: progress))
         }
