@@ -91,6 +91,8 @@ public actor DictationCoordinator {
     private var submittedRecordingCancelled = false
     /// The recording in progress, from the moment its capture starts until it is finished or abandoned.
     private var session: RecordingSession?
+    /// The task that finishes the recording, while it does. A press that lands meanwhile waits for it.
+    private var finishing: Task<Void, Never>?
     private var sessionEvents: Task<Void, Never>?
     /// What the recording in progress shows: `starting` or `recording`. It wins over the state of a job.
     private var recordingState: PipelineState?
@@ -237,8 +239,11 @@ public actor DictationCoordinator {
             if activation.acceptsPress { beginKeyPress() }
             return await run(.down(at: time))
         }
-        // A press while a recording is still being stopped and verified starts nothing. One while dictations are being
-        // processed starts the next recording: they are queued behind each other.
+        // A recording that the cap or a lost device ended is finished by a task that no event waits for, and the natural
+        // next move is to press again at once. That press waits for the recording to finish and then starts the next one.
+        // The hold is measured by the timestamps of its events, so the wait distorts nothing. One while dictations are
+        // being processed starts the next recording: they are queued behind each other.
+        if phase == .finishing { await finishing?.value }
         guard phase == .idle else { return }
         phase = .starting
         pendingEnd = nil
@@ -496,7 +501,9 @@ public actor DictationCoordinator {
         case .capturing:
             if case .submit(capped: true) = end { diagnostics.record(.recordingCapReached) }
             phase = .finishing
-            return Task { await self.finishRecording(end) }
+            let task = Task { await self.finishRecording(end) }
+            finishing = task
+            return task
         case .idle, .finishing, .stopped:
             return nil
         }
@@ -519,9 +526,12 @@ public actor DictationCoordinator {
             return await settle()
         }
         let result: RecordingResult
+        // The reducer has already measured a hold by its key, so a submitted recording keeps whatever audio it got. A
+        // recording that Esc cancels keeps the minimum: a blip is no record.
+        let minimum = end.isJob ? Duration.zero : RecordingLimits.minimumDuration
         do {
             result = try await withDeadline(DictationLimits.captureStopTimeout, stage: .capture, sleep: sleep) {
-                await recording.finish()
+                await recording.finish(minimumDuration: minimum)
             }
         } catch {
             await abandon(recording)
@@ -535,7 +545,8 @@ public actor DictationCoordinator {
 
         switch result {
         case .tooShort:
-            return await settle(endsJob: end.isJob)
+            // A submitted recording is never too short, but a hold must not end with nothing to show if it were.
+            return await settle(end.isJob ? .notice(.noSpeech) : nil, endsJob: end.isJob)
         case .failed(.persistence):
             return await settle(.error(.persistenceFailed("the recording could not be saved")), endsJob: end.isJob)
         case .failed(.capture(let message)):
@@ -621,19 +632,26 @@ public actor DictationCoordinator {
         }
     }
 
-    /// The work of one queued job: the pipeline, and what it leaves on the screen.
-    private func run(_ job: DictationJob) async -> ProcessingQueue.Outcome {
-        unstarted[job.recording.id.rawValue] = nil
+    /// The work of one queued job: the pipeline, and what it leaves on the screen. Not private, so that a test can run a
+    /// job the way the queue does when it reaches the coordinator after Esc cancelled it.
+    func run(_ job: DictationJob) async -> ProcessingQueue.Outcome {
+        let id = job.recording.id.rawValue
+        // Esc cancels a job that the queue has started but that has not reached this actor yet: it ended there, with its
+        // record kept, and running it now would make a second record and end it a second time.
+        guard jobs.contains(id) else { return .cancelled }
+        unstarted[id] = nil
         let result = await pipeline.process(job) { state in await self.showJob(state) }
-        return await finish(job.recording.id.rawValue, with: result)
+        return await finish(id, with: result)
     }
 
     /// Ends a job. The reducer is told first, so that Esc is already released when the resting state shows.
     private func finish(_ id: UUID, with result: DictationPipeline.Result) async -> ProcessingQueue.Outcome {
+        let wasTracked = jobs.contains(id)
         jobs.removeAll { $0 == id }
         jobProgress = nil
         guard phase != .stopped else { return .cancelled }
-        await dispatch(.jobFinished)
+        // A job that Esc already ended has told the reducer.
+        if wasTracked { await dispatch(.jobFinished) }
         guard phase != .stopped else { return .cancelled }
         guard case .finished(let state) = result else {
             publish(restingState())

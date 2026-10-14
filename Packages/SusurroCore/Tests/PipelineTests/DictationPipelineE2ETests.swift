@@ -184,15 +184,17 @@ struct DictationPipelineE2ETests {
         #expect(h.recordings.aborted == h.recordings.begun)
     }
 
-    @Test("a recording of 200 ms of audio is discarded even when the key was held longer")
+    @Test("a hold the key made long enough is processed even when its audio is under 300 ms, and has a record")
     func shortAudio() async throws {
         var h = await Harness()
         await h.startRecording(samples: DictationCoordinatorTests.audio(0.1, seconds: 0.2))
         let states = await h.release()
 
-        #expect(states == [.idle])
-        #expect(try await h.history.page(offset: 0, limit: 10).isEmpty)
-        #expect(h.recognizer.transcribedClips.isEmpty)
+        #expect(states == DictationCoordinatorTests.transcribed)
+        let record = try await Self.record(h)
+        #expect(record.status == .succeeded)
+        #expect(record.duration == .milliseconds(200))
+        #expect(h.recognizer.transcribedClips.count == 1)
     }
 
     // MARK: Failures

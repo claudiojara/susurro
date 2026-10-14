@@ -12,7 +12,7 @@ public enum RecordingFailure: Error, Sendable, Equatable {
 public enum RecordingResult: Sendable, Equatable {
     /// The audio is on disk and verified. `notice` says something the user should know about how it ended.
     case recorded(VerifiedRecording, notice: NoticeKind?)
-    /// Shorter than `RecordingLimits.minimumDuration`: the file is deleted and nothing was recorded.
+    /// Shorter than the minimum duration that `finish` was given: the file is deleted and nothing was recorded.
     case tooShort
     case failed(RecordingFailure)
 }
@@ -102,7 +102,11 @@ public actor RecordingSession {
     }
 
     /// Stops the capture, waits for the audio it still holds, and verifies the file. Call it once.
-    public func finish() async -> RecordingResult {
+    ///
+    /// - Parameter minimumDuration: A recording with less audio than this is deleted and reported as `tooShort`. A
+    ///   recording that was submitted passes zero: the key has already said that it was a hold, and the audio is always
+    ///   shorter than the hold by the time the capture takes to start, so it is the recognizer that tells silence.
+    public func finish(minimumDuration: Duration = RecordingLimits.minimumDuration) async -> RecordingResult {
         await capture.stop()
         await consumer?.value
         consumer = nil
@@ -117,7 +121,7 @@ public actor RecordingSession {
             await sink.abort()
             return .failed(.capture(streamFailure ?? "no audio was captured"))
         }
-        if recordedDuration < RecordingLimits.minimumDuration {
+        if recordedDuration < minimumDuration {
             await sink.abort()
             return .tooShort
         }

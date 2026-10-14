@@ -125,6 +125,22 @@ struct RecordingSessionTests {
         }
     }
 
+    @Test("a submitted recording passes no minimum, so a short one is kept, and a recording with no audio is not")
+    func noMinimumForASubmission() async throws {
+        let rig = Rig()
+        try await rig.session.start()
+        rig.capture.emit(Self.chunk(seconds: 0.2))
+        let result = await rig.session.finish(minimumDuration: .zero)
+
+        guard let (recording, _) = Self.kept(result) else { return }
+        #expect(recording.duration == .milliseconds(200))
+        #expect(rig.store.aborted.isEmpty)
+
+        let empty = Rig()
+        try await empty.session.start()
+        #expect(await empty.session.finish(minimumDuration: .zero) == .failed(.capture("no audio was captured")))
+    }
+
     // MARK: Store failures
 
     @Test("a write that fails gives a persistence failure and no recording")
