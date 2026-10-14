@@ -1,4 +1,5 @@
 import AppKit
+import AppleSpeechASR
 import AudioIO
 import DesignSystem
 import Diagnostics
@@ -6,7 +7,9 @@ import Domain
 import FluidAudioASR
 import Foundation
 import Hotkeys
+import LanguageDetection
 import Permissions
+import Pipeline
 import Presentation
 import Settings
 import TextInsertion
@@ -30,6 +33,17 @@ extension AppEnvironment.Dependencies {
         let inserter = SimplePasteInserter(diagnostics: diagnostics)
         let themes = ThemeStore(directory: themesFolder)
         let clock = ContinuousClock()
+        let settings = UserDefaultsSettingsStore(diagnostics: diagnostics)
+        let vad = SileroVADDetector()
+        let languageDetector = NLLanguageDetector()
+        let languageRecognizer = AppleSpeechRecognizer()
+        let sleep: @Sendable (Duration) async throws -> Void = { try await clock.sleep(for: $0) }
+        // The history's retry runs the same recognition as a new dictation, from the stored file to the raw text.
+        let reprocessor = PipelineReprocessor(
+            detector: vad,
+            runner: AppEnvironment.Dependencies.recognitionRunner(
+                recognizer: recognizer, languageRecognizer: languageRecognizer, settings: settings,
+                languageDetector: languageDetector, diagnostics: diagnostics, sleep: sleep))
         return AppEnvironment.Dependencies(
             hotkeys: HotkeyService(),
             capture: AVAudioEngineCaptureSource(diagnostics: diagnostics),
@@ -41,7 +55,7 @@ extension AppEnvironment.Dependencies {
             diagnostics: diagnostics,
             overlay: SkeletonOverlayController(),
             restoreClipboardNow: { inserter.restoreForTermination() },
-            settings: UserDefaultsSettingsStore(diagnostics: diagnostics),
+            settings: settings,
             onboarding: Onboarding(
                 window: { OnboardingWindowController(model: $0, themes: $1) },
                 openSettings: { NSWorkspace.shared.open(permissions.settingsURL(for: $0)) },
@@ -49,7 +63,10 @@ extension AppEnvironment.Dependencies {
             ),
             theming: Theming(store: themes, prepare: Self.prepareThemes(for: themes)),
             clock: clock,
-            history: .live(recognizer: recognizer, sleep: { try await clock.sleep(for: $0) })
+            history: .live(reprocessor: reprocessor),
+            vad: vad,
+            languageDetector: languageDetector,
+            languageRecognizer: languageRecognizer
         )
     }
 

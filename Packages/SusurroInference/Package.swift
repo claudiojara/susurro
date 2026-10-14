@@ -6,7 +6,7 @@ let package = Package(
     name: "SusurroInference",
     platforms: [.macOS(.v26)],
     products: [
-        .library(name: "SusurroInference", targets: ["FluidAudioASR"])
+        .library(name: "SusurroInference", targets: ["FluidAudioASR", "AppleSpeechASR"])
     ],
     dependencies: [
         .package(path: "../SusurroCore"),
@@ -20,6 +20,15 @@ let package = Package(
             dependencies: [
                 .product(name: "SusurroCore", package: "SusurroCore"),
                 .product(name: "FluidAudio", package: "FluidAudio"),
+            ]
+        ),
+        .target(name: "AppleSpeechASR", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
+        .testTarget(
+            name: "AppleSpeechASRTests",
+            dependencies: [
+                "AppleSpeechASR",
+                .product(name: "SusurroCore", package: "SusurroCore"),
+                .product(name: "CoreTestSupport", package: "SusurroCore"),
             ]
         ),
         .testTarget(

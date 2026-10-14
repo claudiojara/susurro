@@ -100,7 +100,7 @@ public final class FakeRecognizer: SpeechRecognizer {
             state.options.append(options)
         }
         transcribeEntered.open()
-        if let transport {
+        if locality == .cloud, let transport {
             _ = try await transport.send(URLRequest(url: URL(string: "https://speech.example.invalid/transcribe")!))
         }
         await gate?.wait()

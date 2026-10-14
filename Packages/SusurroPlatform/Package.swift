@@ -8,7 +8,10 @@ let package = Package(
     products: [
         .library(
             name: "SusurroPlatform",
-            targets: ["Permissions", "Hotkeys", "AudioIO", "TextInsertion", "Diagnostics", "Settings", "Persistence"]
+            targets: [
+                "Permissions", "Hotkeys", "AudioIO", "TextInsertion", "Diagnostics", "Settings", "Persistence",
+                "LanguageDetection",
+            ]
         )
     ],
     dependencies: [
@@ -29,6 +32,7 @@ let package = Package(
         .target(name: "TextInsertion", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .target(name: "Diagnostics", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .target(name: "Settings", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
+        .target(name: "LanguageDetection", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .target(
             name: "Persistence",
             dependencies: [
@@ -75,6 +79,13 @@ let package = Package(
                 .product(name: "SusurroCore", package: "SusurroCore"),
                 .product(name: "CoreTestSupport", package: "SusurroCore"),
                 .product(name: "GRDB", package: "GRDB.swift"),
+            ]
+        ),
+        .testTarget(
+            name: "LanguageDetectionTests",
+            dependencies: [
+                "LanguageDetection",
+                .product(name: "SusurroCore", package: "SusurroCore"),
             ]
         ),
         .testTarget(

@@ -11,19 +11,15 @@ extension HistoryDependencies {
     /// from the disk, the system clipboard, and the speech recognizer for the retry. Touching the database and the disk
     /// is covered by the manual check, not by tests.
     ///
-    /// - Parameter recognizer: The recognizer the retry transcribes with.
-    /// - Parameter sleep: Pauses on the app's clock, which bounds a retry's transcription.
+    /// - Parameter reprocessor: Runs a stored recording through the pipeline again, for the retry.
     @MainActor
-    static func live(
-        recognizer: any SpeechRecognizer, sleep: @escaping @Sendable (Duration) async throws -> Void
-    ) -> HistoryDependencies {
+    static func live(reprocessor: any DictationReprocessing) -> HistoryDependencies {
         HistoryDependencies(
             repository: openRepository(),
             deleter: FileSystemAudioDeleter(),
             loader: CAFClipLoader(),
             clipboard: SystemClipboardWriter(),
-            reprocessor: WholeClipReprocessor(
-                recognizer: recognizer, providerID: ASRProviderID("parakeet-v3"), sleep: sleep),
+            reprocessor: reprocessor,
             dates: SystemDateSource(),
             window: { HistoryWindowController(model: $0, themes: $1) }
         )

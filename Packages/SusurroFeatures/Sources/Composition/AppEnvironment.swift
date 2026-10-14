@@ -1,3 +1,4 @@
+import CoreTestSupport
 import DesignSystem
 import Domain
 import Foundation
@@ -69,6 +70,14 @@ public final class AppEnvironment {
         public var clock: any Clock<Duration>
         /// The dictation history: where the records live, and what its screen, its retention job, and its retry use.
         public var history: HistoryDependencies
+        /// Finds the speech in a recording, so a silent one is not transcribed and the recognizer hears the voice with a
+        /// little room on each side.
+        public var vad: any VoiceActivityDetector
+        /// Tells the language of a transcript, to notice one that came back in the wrong language.
+        public var languageDetector: any LanguageDetecting
+        /// A recognizer that honors the language it is asked for, to transcribe again a clip that the main one answered
+        /// in the wrong language. Nil when the app has none.
+        public var languageRecognizer: (any SpeechRecognizer)?
 
         public init(
             hotkeys: any HotkeySource,
@@ -85,7 +94,10 @@ public final class AppEnvironment {
             onboarding: Onboarding,
             theming: Theming,
             clock: any Clock<Duration> = ContinuousClock(),
-            history: HistoryDependencies = .preview()
+            history: HistoryDependencies = .preview(),
+            vad: any VoiceActivityDetector = FakeVoiceActivityDetector(),
+            languageDetector: any LanguageDetecting = FakeLanguageDetector(),
+            languageRecognizer: (any SpeechRecognizer)? = nil
         ) {
             self.hotkeys = hotkeys
             self.capture = capture
@@ -102,6 +114,51 @@ public final class AppEnvironment {
             self.theming = theming
             self.clock = clock
             self.history = history
+            self.vad = vad
+            self.languageDetector = languageDetector
+            self.languageRecognizer = languageRecognizer
+        }
+
+        /// What turns a clip into a raw transcript: the recognizers the app has, which of them is selected, the wait for
+        /// a model that loads, the timeouts, the fallbacks, and the language guard. The dictation and the history's retry
+        /// run the same one.
+        public func recognitionRunner(
+            sleep: @escaping @Sendable (Duration) async throws -> Void
+        ) -> RecognitionRunner {
+            Self.recognitionRunner(
+                recognizer: recognizer, languageRecognizer: languageRecognizer, settings: settings,
+                languageDetector: languageDetector, diagnostics: diagnostics, sleep: sleep)
+        }
+
+        /// The recognizers of the app: Parakeet, the default, and the one that honors the language when there is one.
+        public var recognizerRegistry: RecognizerRegistry {
+            Self.recognizerRegistry(recognizer: recognizer, languageRecognizer: languageRecognizer, settings: settings)
+        }
+
+        static func recognizerRegistry(
+            recognizer: any SpeechRecognizer, languageRecognizer: (any SpeechRecognizer)?, settings: any SettingsStore
+        ) -> RecognizerRegistry {
+            RecognizerRegistry(
+                providers: [recognizer] + (languageRecognizer.map { [$0] } ?? []),
+                defaultProvider: recognizer.id,
+                languageProvider: languageRecognizer?.id,
+                settings: settings
+            )
+        }
+
+        static func recognitionRunner(
+            recognizer: any SpeechRecognizer, languageRecognizer: (any SpeechRecognizer)?, settings: any SettingsStore,
+            languageDetector: any LanguageDetecting, diagnostics: any DiagnosticsLog,
+            sleep: @escaping @Sendable (Duration) async throws -> Void
+        ) -> RecognitionRunner {
+            RecognitionRunner(
+                registry: recognizerRegistry(
+                    recognizer: recognizer, languageRecognizer: languageRecognizer, settings: settings),
+                language: SettingsLanguagePreference(settings: settings),
+                languageGuard: LanguageGuard(detector: languageDetector),
+                diagnostics: diagnostics,
+                sleep: sleep
+            )
         }
     }
 
@@ -130,12 +187,22 @@ public final class AppEnvironment {
         self.dependencies = dependencies
         let clock = dependencies.clock
         let sleep: @Sendable (Duration) async throws -> Void = { try await clock.sleep(for: $0) }
+        let pipeline = DictationPipeline(
+            recordings: dependencies.recordings,
+            history: dependencies.history.repository,
+            detector: dependencies.vad,
+            runner: dependencies.recognitionRunner(sleep: sleep),
+            inserter: dependencies.inserter,
+            dates: dependencies.history.dates,
+            diagnostics: dependencies.diagnostics,
+            sleep: sleep
+        )
         coordinator = DictationCoordinator(
             hotkeys: dependencies.hotkeys,
             capture: dependencies.capture,
             recordings: dependencies.recordings,
-            recognizer: dependencies.recognizer,
-            inserter: dependencies.inserter,
+            recognizers: dependencies.recognizerRegistry,
+            pipeline: pipeline,
             permissions: dependencies.permissions,
             diagnostics: dependencies.diagnostics,
             sleep: sleep
@@ -218,6 +285,7 @@ public final class AppEnvironment {
     private func launch() async {
         dependencies.diagnostics.record(.modelPrepareRequested)
         await dependencies.recognizer.prepare()
+        await dependencies.languageRecognizer?.prepare()
     }
 
     /// The attempts that a quit left processing are marked failed, with their audio kept so they can be retried, and then

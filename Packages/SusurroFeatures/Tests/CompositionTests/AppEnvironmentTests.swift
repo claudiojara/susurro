@@ -122,8 +122,8 @@ struct AppEnvironmentTests {
         await f.environment.shutdown()
     }
 
-    @Test("a press while a dictation is processed shows the busy notice on the overlay")
-    func busyPress() async {
+    @Test("a press while a dictation is processed starts the next recording, and the overlay follows it")
+    func pressWhileProcessing() async {
         let f = AppEnvironmentFixture(recognizer: FakeRecognizer(transcript: "uno", gated: true))
         f.environment.start()
         f.hotkeys.send(.down(at: Self.pressTime))
@@ -132,8 +132,9 @@ struct AppEnvironmentTests {
         f.hotkeys.send(.up(at: Self.pressTime + .milliseconds(1200)))
         await f.eventually("the transcribing indicator") { f.overlay.current == "Transcribing…" }
         f.hotkeys.send(.down(at: Self.pressTime + .milliseconds(1300)))
-        await f.eventually("the busy notice") { f.overlay.current == "Still working on the last dictation" }
+        await f.eventually("the next recording") { f.overlay.current == "Getting ready…" }
 
+        #expect(f.capture.startCount == 2)
         f.recognizer.releaseTranscription()
         await f.environment.shutdown()
     }
