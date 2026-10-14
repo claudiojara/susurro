@@ -1,6 +1,6 @@
 # Theming
 
-Every color, type size, space, radius, component size, duration, and the overlay geometry comes from a theme: data, not code. The model
+Every color, type size, space, radius, component size, screen layout, duration, and the overlay geometry comes from a theme: data, not code. The model
 and the loader are in `Packages/SusurroUI/Sources/DesignSystem`. The bundled default is
 `Resources/DefaultTheme.json`, and it defines every token. The app reads the theme files in
 `~/Library/Application Support/Susurro/Themes` (`ThemeStore` in the composition root, `ThemeModel` for the windows), and
@@ -29,7 +29,8 @@ down to a single field of a token. This file changes the accent in light and dar
 | `colors` | For each color token, the name of a palette entry. |
 | `typography` | `size` in points, `weight` (`regular`, `medium`, `semibold`, `bold`), `design` (`standard`, `rounded`, `monospaced`, `serif`). |
 | `spacing`, `radii` | Points. |
-| `sizes` | Points: the fixed dimension of a component (`statusDot` is the diameter of a status dot, `levelBar` the thickness of a level bar, `onboardingWidth` the width of the onboarding screen). |
+| `sizes` | Points: the fixed dimension of a component (`statusDot` is the diameter of a status dot, `levelBar` the thickness of a level bar). |
+| `layout` | Points: the geometry of a screen or a window, as opposed to a component (`onboardingWidth` is the width of the onboarding screen). The overlay's geometry has its own group. |
 | `motion` | Durations in seconds, and `springResponse` and `springDamping`. |
 | `overlay` | `width`, `cornerRadius`, `offset` (points from the screen edge), `edge` (`top` or `bottom`). |
 
@@ -47,8 +48,8 @@ every problem it finds in one pass, in this order:
    reported once, for the entry.
 3. **Colors that point at a palette entry that does not exist.** A color that points at an entry the file wrote but got
    wrong is not reported again: the error for the entry says what to fix.
-4. **Numbers that are negative or not finite**: sizes, spaces, radii, durations, and the overlay geometry. Zero is
-   allowed.
+4. **Numbers that are negative or not finite**: sizes, layout, spaces, radii, durations, and the overlay geometry. Zero
+   is allowed.
 
 Some things stop the report early, because nothing after them can be read:
 
@@ -118,6 +119,11 @@ The atoms are in `Sources/DesignSystem/Atoms`. They take their color from a `Tin
 | `success` | `status.success` |
 | `warning` | `status.warning` |
 | `error` | `status.error` |
+| `pending` | `status.pending` |
+
+`pending` is for something that waits for an answer or an outcome, such as a permission whose prompt is up (the
+"Waiting…" status of an onboarding row). It has a color of its own, a violet, so that it is not taken for the accent, which
+is the color of the main button.
 
 `TextLabel` and `Icon` take an optional tint, where none is the plain text color (`text.primary`). `Pill`, `StatusDot`, and
 `LevelBar` take a tint. `ActionButton` takes a `Kind` instead (`primary`, `secondary`, `destructive`), because its fill,

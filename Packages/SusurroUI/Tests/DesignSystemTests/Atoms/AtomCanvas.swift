@@ -10,9 +10,9 @@ enum AtomCanvas: CaseIterable, Sendable {
 
     var size: CGSize {
         switch self {
-        case .labels: CGSize(width: 160, height: 336)
-        case .icons: CGSize(width: 250, height: 110)
-        case .pills: CGSize(width: 120, height: 220)
+        case .labels: CGSize(width: 160, height: 346)
+        case .icons: CGSize(width: 272, height: 110)
+        case .pills: CGSize(width: 120, height: 236)
         case .statusDots: CGSize(width: 160, height: 60)
         case .levelBars: CGSize(width: 200, height: 212)
         case .buttons: CGSize(width: 320, height: 168)

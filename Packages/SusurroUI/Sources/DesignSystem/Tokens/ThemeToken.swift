@@ -24,6 +24,8 @@ public nonisolated enum ColorToken: String, ThemeToken {
     case statusSuccess = "status.success"
     case statusWarning = "status.warning"
     case statusError = "status.error"
+    /// Something is under way and waits for an answer or an outcome: a prompt is up, or the user is in System Settings.
+    case statusPending = "status.pending"
     case statePressed = "state.pressed"
     case borderSubtle = "border.subtle"
 
@@ -56,10 +58,17 @@ public nonisolated enum SizeToken: String, ThemeToken {
     case statusDot
     /// The thickness of a level bar.
     case levelBar
+
+    public static var group: String { "sizes" }
+}
+
+/// The geometry of a screen or a window, in points, as opposed to the size of a component (`SizeToken`). The overlay's
+/// geometry is a group of its own; these are the rest.
+public nonisolated enum LayoutToken: String, ThemeToken {
     /// The width of the onboarding screen.
     case onboardingWidth
 
-    public static var group: String { "sizes" }
+    public static var group: String { "layout" }
 }
 
 /// Durations in seconds, and the two numbers that shape the standard spring.
