@@ -476,6 +476,23 @@ struct DictationCoordinatorTests {
     }
 
     @Test(
+        "Accessibility missing still records: only the paste suffers, so the text goes to the clipboard with a notice",
+        arguments: [PermissionStatus.denied, .notDetermined]
+    )
+    func accessibilityMissingStillRecords(status: PermissionStatus) async {
+        let permissions = FakePermissionsChecker([.microphone: .granted, .accessibility: status])
+        let inserter = FakeTextInserter(outcome: .copiedToClipboard(.accessibilityMissing))
+        var h = await Harness(permissions: permissions, inserter: inserter)
+        await h.startRecording()
+        let states = await h.release()
+
+        #expect(states == [.transcribing(progress: nil), .notice(.copiedToClipboard(.accessibilityMissing)), .idle])
+        #expect(h.capture.startCount == 1)
+        #expect(h.recognizer.transcribedClips == [AudioClip(samples: Self.clip)])
+        #expect(h.inserter.insertedTexts == ["hello"])
+    }
+
+    @Test(
         "text that is neither inserted nor on the clipboard is an error, not a notice",
         arguments: [NotInsertedReason.clipboardChanged, .clipboardWriteFailed]
     )
