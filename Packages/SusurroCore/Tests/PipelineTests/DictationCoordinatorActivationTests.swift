@@ -288,6 +288,19 @@ struct DictationCoordinatorActivationTests {
         #expect(h.clock.pendingSleeps == 0)
     }
 
+    // MARK: Levels
+
+    @Test("the input level of the chunks that arrive while recording is published, for the overlay's meter")
+    func levelsArePublished() async {
+        var h = await Harness()
+        var levels = h.sut.levels.makeAsyncIterator()
+
+        await h.startRecording(samples: [Float](repeating: 0.5, count: 160))
+
+        #expect(await levels.next() == 1)
+        _ = await h.release()
+    }
+
     // MARK: Timers
 
     @Test("shutting down cancels every timer")

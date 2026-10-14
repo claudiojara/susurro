@@ -47,10 +47,14 @@ public actor DictationCoordinator {
 
     /// The current state first, then every change. It has a single consumer, which sees every state since creation.
     public nonisolated let states: AsyncStream<PipelineState>
+    /// The input level of the microphone (0...1, see `AudioLevel`) of each chunk that arrives while recording. It keeps
+    /// only the newest value that nobody has read, so a slow reader sees the latest level and never a backlog.
+    public nonisolated let levels: AsyncStream<Double>
 
     private var phase = Phase.idle
     private var published = PipelineState.idle
     private let continuation: AsyncStream<PipelineState>.Continuation
+    private let levelContinuation: AsyncStream<Double>.Continuation
     /// The state of the reducer and the timers it asked for.
     private let machine = ActivationMachine()
     private var activation = ActivationMachine.State()
@@ -106,6 +110,7 @@ public actor DictationCoordinator {
         self.sleep = sleep
         self.clock = clock
         (states, continuation) = AsyncStream.makeStream()
+        (levels, levelContinuation) = AsyncStream.makeStream(bufferingPolicy: .bufferingNewest(1))
         (keyUps, keyUp) = AsyncStream.makeStream()
         continuation.yield(.idle)
     }
@@ -144,6 +149,7 @@ public actor DictationCoordinator {
         setEscapeArmed(false)
         publish(.idle)
         continuation.finish()
+        levelContinuation.finish()
     }
 
     /// Gives the inserter the time to put the clipboard back. What a slow one leaves is put back as the app terminates.
@@ -358,6 +364,7 @@ public actor DictationCoordinator {
             publish(.recording(recordingMode))
         }
         samples.append(contentsOf: chunk.samples)
+        if phase == .capturing { levelContinuation.yield(AudioLevel.level(of: chunk.samples)) }
         if samples.count >= Self.capSampleCount, phase == .capturing {
             await dispatch(.capReached)
         }

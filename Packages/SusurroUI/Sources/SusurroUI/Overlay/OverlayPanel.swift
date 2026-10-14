@@ -40,8 +40,16 @@ public final class OverlayPanelHost<Content: View> {
 
     public var isVisible: Bool { panel.isVisible }
 
+    /// Replaces the content, so that the size it needs is that of the content now.
+    public func setContent(_ content: Content) {
+        hosting.rootView = content
+    }
+
     /// The size the content needs. It has a fixed width, so the height is that of its text at that width.
-    public var fittingSize: CGSize { hosting.fittingSize }
+    public var fittingSize: CGSize {
+        hosting.layoutSubtreeIfNeeded()
+        return hosting.fittingSize
+    }
 
     /// Puts the panel at `frame` and shows it. The panel is never made key: it must not take focus from the app being
     /// dictated into.

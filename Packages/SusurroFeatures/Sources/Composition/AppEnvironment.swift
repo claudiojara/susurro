@@ -2,6 +2,7 @@ import DesignSystem
 import Domain
 import Pipeline
 import Presentation
+import SusurroUI
 
 /// The dependency graph of the app, assembled once, and what the app does at launch and at quit. The ports of the core
 /// package are the only things it knows about its parts, so the same graph runs on the live adapters (`live`) and on
@@ -52,7 +53,8 @@ public final class AppEnvironment {
         public var inserter: any TextInserter
         public var permissions: any PermissionsChecker
         public var diagnostics: any DiagnosticsLog
-        public var overlay: any OverlaySurface
+        /// Makes the overlay on the screen, which shows the view model in the theme.
+        public var overlay: @MainActor (OverlayViewModel, ThemeModel) -> any OverlaySurface
         /// Puts the user's clipboard back at once if a paste is still under way. It runs as the app terminates.
         public var restoreClipboardNow: @MainActor () -> Void
         /// The user's settings. The graph holds them for the code that will read them: the first setting is read with the
@@ -73,7 +75,7 @@ public final class AppEnvironment {
             inserter: any TextInserter,
             permissions: any PermissionsChecker,
             diagnostics: any DiagnosticsLog,
-            overlay: any OverlaySurface,
+            overlay: @escaping @MainActor (OverlayViewModel, ThemeModel) -> any OverlaySurface,
             restoreClipboardNow: @escaping @MainActor () -> Void,
             settings: any SettingsStore,
             onboarding: Onboarding,
@@ -105,10 +107,11 @@ public final class AppEnvironment {
     let onboardingModel: OnboardingViewModel
     /// The theme the app's windows are drawn in, which follows the theme store.
     let themeModel: ThemeModel
+    /// What the overlay shows, over the pipeline's states.
+    let overlayModel: OverlayViewModel
 
     private let dependencies: Dependencies
     private let coordinator: DictationCoordinator
-    private let presenter: SkeletonOverlayPresenter
     private let watcher: ModelLoadWatcher
     private let onboardingPresenter: OnboardingPresenter
     private var tasks: [Task<Void, Never>] = []
@@ -128,19 +131,20 @@ public final class AppEnvironment {
             sleep: sleep,
             clock: clock
         )
-        let overlay = dependencies.overlay
-        presenter = SkeletonOverlayPresenter(sleep: sleep, display: { overlay.display($0) })
-        let presenter = presenter
+        themeModel = ThemeModel()
+        let overlayModel = OverlayViewModel(sleep: sleep, uptime: OverlayViewModel.uptime(of: clock))
+        let surface = dependencies.overlay(overlayModel, themeModel)
+        overlayModel.display = { surface.display($0) }
+        self.overlayModel = overlayModel
         watcher = ModelLoadWatcher(
-            sleep: sleep, report: { presenter.setModelProgress($0) },
-            reportUnavailable: { presenter.showModelUnavailable() })
+            sleep: sleep, report: { overlayModel.setModelProgress($0) },
+            reportUnavailable: { overlayModel.showModelUnavailable() })
         monitor = PermissionsMonitor(
             checker: dependencies.permissions, openSettings: dependencies.onboarding.openSettings, clock: clock,
             needs: PermissionNeeds(
                 modifierOnlyHotkey: dependencies.settings.value(for: HotkeySettings.kind) == .modifierOnly),
             diagnostics: dependencies.diagnostics)
         onboardingModel = OnboardingViewModel(monitor: monitor)
-        themeModel = ThemeModel()
         let onboardingPresenter = OnboardingPresenter(
             monitor: monitor, surface: dependencies.onboarding.window(onboardingModel, themeModel))
         self.onboardingPresenter = onboardingPresenter
@@ -155,7 +159,9 @@ public final class AppEnvironment {
         dependencies.diagnostics.record(.appLaunched)
         monitor.start()
         // The overlay listens before the coordinator can publish, and the coordinator registers the hotkey when it runs.
-        run { await $0.presenter.run(states: $0.coordinator.states) }
+        run { await $0.overlayModel.run(states: $0.coordinator.states) }
+        run { await $0.overlayModel.run(levels: $0.coordinator.levels) }
+        run { await $0.overlayModel.follow($0.dependencies.settings) }
         run { await $0.coordinator.run() }
         run { await $0.watcher.run(await $0.dependencies.readinessChanges()) }
         run { await $0.menu.observe(await $0.dependencies.readinessChanges()) }

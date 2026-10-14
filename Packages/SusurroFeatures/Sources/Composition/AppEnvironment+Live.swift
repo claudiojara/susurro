@@ -8,6 +8,7 @@ import Foundation
 import Hotkeys
 import Permissions
 import Presentation
+import SusurroUI
 import Settings
 import TextInsertion
 
@@ -38,7 +39,7 @@ extension AppEnvironment.Dependencies {
             inserter: inserter,
             permissions: permissions,
             diagnostics: diagnostics,
-            overlay: SkeletonOverlayController(),
+            overlay: { OverlayController(model: $0, themes: $1, registry: .standard()) },
             restoreClipboardNow: { inserter.restoreForTermination() },
             settings: settings,
             onboarding: Onboarding(
