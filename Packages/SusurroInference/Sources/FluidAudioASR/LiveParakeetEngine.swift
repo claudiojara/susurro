@@ -44,8 +44,7 @@ actor LiveParakeetEngine: ParakeetEngine {
     /// variables of the environment, which could send the download somewhere else. FluidAudio reads both settings from
     /// process-wide state, and every call sets the same values.
     static func pinWeights() {
-        ModelRegistry.baseURL = "https://huggingface.co"
-        ModelRegistry.revisionOverrides[weightsRepository] = weightsRevision
+        ModelPinning.pin(repository: weightsRepository, to: weightsRevision)
     }
 
     /// The FluidAudio language for a pinned code such as "es" or "es-CL": lowercased, without region. Nil when

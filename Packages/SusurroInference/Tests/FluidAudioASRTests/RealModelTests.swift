@@ -209,4 +209,23 @@ struct RealModelTests {
 
         #expect(Double(found) / Double(repetitions) >= Self.requiredShareOfSentences)
     }
+
+    @Test("Silero finds the speech between two seconds of silence, and nothing in silence alone")
+    func sileroSegments() async throws {
+        let speech = try Self.speak(Self.sentence)
+        let silence = [Float](repeating: 0, count: 2 * AudioClip.sampleRate)
+        let clip = AudioClip(samples: silence + speech + silence)
+        let detector = SileroVADDetector()
+
+        let found = try await detector.analyze(clip)
+        let none = try await detector.analyze(AudioClip(samples: silence))
+        print("REAL-MODEL silero: \(found.segments) in a clip of \(clip.duration), none: \(none.segments)")
+
+        let first = try #require(found.segments.first)
+        let last = try #require(found.segments.last)
+        // The model decides in blocks of 256 ms, so the edges are only as exact as that.
+        #expect(first.start > .seconds(1.5) && first.start < .seconds(2.6))
+        #expect(last.end > .seconds(2) + AudioClip.duration(ofSamples: speech.count) - .seconds(0.6))
+        #expect(none.segments.isEmpty)
+    }
 }
