@@ -15,6 +15,7 @@ public nonisolated enum ColorToken: String, ThemeToken {
     case surfaceWindow = "surface.window"
     case surfaceRaised = "surface.raised"
     case surfaceOverlay = "surface.overlay"
+    case surfaceTrack = "surface.track"
     case textPrimary = "text.primary"
     case textSecondary = "text.secondary"
     case textOnAccent = "text.onAccent"
@@ -23,6 +24,7 @@ public nonisolated enum ColorToken: String, ThemeToken {
     case statusSuccess = "status.success"
     case statusWarning = "status.warning"
     case statusError = "status.error"
+    case statePressed = "state.pressed"
     case borderSubtle = "border.subtle"
 
     public static var group: String { "colors" }
@@ -47,9 +49,34 @@ public nonisolated enum RadiusToken: String, ThemeToken {
     public static var group: String { "radii" }
 }
 
+/// The fixed dimension of a component, in points: what an atom is made of that is neither a gap between things nor a
+/// corner. A component asks for its own size, so a theme can change the space between things without resizing a dot.
+public nonisolated enum SizeToken: String, ThemeToken {
+    /// The diameter of a status dot.
+    case statusDot
+    /// The thickness of a level bar.
+    case levelBar
+
+    public static var group: String { "sizes" }
+}
+
 /// Durations in seconds, and the two numbers that shape the standard spring.
 public nonisolated enum MotionToken: String, ThemeToken {
     case fast, standard, slow, springResponse, springDamping
 
     public static var group: String { "motion" }
+}
+
+/// The motion tokens that are seconds. An animation that takes a duration takes this, so the numbers of the spring
+/// cannot be passed as one.
+public nonisolated enum DurationToken: CaseIterable, Sendable {
+    case fast, standard, slow
+
+    public var token: MotionToken {
+        switch self {
+        case .fast: .fast
+        case .standard: .standard
+        case .slow: .slow
+        }
+    }
 }

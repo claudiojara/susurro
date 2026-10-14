@@ -11,7 +11,8 @@ struct DefaultThemeTests {
     func catalogCoversEveryKind() {
         let expected =
             ColorToken.allCases.count + TypeToken.allCases.count + SpacingToken.allCases.count
-            + RadiusToken.allCases.count + MotionToken.allCases.count + OverlayGeometry.CodingKeys.allCases.count
+            + RadiusToken.allCases.count + SizeToken.allCases.count + MotionToken.allCases.count
+            + OverlayGeometry.CodingKeys.allCases.count
         #expect(expected > 0)
         #expect(ThemeTokenCatalog.allKeys.count == expected)
         #expect(ThemeTokenCatalog.allKeys.contains("colors.text.primary"))
@@ -43,7 +44,7 @@ struct DefaultThemeTests {
         let encoded = try #require(
             try JSONSerialization.jsonObject(with: JSONEncoder().encode(theme)) as? [String: Any])
         let bundled = Theme.bundledObject
-        #expect(ThemeTokenCatalog.groups.count == 6)
+        #expect(ThemeTokenCatalog.groups.count == 7)
         for group in ThemeTokenCatalog.groups {
             let property = try #require(
                 encoded[group.name] as? [String: Any], "\(group.name) is not a property of Theme")
@@ -53,7 +54,8 @@ struct DefaultThemeTests {
             #expect(Set(file.keys) == group.expected, "\(group.name): the file and the token cases differ")
         }
         #expect(
-            ThemeTokenCatalog.groups.map(\.name) == ["colors", "typography", "spacing", "radii", "motion", "overlay"])
+            ThemeTokenCatalog.groups.map(\.name)
+                == ["colors", "typography", "spacing", "radii", "sizes", "motion", "overlay"])
     }
 
     @Test("every color token points at a palette entry with a light and a dark value")
@@ -73,7 +75,7 @@ struct DefaultThemeTests {
         }
         let spacing = try values(theme.spacing, SpacingToken.allCases)
         let radii = try values(theme.radii, RadiusToken.allCases)
-        let durations = try values(theme.motion, [MotionToken.fast, .standard, .slow])
+        let durations = try values(theme.motion, DurationToken.allCases.map(\.token))
         for scale in [spacing, radii, durations] {
             #expect(scale.first.map { $0 > 0 } == true)
             #expect(scale == scale.sorted())

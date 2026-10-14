@@ -18,6 +18,7 @@ public nonisolated struct Theme: Codable, Sendable, Equatable {
     public var typography: [String: TypeStyle]
     public var spacing: [String: Double]
     public var radii: [String: Double]
+    public var sizes: [String: Double]
     public var motion: [String: Double]
     public var overlay: OverlayGeometry
 

@@ -25,12 +25,12 @@ struct ThemeRenderTests {
             switch self {
             case .accentPill: Pill("Accent", tint: .accent)
             case .accentDot: StatusDot(.accent)
-            case .accentBar: LevelBar("Level", level: 0.5, tint: .accent)
+            case .accentBar: LevelBar(level: 0.5, tint: .accent, label: "Level")
             case .primaryButton: ActionButton("Save", kind: .primary) {}
             case .label: TextLabel("Recording", style: .headline)
             case .neutralPill: Pill("Neutral")
             case .errorDot: StatusDot(.error)
-            case .recordingBar: LevelBar("Level", level: 0.5, tint: .recording)
+            case .recordingBar: LevelBar(level: 0.5, tint: .recording, label: "Level")
             case .secondaryButton: ActionButton("Cancel", kind: .secondary) {}
             }
         }

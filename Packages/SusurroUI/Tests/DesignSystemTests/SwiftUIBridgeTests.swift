@@ -63,9 +63,35 @@ struct SwiftUIBridgeTests {
     func easing() throws {
         let theme = try Theme.default.resolved(for: .light)
         #expect(theme.easing(.fast, motionEnabled: true) == .easeInOut(duration: theme.motion(.fast)))
+        #expect(theme.easing(.standard, motionEnabled: true) == .easeInOut(duration: theme.motion(.standard)))
         #expect(theme.easing(.slow, motionEnabled: true) == .easeInOut(duration: theme.motion(.slow)))
         #expect(theme.easing(.fast, motionEnabled: true) != theme.easing(.slow, motionEnabled: true))
-        #expect(theme.easing(.fast, motionEnabled: false) == nil)
+        for duration in DurationToken.allCases {
+            #expect(theme.easing(duration, motionEnabled: false) == nil)
+        }
+    }
+
+    @Test("the motion tokens are durations or the two numbers of the spring, and no token is both")
+    func motionTokensArePartitioned() {
+        let durations = Set(DurationToken.allCases.map(\.token))
+        #expect(durations == [.fast, .standard, .slow])
+        #expect(durations.union([.springResponse, .springDamping]) == Set(MotionToken.allCases))
+        #expect(durations.isDisjoint(with: [.springResponse, .springDamping]))
+    }
+
+    @Test("the spring is built from the spring tokens, and is none when motion is off")
+    func spring() throws {
+        let theme = try Theme.default.resolved(for: .light)
+        #expect(
+            theme.spring(motionEnabled: true)
+                == .spring(response: theme.motion(.springResponse), dampingFraction: theme.motion(.springDamping)))
+        #expect(theme.spring(motionEnabled: false) == nil)
+        var snappier = Theme.default
+        snappier.motion["springResponse"] = 0.2
+        snappier.motion["springDamping"] = 0.5
+        let other = try snappier.resolved(for: .light)
+        #expect(other.spring(motionEnabled: true) == .spring(response: 0.2, dampingFraction: 0.5))
+        #expect(other.spring(motionEnabled: true) != theme.spring(motionEnabled: true))
     }
 
     @Test("motion is on unless a view above turns it off")

@@ -41,12 +41,11 @@ import SwiftUI
     extension TextLabel {
         struct Gallery: View {
             @Environment(\.theme) private var theme
-            private static let colors: [ColorToken] = [.textSecondary, .accentPrimary, .statusError]
 
             var body: some View {
                 VStack(alignment: .leading, spacing: theme.spacing(.sm)) {
                     ForEach(TypeToken.allCases, id: \.self) { TextLabel($0.rawValue, style: $0) }
-                    ForEach(Self.colors, id: \.self) { TextLabel($0.rawValue, color: $0) }
+                    ForEach(Tint.allCases, id: \.self) { TextLabel("\($0)", tint: $0) }
                 }
             }
         }
@@ -55,7 +54,6 @@ import SwiftUI
     extension Icon {
         struct Gallery: View {
             @Environment(\.theme) private var theme
-            private static let symbols = ["mic.fill", "checkmark.circle.fill", "exclamationmark.triangle.fill"]
 
             var body: some View {
                 VStack(alignment: .leading, spacing: theme.spacing(.md)) {
@@ -63,10 +61,7 @@ import SwiftUI
                         ForEach(TypeToken.allCases, id: \.self) { Icon("mic.fill", style: $0) }
                     }
                     HStack(spacing: theme.spacing(.md)) {
-                        Icon(Self.symbols[0], style: .title, color: .accentRecording)
-                        Icon(Self.symbols[1], style: .title, color: .statusSuccess)
-                        Icon(Self.symbols[2], style: .title, color: .statusWarning)
-                        Icon(Self.symbols[0], style: .title, color: .textSecondary)
+                        ForEach(Tint.allCases, id: \.self) { Icon("circle.fill", style: .title, tint: $0) }
                     }
                 }
             }
@@ -104,8 +99,8 @@ import SwiftUI
 
             var body: some View {
                 VStack(spacing: theme.spacing(.md)) {
-                    ForEach(Self.levels, id: \.self) { LevelBar("Level", level: $0) }
-                    ForEach(Tint.allCases, id: \.self) { LevelBar("Level", level: 0.6, tint: $0) }
+                    ForEach(Self.levels, id: \.self) { LevelBar(level: $0, label: "Level") }
+                    ForEach(Tint.allCases, id: \.self) { LevelBar(level: 0.6, tint: $0, label: "Level") }
                 }
             }
         }

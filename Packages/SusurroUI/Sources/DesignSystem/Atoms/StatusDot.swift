@@ -14,7 +14,7 @@ public struct StatusDot: View {
     public var body: some View {
         Circle()
             .fill(theme.swiftUIColor(tint.color))
-            .frame(width: theme.spacing(.sm), height: theme.spacing(.sm))
+            .frame(width: theme.size(.statusDot), height: theme.size(.statusDot))
             .described(by: label)
     }
 }

@@ -23,6 +23,23 @@ struct AtomTests {
         (.success, .statusSuccess), (.warning, .statusWarning), (.error, .statusError),
     ]
 
+    @Test("each tint is the color role it stands for, and every tint is in the table", arguments: tints)
+    func tintMapsToItsRole(tint: Tint, color: ColorToken) {
+        #expect(tint.color == color)
+        #expect(Set(Self.tints.map(\.color)).count == Tint.allCases.count, "two tints stand for one role")
+        #expect(Tint.allCases.count == Self.tints.count)
+    }
+
+    @Test("text and icons without a tint use the plain text color, and with one use the color of the tint")
+    func plainTextHasNoTint() {
+        let plain: Tint? = nil
+        #expect(plain.textColor == .textPrimary)
+        for (tint, color) in Self.tints {
+            let tinted: Tint? = tint
+            #expect(tinted.textColor == color)
+        }
+    }
+
     @Test("a status dot is painted in the color of its tint, in light and dark", arguments: tints)
     func dotColor(tint: Tint, color: ColorToken) throws {
         #expect(Tint.allCases.count == Self.tints.count)
@@ -42,7 +59,8 @@ struct AtomTests {
     func levelBarFillsFromTheLeft() throws {
         let theme = try Theme.default.resolved(for: .light)
         let image = SnapshotSupport.cgImage(
-            of: LevelBar("Level", level: 0.25, tint: .success), size: CGSize(width: 200, height: 40), theme: .default,
+            of: LevelBar(level: 0.25, tint: .success, label: "Level"), size: CGSize(width: 200, height: 40),
+            theme: .default,
             scheme: .light)
         let filled = SnapshotSupport.pixel(of: image, atX: 0.2, y: 0.5)
         let empty = SnapshotSupport.pixel(of: image, atX: 0.6, y: 0.5)

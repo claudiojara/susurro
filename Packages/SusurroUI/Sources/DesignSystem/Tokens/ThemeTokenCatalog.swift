@@ -38,6 +38,7 @@ public nonisolated enum ThemeTokenCatalog {
         Group(TypeToken.self, fields: names(of: TypeStyle.CodingKeys.self)) { Set($0.typography.keys) },
         Group(SpacingToken.self) { Set($0.spacing.keys) },
         Group(RadiusToken.self) { Set($0.radii.keys) },
+        Group(SizeToken.self) { Set($0.sizes.keys) },
         Group(MotionToken.self) { Set($0.motion.keys) },
         .overlay,
     ]
