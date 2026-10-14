@@ -26,10 +26,10 @@ enum OnboardingCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
         case .rowWaitingInSettings: CGSize(width: Self.rowWidth, height: 148)
         case .rowStale: CGSize(width: Self.rowWidth, height: 198)
         case .rowOptional: CGSize(width: Self.rowWidth, height: 200)
-        case .bannerShort: CGSize(width: Self.rowWidth, height: 70)
-        case .bannerLong: CGSize(width: Self.rowWidth, height: 90)
-        case .checklistRequired: CGSize(width: Self.rowWidth, height: 300)
-        case .checklistWithOptional: CGSize(width: Self.rowWidth, height: 500)
+        case .bannerShort: CGSize(width: Self.rowWidth, height: 78)
+        case .bannerLong: CGSize(width: Self.rowWidth, height: 94)
+        case .checklistRequired: CGSize(width: Self.rowWidth, height: 266)
+        case .checklistWithOptional: CGSize(width: Self.rowWidth, height: 512)
         }
     }
 

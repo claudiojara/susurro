@@ -19,4 +19,31 @@ import SwiftUI
         }
     }
 
+    extension Banner {
+        struct Gallery: View {
+            @Environment(\.theme) private var theme
+
+            var body: some View {
+                VStack(spacing: theme.spacing(.sm)) {
+                    Banner(OnboardingFixtures.shortBanner)
+                    Banner(OnboardingFixtures.longBanner)
+                }
+            }
+        }
+    }
+
+    extension PermissionChecklist {
+        struct Gallery: View {
+            @Environment(\.theme) private var theme
+
+            var body: some View {
+                VStack(spacing: theme.spacing(.lg)) {
+                    ForEach(OnboardingFixtures.Screen.allCases, id: \.self) { screen in
+                        PermissionChecklist(OnboardingFixtures.rows(screen)) { _, _ in }
+                    }
+                }
+            }
+        }
+    }
+
 #endif

@@ -35,6 +35,13 @@ enum Probe {
         SnapshotSupport.idealSize(of: view.frame(width: width), theme: theme, scheme: scheme).height
     }
 
+    /// The default theme with one radius changed.
+    static func rounded(_ token: RadiusToken, _ points: Double) -> Theme {
+        var theme = Theme.default
+        theme.radii[token.rawValue] = points
+        return theme
+    }
+
     /// The default theme with one number of a scale changed.
     static func spaced(_ token: SpacingToken, _ points: Double) -> Theme {
         var theme = Theme.default

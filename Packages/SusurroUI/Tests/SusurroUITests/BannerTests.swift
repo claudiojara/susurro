@@ -56,4 +56,39 @@ struct BannerTests {
         // The padding of the card is spacing.md on each side.
         #expect(abs((roomy - normal) - 2 * (30 - 12)) <= 1, "\(roomy) against \(normal)")
     }
+
+    @Test("the gap between the icon and the message is the sm space")
+    func gapFollowsTheTheme() throws {
+        let banner = Banner("Dictation is off.")
+        func painted(_ theme: Theme) throws -> CGRect {
+            let picture = Probe.picture(of: banner, size: canvas, scheme: .light, theme: theme)
+            let warning = try Probe.theme(.light, of: theme).color(.statusWarning)
+            return try #require(SnapshotSupport.extent(of: picture, matching: warning, tolerance: Probe.exact))
+        }
+
+        let widened = try painted(Probe.spaced(.sm, 30)).width - painted(.default).width
+
+        #expect(abs(widened - (30 - 8)) <= 2, "\(widened)")
+    }
+
+    @Test("the corners of the card are as round as the md radius says")
+    func cornersFollowTheTheme() throws {
+        let banner = Banner("Dictation is off.")
+        let theme = try Probe.theme(.light)
+        let round = Probe.picture(of: banner, size: canvas, scheme: .light)
+        let square = Probe.picture(of: banner, size: canvas, scheme: .light, theme: Probe.rounded(.md, 0))
+        // The first pixel of the square card, in its top left corner: on the card when the corner is square, and outside
+        // it when the corner is round.
+        let card = try #require(
+            SnapshotSupport.extent(of: square, matching: theme.color(.surfaceRaised), tolerance: Probe.exact))
+        let corner = (x: (card.minX + 0.25) / canvas.width, y: (card.minY + 0.25) / canvas.height)
+
+        func distance(_ first: RGBAColor, _ second: RGBAColor) -> Double {
+            max(abs(first.red - second.red), abs(first.green - second.green), abs(first.blue - second.blue))
+        }
+        let rounded = SnapshotSupport.pixel(of: round, atX: corner.x, y: corner.y)
+        let squared = SnapshotSupport.pixel(of: square, atX: corner.x, y: corner.y)
+        #expect(distance(squared, theme.color(.surfaceRaised)) <= Probe.exact, "\(squared)")
+        #expect(distance(rounded, theme.color(.surfaceWindow)) <= Probe.exact, "\(rounded)")
+    }
 }
