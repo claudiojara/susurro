@@ -34,7 +34,7 @@ struct SettingsToggle: View {
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isToggle)
-        .accessibilityValue(isOn ? "On" : "Off")
+        .accessibilityValue(isOn ? L10n.string("toggle.on", "On") : L10n.string("toggle.off", "Off"))
     }
 }
 

@@ -62,12 +62,15 @@ public struct MenuContent: Equatable, Sendable {
         readiness: RecognizerReadiness, preferences: [Preference] = []
     ) -> MenuContent {
         MenuContent(
-            hotkeyHint: "Hold Control-Option-D to dictate",
+            hotkeyHint: L10n.string("menu.hotkeyHint", "Hold Control-Option-D to dictate"),
             restrictionMessage: restriction?.message,
-            setUpTitle: restriction == nil ? nil : "\(OnboardingCopy.title)…",
-            microphone: row(.microphone, name: "Microphone", status: microphone, followUp: followUps[.microphone]),
+            setUpTitle: restriction == nil ? nil : OnboardingCopy.menuTitle,
+            microphone: row(
+                .microphone, name: Permission.microphone.displayName, status: microphone,
+                followUp: followUps[.microphone]),
             accessibility: row(
-                .accessibility, name: "Accessibility", status: accessibility, followUp: followUps[.accessibility]),
+                .accessibility, name: Permission.accessibility.displayName, status: accessibility,
+                followUp: followUps[.accessibility]),
             modelLine: modelLine(for: readiness),
             preferences: preferences
         )
@@ -78,14 +81,14 @@ public struct MenuContent: Equatable, Sendable {
     ) -> PermissionRow {
         let state =
             switch status {
-            case .granted: "allowed"
-            case .denied: "not allowed"
-            case .notDetermined: "not decided yet"
+            case .granted: L10n.string("menu.permission.granted", "allowed")
+            case .denied: L10n.string("menu.permission.denied", "not allowed")
+            case .notDetermined: L10n.string("menu.permission.notDetermined", "not decided yet")
             }
         let step = PermissionStep.make(permission: permission, status: status, followUp: followUp)
         return PermissionRow(
             permission: permission,
-            title: "\(name): \(state)",
+            title: L10n.string("menu.permission.row", "\(name): \(state)"),
             isGranted: status == .granted,
             action: step.action.map { PermissionRow.Action(kind: $0, title: title(of: $0, name: name)) }
         )
@@ -93,24 +96,30 @@ public struct MenuContent: Equatable, Sendable {
 
     private static func title(of action: PermissionStep.Action, name: String) -> String {
         switch action {
-        case .request: "Allow \(name)…"
-        case .openSettings: "Open System Settings for \(name)…"
+        case .request: L10n.string("menu.permission.allow", "Allow \(name)…")
+        case .openSettings: L10n.string("menu.permission.openSettings", "Open System Settings for \(name)…")
         }
     }
 
     private static func modelLine(for readiness: RecognizerReadiness) -> String {
         switch readiness {
         case .ready:
-            return "Speech model: ready"
+            return L10n.string("menu.model.ready", "Speech model: ready")
         case .loading(let progress):
             let percent = Int((progress.loadFraction * 100).rounded())
-            return percent == 0 ? "Speech model: preparing…" : "Speech model: preparing… \(percent)%"
+            return percent == 0
+                ? L10n.string("menu.model.preparing", "Speech model: preparing…")
+                : L10n.string("menu.model.preparingPercent", "Speech model: preparing… \(percent)%")
         case .notInstalled:
-            return "Speech model: not installed. Restart Susurro to download it."
+            return L10n.string(
+                "menu.model.notInstalled", "Speech model: not installed. Restart Susurro to download it.")
         case .unavailable(let reason, let retryable):
             let shown = reason.count > longestReason ? "\(reason.prefix(longestReason))…" : reason
-            let wayOut = retryable ? "Susurro will retry loading the model shortly." : "Restart Susurro."
-            return "Speech model: could not load (\(shown)). \(wayOut)"
+            let wayOut =
+                retryable
+                ? L10n.string("menu.model.willRetry", "Susurro will retry loading the model shortly.")
+                : L10n.string("menu.model.restart", "Restart Susurro.")
+            return L10n.string("menu.model.failed", "Speech model: could not load (\(shown)). \(wayOut)")
         }
     }
 }

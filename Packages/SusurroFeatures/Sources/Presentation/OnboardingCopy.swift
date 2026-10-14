@@ -9,6 +9,8 @@ enum OnboardingCopy {
     /// The name of the onboarding: the title of the screen and of its window, and the menu item that opens it (with an
     /// ellipsis, since the item opens a window).
     static var title: String { L10n.string("onboarding.title", "Set up Susurro") }
+    /// The menu item that opens the onboarding: the title with an ellipsis, since the item opens a window.
+    static var menuTitle: String { L10n.string("onboarding.menuTitle", "Set up Susurro…") }
     static var subtitle: String {
         L10n.string("onboarding.subtitle", "Susurro needs these permissions to hear you and to type what you say.")
     }

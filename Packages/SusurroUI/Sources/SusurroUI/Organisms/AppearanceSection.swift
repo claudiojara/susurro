@@ -15,19 +15,25 @@ struct AppearanceSection: View {
 
     var body: some View {
         VStack(spacing: theme.spacing(.md)) {
-            SettingsCard("Theme", footer: Copy.themeFooter) {
-                ChoiceChips(state.themes, selected: state.selectedTheme, label: "Theme", onSelect: actions.theme)
+            SettingsCard(Copy.theme, footer: Copy.themeFooter) {
+                ChoiceChips(state.themes, selected: state.selectedTheme, label: Copy.theme, onSelect: actions.theme)
                 if let error = state.themeError { TextLabel(error, style: .caption, tint: .error) }
             }
-            SettingsCard("Light or dark") {
-                ChoiceChips(state.modes, selected: state.selectedMode, label: "Appearance", onSelect: actions.mode)
+            SettingsCard(Copy.lightOrDark) {
+                ChoiceChips(state.modes, selected: state.selectedMode, label: Copy.appearance, onSelect: actions.mode)
             }
         }
     }
 
     private enum Copy {
-        static let themeFooter =
-            "Put theme files in the Themes folder in Application Support/Susurro and they show up here."
+        static var theme: String { L10n.string("appearance.theme", "Theme") }
+        static var lightOrDark: String { L10n.string("appearance.lightOrDark", "Light or dark") }
+        static var appearance: String { L10n.string("appearance.appearance", "Appearance") }
+        static var themeFooter: String {
+            L10n.string(
+                "appearance.themeFooter",
+                "Put theme files in the Themes folder in Application Support/Susurro and they show up here.")
+        }
     }
 }
 

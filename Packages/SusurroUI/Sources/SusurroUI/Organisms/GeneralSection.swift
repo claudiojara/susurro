@@ -15,32 +15,35 @@ struct GeneralSection: View {
 
     var body: some View {
         VStack(spacing: theme.spacing(.md)) {
-            SettingsCard("Language", footer: Copy.languageFooter) {
+            SettingsCard(Copy.interfaceLanguage, footer: Copy.interfaceLanguageFooter) {
                 ChoiceChips(
-                    state.languages, selected: state.selectedLanguage, label: "Language", onSelect: actions.language)
+                    state.interfaceLanguages, selected: state.selectedInterfaceLanguage, label: Copy.interfaceLanguage,
+                    onSelect: actions.interfaceLanguage)
             }
-            SettingsCard("Text") {
+            SettingsCard(Copy.language, footer: Copy.languageFooter) {
+                ChoiceChips(
+                    state.languages, selected: state.selectedLanguage, label: Copy.language, onSelect: actions.language)
+            }
+            SettingsCard(Copy.text) {
                 SettingsToggle(
-                    "Clean up text", detail: "Fixes punctuation and matches the tone of the app you are in.",
+                    Copy.cleanup, detail: Copy.cleanupDetail,
                     isOn: state.cleanupEnabled, onChange: actions.cleanup)
                 SettingsToggle(
-                    "Use app context", detail: "Reads the app name and the text around the cursor to choose the tone.",
+                    Copy.appContext, detail: Copy.appContextDetail,
                     isOn: state.appContextEnabled, onChange: actions.appContext)
                 SettingsToggle(
-                    "Read text on screen (OCR)",
-                    detail:
-                        "Reads the window to spell names right. Needs Screen Recording. The text stays on this Mac.",
+                    Copy.ocr, detail: Copy.ocrDetail,
                     isOn: state.ocrEnabled, onChange: actions.ocr)
             }
-            SettingsCard("Overlay") {
-                labeled("Position") {
+            SettingsCard(Copy.overlay) {
+                labeled(Copy.position) {
                     ChoiceChips(
-                        state.overlayEdges, selected: state.selectedEdge, label: "Overlay position",
+                        state.overlayEdges, selected: state.selectedEdge, label: Copy.overlayPosition,
                         onSelect: actions.edge)
                 }
-                labeled("Style") {
+                labeled(Copy.style) {
                     ChoiceChips(
-                        state.overlayVariants, selected: state.selectedVariant, label: "Overlay style",
+                        state.overlayVariants, selected: state.selectedVariant, label: Copy.overlayStyle,
                         onSelect: actions.variant)
                 }
                 if let error = state.variantError { TextLabel(error, style: .caption, tint: .error) }
@@ -56,8 +59,41 @@ struct GeneralSection: View {
     }
 
     private enum Copy {
-        static let languageFooter =
-            "Fast lets the speech model detect the language of each clip. Always Spanish asks for Spanish whenever the provider supports it."
+        static var interfaceLanguage: String { L10n.string("general.interfaceLanguage", "Interface language") }
+        static var interfaceLanguageFooter: String {
+            L10n.string(
+                "general.interfaceLanguageFooter",
+                "The language of the menu, the windows, and the overlay. System follows the language of macOS. It does not change the language you dictate in."
+            )
+        }
+        static var language: String { L10n.string("general.language", "Dictation language") }
+        static var languageFooter: String {
+            L10n.string(
+                "general.languageFooter",
+                "Fast lets the speech model detect the language of each clip. Always Spanish asks for Spanish whenever the provider supports it."
+            )
+        }
+        static var text: String { L10n.string("general.text", "Text") }
+        static var cleanup: String { L10n.string("general.cleanup", "Clean up text") }
+        static var cleanupDetail: String {
+            L10n.string("general.cleanupDetail", "Fixes punctuation and matches the tone of the app you are in.")
+        }
+        static var appContext: String { L10n.string("general.appContext", "Use app context") }
+        static var appContextDetail: String {
+            L10n.string(
+                "general.appContextDetail", "Reads the app name and the text around the cursor to choose the tone.")
+        }
+        static var ocr: String { L10n.string("general.ocr", "Read text on screen (OCR)") }
+        static var ocrDetail: String {
+            L10n.string(
+                "general.ocrDetail",
+                "Reads the window to spell names right. Needs Screen Recording. The text stays on this Mac.")
+        }
+        static var overlay: String { L10n.string("general.overlay", "Overlay") }
+        static var position: String { L10n.string("general.position", "Position") }
+        static var overlayPosition: String { L10n.string("general.overlayPosition", "Overlay position") }
+        static var style: String { L10n.string("general.style", "Style") }
+        static var overlayStyle: String { L10n.string("general.overlayStyle", "Overlay style") }
     }
 }
 

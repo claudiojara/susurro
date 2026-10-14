@@ -56,6 +56,8 @@ public struct SettingsDependencies {
     public var executableProblem: @Sendable (String) -> ExecutablePath.Problem?
     public var themes: any ThemeSelecting
     public var themeModel: ThemeModel
+    /// Shows the app's words in the language picked. The live one sets `InterfaceLocale.shared`; tests record the pick.
+    public var interfaceLanguage: @MainActor (InterfaceLanguage) -> Void
     /// Paces the reads of the permission and of Secure Event Input. Tests pass a `ManualClock`.
     public var clock: any Clock<Duration>
 
@@ -73,8 +75,10 @@ public struct SettingsDependencies {
         executableProblem: @escaping @Sendable (String) -> ExecutablePath.Problem? = { ExecutablePath.validate($0) },
         themes: any ThemeSelecting,
         themeModel: ThemeModel,
+        interfaceLanguage: @escaping @MainActor (InterfaceLanguage) -> Void = { $0.apply() },
         clock: any Clock<Duration> = ContinuousClock()
     ) {
+        self.interfaceLanguage = interfaceLanguage
         self.clock = clock
         self.settings = settings
         self.hasKey = hasKey

@@ -20,7 +20,7 @@ struct PermissionChecklist: View {
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Permissions")
+        .accessibilityLabel(L10n.string("onboarding.permissions", "Permissions"))
     }
 }
 

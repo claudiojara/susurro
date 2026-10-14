@@ -20,21 +20,21 @@ struct StyleTableEditor: View {
 
     var body: some View {
         VStack(spacing: theme.spacing(.md)) {
-            SettingsCard("Tone by category", footer: Copy.tableFooter) {
+            SettingsCard(Copy.toneByCategory, footer: Copy.tableFooter) {
                 ForEach(state.rows) { row in
                     VStack(alignment: .leading, spacing: theme.spacing(.xs)) {
                         HStack(spacing: theme.spacing(.sm)) {
                             TextLabel(row.title, style: .bodyEmphasized)
-                            if row.isEdited { Pill("Edited", tint: .accent) }
+                            if row.isEdited { Pill(Copy.edited, tint: .accent) }
                         }
                         .accessibilityElement(children: .combine)
-                        ChoiceChips(state.toneChoices, selected: row.toneID, label: "\(row.title) tone") {
+                        ChoiceChips(state.toneChoices, selected: row.toneID, label: Copy.tone(of: row.title)) {
                             actions.setTone(row.id, $0)
                         }
                     }
                 }
             }
-            SettingsCard("Apps and sites", footer: Copy.overrideFooter) {
+            SettingsCard(Copy.appsAndSites, footer: Copy.overrideFooter) {
                 if state.overrides.isEmpty {
                     TextLabel(Copy.noOverrides, tint: .neutral)
                 }
@@ -57,7 +57,7 @@ struct StyleTableEditor: View {
             Button {
                 actions.removeOverride(override.id)
             } label: {
-                Icon("trash", tint: .error, label: "Remove \(override.identifier)")
+                Icon("trash", tint: .error, label: Copy.remove(override.identifier))
             }
             .buttonStyle(.plain)
         }
@@ -65,25 +65,25 @@ struct StyleTableEditor: View {
 
     private var addForm: some View {
         VStack(alignment: .leading, spacing: theme.spacing(.sm)) {
-            TextLabel("Add an override", style: .bodyEmphasized)
+            TextLabel(Copy.addAnOverride, style: .bodyEmphasized)
             ChoiceChips(
-                [SettingsChoice(id: "app", title: "App"), SettingsChoice(id: "site", title: "Site")],
-                selected: isSite ? "site" : "app", label: "Override kind"
+                [SettingsChoice(id: "app", title: Copy.app), SettingsChoice(id: "site", title: Copy.site)],
+                selected: isSite ? "site" : "app", label: Copy.overrideKind
             ) { isSite = $0 == "site" }
             TextInput(
-                isSite ? "Website" : "Bundle id", value: identifier,
+                isSite ? Copy.website : Copy.bundleID, value: identifier,
                 placeholder: isSite ? "mail.google.com" : "com.apple.Notes", commitsWhileTyping: true
             ) { identifier = $0 }
             if let error = state.overrideError { TextLabel(error, style: .caption, tint: .error) }
-            TextLabel("Category (optional)", style: .caption, tint: .neutral)
-            ChoiceChips(state.categoryChoices, selected: category ?? "", label: "Override category") {
+            TextLabel(Copy.optionalCategory, style: .caption, tint: .neutral)
+            ChoiceChips(state.categoryChoices, selected: category ?? "", label: Copy.overrideCategory) {
                 category = category == $0 ? nil : $0
             }
-            TextLabel("Tone (optional)", style: .caption, tint: .neutral)
-            ChoiceChips(state.toneChoices, selected: tone ?? "", label: "Override tone") {
+            TextLabel(Copy.optionalTone, style: .caption, tint: .neutral)
+            ChoiceChips(state.toneChoices, selected: tone ?? "", label: Copy.overrideTone) {
                 tone = tone == $0 ? nil : $0
             }
-            ActionButton("Add override", kind: .primary) {
+            ActionButton(Copy.addOverride, kind: .primary) {
                 actions.addOverride(identifier, isSite, category, tone)
                 // A form that the view model refuses keeps what was typed, so the user can fix it.
                 let isComplete =
@@ -98,10 +98,33 @@ struct StyleTableEditor: View {
     }
 
     private enum Copy {
-        static let tableFooter = "A category is picked from the app or the website you dictate into."
-        static let overrideFooter =
-            "An override changes the category, the tone, or both for one app (by its bundle id) or one site (by its host)."
-        static let noOverrides = "No overrides yet."
+        static var toneByCategory: String { L10n.string("style.toneByCategory", "Tone by category") }
+        static var edited: String { L10n.string("style.edited", "Edited") }
+        static var appsAndSites: String { L10n.string("style.appsAndSites", "Apps and sites") }
+        static var addAnOverride: String { L10n.string("style.addAnOverride", "Add an override") }
+        static var app: String { L10n.string("style.app", "App") }
+        static var site: String { L10n.string("style.site", "Site") }
+        static var overrideKind: String { L10n.string("style.overrideKind", "Override kind") }
+        static var website: String { L10n.string("style.website", "Website") }
+        static var bundleID: String { L10n.string("style.bundleID", "Bundle id") }
+        static var optionalCategory: String { L10n.string("style.optionalCategory", "Category (optional)") }
+        static var overrideCategory: String { L10n.string("style.overrideCategory", "Override category") }
+        static var optionalTone: String { L10n.string("style.optionalTone", "Tone (optional)") }
+        static var overrideTone: String { L10n.string("style.overrideTone", "Override tone") }
+        static var addOverride: String { L10n.string("style.addOverride", "Add override") }
+        static var tableFooter: String {
+            L10n.string("style.tableFooter", "A category is picked from the app or the website you dictate into.")
+        }
+        static var overrideFooter: String {
+            L10n.string(
+                "style.overrideFooter",
+                "An override changes the category, the tone, or both for one app (by its bundle id) or one site (by its host)."
+            )
+        }
+        static var noOverrides: String { L10n.string("style.noOverrides", "No overrides yet.") }
+
+        static func tone(of category: String) -> String { L10n.string("style.toneOf", "\(category) tone") }
+        static func remove(_ identifier: String) -> String { L10n.string("style.remove", "Remove \(identifier)") }
     }
 }
 

@@ -73,6 +73,20 @@ struct SettingsWiringTests {
         #expect(f.environment.settingsModel?.state.general.cleanupEnabled == true)
     }
 
+    @Test("the interface language the user chose is applied at launch, and a pick in the settings is applied at once")
+    func interfaceLanguage() async {
+        let settings = InMemorySettingsStore()
+        let f = AppEnvironmentFixture(settingsScreen: screen(window: SpySettingsWindow(), settings: settings))
+        f.settings.set(.spanish, for: GeneralSettings.interfaceLanguage)
+
+        f.environment.start()
+        #expect(f.appliedLanguages == [.spanish])
+
+        f.environment.settingsModel?.setInterfaceLanguage("en")
+        #expect(f.appliedLanguages == [.spanish, .english])
+        await f.environment.shutdown()
+    }
+
     @Test("the appearance the user chose is applied at launch, without opening the settings")
     func appearanceAtLaunch() async {
         let f = AppEnvironmentFixture()

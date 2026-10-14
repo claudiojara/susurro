@@ -8,9 +8,11 @@ public struct GeneralActions {
     public var cleanup: (Bool) -> Void
     public var edge: (String) -> Void
     public var variant: (String) -> Void
+    public var interfaceLanguage: (String) -> Void
 
     public static let none = GeneralActions(
-        language: { _ in }, appContext: { _ in }, ocr: { _ in }, cleanup: { _ in }, edge: { _ in }, variant: { _ in })
+        language: { _ in }, appContext: { _ in }, ocr: { _ in }, cleanup: { _ in }, edge: { _ in }, variant: { _ in },
+        interfaceLanguage: { _ in })
 }
 
 public struct ProvidersActions {
@@ -70,7 +72,7 @@ public struct SettingsActions {
         general = GeneralActions(
             language: { model.setLanguage($0) }, appContext: { model.setAppContext($0) }, ocr: { model.setOCR($0) },
             cleanup: { model.setCleanup($0) }, edge: { model.setOverlayEdge($0) },
-            variant: { model.setOverlayVariant($0) })
+            variant: { model.setOverlayVariant($0) }, interfaceLanguage: { model.setInterfaceLanguage($0) })
         providers = ProvidersActions(
             select: { model.selectProvider($0) }, setEnabled: { model.setProviderEnabled($0, isOn: $1) },
             setField: { model.setProviderField($0, field: $1, value: $2) })

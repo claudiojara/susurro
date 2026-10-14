@@ -100,10 +100,25 @@ public final class SettingsViewModel: SettingsViewModeling {
             cleanupEnabled: settings.value(for: CleanupSettings.enabled),
             overlayEdges: OverlayEdge.allCases.map { SettingsChoice(id: $0.rawValue, title: SettingsCopy.edge($0)) },
             selectedEdge: settings.value(for: GeneralSettings.overlayEdge).rawValue,
-            overlayVariants: variants.map { SettingsChoice(id: $0.id, title: $0.title) },
+            overlayVariants: variants.map {
+                SettingsChoice(
+                    id: $0.id, title: $0.id == OverlayVariantOption.defaultID ? SettingsCopy.defaultTheme : $0.title)
+            },
             selectedVariant: known ? storedVariant : OverlayVariantOption.defaultID,
-            variantError: known ? nil : SettingsCopy.variantUnavailable(storedVariant)
+            variantError: known ? nil : SettingsCopy.variantUnavailable(storedVariant),
+            interfaceLanguages: InterfaceLanguage.allCases.map {
+                SettingsChoice(id: $0.rawValue, title: SettingsCopy.interfaceLanguage($0))
+            },
+            selectedInterfaceLanguage: settings.value(for: GeneralSettings.interfaceLanguage).rawValue
         )
+    }
+
+    /// Stores the language of the app's own words and shows it at once. The dictation language is another setting.
+    public func setInterfaceLanguage(_ id: String) {
+        guard let language = InterfaceLanguage(rawValue: id) else { return }
+        settings.set(language, for: GeneralSettings.interfaceLanguage)
+        dependencies.interfaceLanguage(language)
+        changed()
     }
 
     public func setLanguage(_ id: String) {

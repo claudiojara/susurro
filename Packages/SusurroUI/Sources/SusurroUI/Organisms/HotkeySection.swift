@@ -28,7 +28,7 @@ struct HotkeySection<Recorder: View>: View {
                 }
             }
             if let message = state.secureInputWarning { Banner(message) }
-            SettingsCard("Dictation hotkey", footer: Copy.footer) {
+            SettingsCard(Copy.title, footer: Copy.footer) {
                 HStack(spacing: theme.spacing(.md)) {
                     ShortcutBadge(state.shortcut)
                     TextLabel(Copy.hold, tint: .neutral)
@@ -41,9 +41,14 @@ struct HotkeySection<Recorder: View>: View {
 }
 
 private enum Copy {
-    static let hold = "Hold to talk, release to insert."
-    static let footer =
-        "A shortcut with a regular key works without any permission. One made only of modifier keys, or the fn key, stays off until Input Monitoring is allowed."
+    static var title: String { L10n.string("hotkey.title", "Dictation hotkey") }
+    static var hold: String { L10n.string("hotkey.hold", "Hold to talk, release to insert.") }
+    static var footer: String {
+        L10n.string(
+            "hotkey.footer",
+            "A shortcut with a regular key works without any permission. One made only of modifier keys, or the fn key, stays off until Input Monitoring is allowed."
+        )
+    }
 }
 
 #Preview("HotkeySection") { PreviewMatrix { HotkeySection<EmptyView>.Gallery() } }

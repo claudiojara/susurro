@@ -124,7 +124,8 @@ extension AppEnvironment.Dependencies {
             credentials: recognizers.credentials,
             cleanup: cleanup,
             vocabulary: vocabulary,
-            settingsScreen: settingsScreen(settings: settings, recognizer: recognizer, diagnostics: diagnostics)
+            settingsScreen: settingsScreen(settings: settings, recognizer: recognizer, diagnostics: diagnostics),
+            interfaceLanguage: { $0.apply() }
         )
     }
 

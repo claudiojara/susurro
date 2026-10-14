@@ -14,7 +14,7 @@ extension SettingsViewModel {
             parakeetRow(selected: selected == ProviderID.parakeetV3),
             localWhisperRow(selected: selected == ProviderID.localWhisper),
             cloudRow(
-                id: ProviderID.deepgram, title: "Deepgram", account: .deepgram, what: "audio",
+                id: ProviderID.deepgram, title: "Deepgram", account: .deepgram, what: .audio,
                 isSelected: selected == ProviderID.deepgram,
                 isEnabled: settings.value(for: SpeechSettings.deepgramEnabled),
                 fields: []),
@@ -37,17 +37,17 @@ extension SettingsViewModel {
 
         var fields = [
             ProviderFieldState(
-                id: "mode", label: "Connection", value: mode.rawValue,
+                id: "mode", label: SettingsCopy.connection, value: mode.rawValue,
                 choices: [
-                    SettingsChoice(id: LocalWhisperMode.http.rawValue, title: "Server on this Mac"),
-                    SettingsChoice(id: LocalWhisperMode.cli.rawValue, title: "Command line tool"),
+                    SettingsChoice(id: LocalWhisperMode.http.rawValue, title: SettingsCopy.serverOnThisMac),
+                    SettingsChoice(id: LocalWhisperMode.cli.rawValue, title: SettingsCopy.commandLineTool),
                 ])
         ]
         switch mode {
         case .http:
             fields.append(
                 ProviderFieldState(
-                    id: "style", label: "Server",
+                    id: "style", label: SettingsCopy.server,
                     value: settings.value(for: SpeechSettings.localWhisperServerStyle).rawValue,
                     choices: [
                         SettingsChoice(
@@ -56,17 +56,17 @@ extension SettingsViewModel {
                     ]))
             fields.append(
                 ProviderFieldState(
-                    id: "endpoint", label: "Address", value: endpoint,
+                    id: "endpoint", label: SettingsCopy.address, value: endpoint,
                     placeholder: "http://127.0.0.1:8080/v1/audio/transcriptions", error: endpointError))
             fields.append(
                 ProviderFieldState(
-                    id: "model", label: "Model (optional)",
+                    id: "model", label: SettingsCopy.optionalModel,
                     value: settings.value(for: SpeechSettings.localWhisperModel),
                     placeholder: "whisper-1"))
         case .cli:
             fields.append(
                 ProviderFieldState(
-                    id: "executable", label: "Command path", value: executable,
+                    id: "executable", label: SettingsCopy.commandPath, value: executable,
                     placeholder: "/opt/homebrew/bin/whisper-cli", error: executableError))
         }
 
@@ -100,24 +100,27 @@ extension SettingsViewModel {
         return [
             appleIntelligenceRow(selected: selected == ProviderID.appleIntelligence),
             cloudRow(
-                id: ProviderID.anthropic, title: "Anthropic", account: .anthropic, what: "transcript",
+                id: ProviderID.anthropic, title: "Anthropic", account: .anthropic, what: .transcript,
                 isSelected: selected == ProviderID.anthropic,
                 isEnabled: settings.value(for: CleanupSettings.anthropicEnabled),
                 fields: [
                     ProviderFieldState(
-                        id: "model", label: "Model", value: settings.value(for: CleanupSettings.anthropicModel),
+                        id: "model", label: SettingsCopy.model,
+                        value: settings.value(for: CleanupSettings.anthropicModel),
                         placeholder: "claude-haiku-4-5")
                 ]),
             cloudRow(
                 id: ProviderID.openAICompatible, title: "OpenAI-compatible", account: .openAICompatible,
-                what: "transcript", isSelected: selected == ProviderID.openAICompatible,
+                what: .transcript, isSelected: selected == ProviderID.openAICompatible,
                 isEnabled: settings.value(for: CleanupSettings.openAICompatibleEnabled),
                 fields: [
                     ProviderFieldState(
-                        id: "baseURL", label: "Base URL", value: openAIURL, placeholder: "https://api.openai.com/v1",
+                        id: "baseURL", label: SettingsCopy.baseURL, value: openAIURL,
+                        placeholder: "https://api.openai.com/v1",
                         error: CloudEndpoint.validated(openAIURL) == nil ? SettingsCopy.baseURLError : nil),
                     ProviderFieldState(
-                        id: "model", label: "Model", value: settings.value(for: CleanupSettings.openAICompatibleModel),
+                        id: "model", label: SettingsCopy.model,
+                        value: settings.value(for: CleanupSettings.openAICompatibleModel),
                         placeholder: "gpt-4o-mini"),
                 ]),
         ]
@@ -139,7 +142,8 @@ extension SettingsViewModel {
 
     /// A cloud provider is usable only when it is on and has a key. Whether the key exists is all that is asked.
     private func cloudRow(
-        id: String, title: String, account: SecretAccount, what: String, isSelected: Bool, isEnabled: Bool,
+        id: String, title: String, account: SecretAccount, what: SettingsCopy.Payload, isSelected: Bool,
+        isEnabled: Bool,
         fields: [ProviderFieldState]
     ) -> ProviderRowState {
         let hasKey = dependencies.hasKey(account)

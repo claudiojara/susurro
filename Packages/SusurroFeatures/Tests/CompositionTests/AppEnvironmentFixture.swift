@@ -109,6 +109,8 @@ final class AppEnvironmentFixture {
         "susurro-themes-\(UUID().uuidString)")
     private(set) var openedSettings: [Permission] = []
     private(set) var clipboardRestores = 0
+    /// The interface languages the app was told to show, in order.
+    private(set) var appliedLanguages: [InterfaceLanguage] = []
     private(set) var environment: AppEnvironment!
 
     /// - Parameter themeFiles: Theme files, by file name, that the themes folder holds when the environment is built.
@@ -158,7 +160,8 @@ final class AppEnvironmentFixture {
                 clock: clock,
                 history: history,
                 cleanup: cleanup,
-                settingsScreen: settingsScreen
+                settingsScreen: settingsScreen,
+                interfaceLanguage: { [unowned self] in appliedLanguages.append($0) }
             )
         )
     }

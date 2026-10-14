@@ -24,7 +24,7 @@ struct MenuView: View {
         }
         Text(content.hotkeyHint)
         Divider()
-        Button("History…", action: onShowHistory)
+        Button(L10n.string("menu.history", "History…"), action: onShowHistory)
         Divider()
         permissionRows(content.microphone)
         permissionRows(content.accessibility)
@@ -41,10 +41,10 @@ struct MenuView: View {
         Text(content.modelLine)
         Divider()
         if let onSettings {
-            Button("Settings…", action: onSettings)
+            Button(L10n.string("menu.settings", "Settings…"), action: onSettings)
                 .keyboardShortcut(",")
         }
-        Button("Quit Susurro", action: onQuit)
+        Button(L10n.string("menu.quit", "Quit Susurro"), action: onQuit)
             .keyboardShortcut("q")
     }
 

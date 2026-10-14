@@ -42,11 +42,11 @@ struct HistoryRowMapper: Sendable {
     /// "Today, 14:32", "Yesterday, 18:02", "8 Oct, 09:15", and with the year for an earlier year.
     func timestamp(of date: Date, now: Date) -> String {
         let time = date.formatted(Self.style(time: true, in: self))
-        if calendar.isDate(date, inSameDayAs: now) { return "Today, \(time)" }
+        if calendar.isDate(date, inSameDayAs: now) { return HistoryCopy.today(time) }
         if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
             calendar.isDate(date, inSameDayAs: yesterday)
         {
-            return "Yesterday, \(time)"
+            return HistoryCopy.yesterday(time)
         }
         let sameYear = calendar.component(.year, from: date) == calendar.component(.year, from: now)
         return "\(date.formatted(Self.style(time: false, yearIncluded: !sameYear, in: self))), \(time)"
