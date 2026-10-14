@@ -4,7 +4,7 @@
 
 ### Requirement: Record per attempt
 
-Every attempt whose audio is stored MUST have a history record created when the audio is committed (before recognition) with: timestamp, duration, status (processing, succeeded, no-speech, failed, cancelled), raw text, cleaned text (if any), final text, providers used, fallback reason, app name, bundle id, URL host, category, tone, and audio reference. Records MUST survive relaunch. A cancelled attempt MUST keep its record and audio but MUST NOT be inserted.
+Every attempt whose audio is stored MUST have a history record created when the audio is committed (before recognition) with: timestamp, duration, status (processing, succeeded, no-speech, failed, cancelled), raw text, cleaned text (if any), final text, providers used, fallback reason, app name, bundle id, URL host, category, tone, and audio reference. Records MUST survive relaunch. A cancelled attempt MUST keep its record and audio but MUST NOT be inserted. A history write failure MUST be logged and MUST NOT block or fail the attempt.
 
 #### Scenario: Crash mid-pipeline
 
@@ -17,6 +17,12 @@ Every attempt whose audio is stored MUST have a history record created when the 
 - GIVEN cleanup failed and the raw transcript was inserted
 - WHEN the record is read
 - THEN it holds raw text, no cleaned text, and the fallback reason
+
+#### Scenario: History write fails
+
+- GIVEN the history database rejects a write
+- WHEN a dictation runs
+- THEN the failure is logged and the text is still transcribed and inserted
 
 ### Requirement: Text kept indefinitely
 

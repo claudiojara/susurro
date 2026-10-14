@@ -280,6 +280,8 @@ Found in the WS5.8 manual check: Parakeet v3 sometimes returns an English transc
   - (b) Parakeet plus a guard: run `NLLanguageRecognizer` on the output; when it is clearly not the pinned language, transcribe the clip again with a provider that honours the locale. Leave Spanish sentences with a few English words alone. This adds latency only on those clips.
   - (c) A pinned-language provider only: Apple `SpeechAnalyzer`/`SpeechTranscriber` with the `es` locale (on device, free, and possibly weaker on technical words); Cohere or Canary-1B-v2 through FluidAudio with the `<|es|>` prompt token (larger, Canary in beta); or Whisper with `language="es"` (heavier, can hallucinate).
 
+  Spec amended in #68 (language mode requirement).
+
   Amend `speech-recognition` so that a pinned language is not reported as passed to a provider that ignores it. Measure accuracy and latency on the `RealModelTests` Spanish clips for each option.
 
   Evidence from UL.1 (2026-10-13; `say` clips, v3 at `7dd20fe` against Ultra at `95eaa59a`, method and counts under UL.1):

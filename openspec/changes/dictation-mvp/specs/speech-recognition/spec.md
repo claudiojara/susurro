@@ -48,15 +48,64 @@ Vocabulary terms MUST be passed to the provider. A provider without biasing supp
 - WHEN it is called with 5 terms
 - THEN transcription succeeds and the terms are ignored
 
-### Requirement: Language
+### Requirement: Language mode
 
-Language MUST default to automatic detection and MAY be pinned by the user; a pinned language MUST be passed to the provider.
+The user MUST choose a language mode in settings: `fast` (the provider detects the language) or
+`guaranteedSpanish` (the default: the dictation is Spanish and the transcript is guaranteed to be in it). The
+choice MUST persist across launches.
 
-#### Scenario: Pinned Spanish
+In `guaranteedSpanish` mode the system MUST pass "es" to the provider as a hint, MUST NOT rely on the provider
+honoring it, and MUST run every transcript through a language guard. A transcript has drifted when it contains the
+provider's unknown-token marker, when more than 30% of its letters are not Latin letters, or when the on-device
+language detector is at least 60% sure of another language and gives Spanish less than 30%. A Spanish transcript
+with isolated foreign words MUST NOT count as drifted.
 
-- GIVEN the language is pinned to Spanish
+When a transcript has drifted the system MUST transcribe the same clip again with a recognizer that honors the
+requested language (the system speech framework, locale `es`), if it is ready, and MUST use its text when that text
+is not blank and has not drifted; the record MUST name the recognizer that wrote the text and the reason
+`language-drift`. Otherwise the system MUST keep the first transcript with the unknown-token markers removed and the
+reason `language-drift-unresolved`; the attempt MUST NOT fail for this reason.
+
+In `fast` mode no language MUST be passed and the guard MUST NOT run.
+
+#### Scenario: Default mode
+
+- GIVEN a fresh install
+- WHEN the language mode is resolved
+- THEN it is `guaranteedSpanish`
+
+#### Scenario: Hint passed, not trusted
+
+- GIVEN `guaranteedSpanish` and a spy provider that ignores the language
 - WHEN a dictation is transcribed
 - THEN the provider receives language "es"
+- AND the transcript still goes through the language guard
+
+#### Scenario: Drift resolved
+
+- GIVEN `guaranteedSpanish`, the provider returns "We big." for a Spanish clip, and the language recognizer is
+  ready and returns "Muy bien."
+- WHEN the transcript is handled
+- THEN the raw text is "Muy bien.", the record names the language recognizer, and the fallback reason is
+  `language-drift`
+
+#### Scenario: Drift unresolved
+
+- GIVEN `guaranteedSpanish`, the provider returns "<unk>Ghazda.<unk>", and the language recognizer is not ready
+- WHEN the transcript is handled
+- THEN the raw text is "Ghazda.", the fallback reason is `language-drift-unresolved`, and the attempt does not fail
+
+#### Scenario: Spanish with English words
+
+- GIVEN `guaranteedSpanish` and the transcript "Hice el pull request y el deploy quedó listo"
+- WHEN the guard runs
+- THEN the transcript is left as it is and no second recognizer runs
+
+#### Scenario: Fast mode
+
+- GIVEN the mode is `fast`
+- WHEN a dictation is transcribed
+- THEN the provider receives no language and no guard runs
 
 ### Requirement: Long audio chunking
 

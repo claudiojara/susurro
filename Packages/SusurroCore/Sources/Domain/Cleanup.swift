@@ -103,8 +103,8 @@ public struct ProviderBudget: Sendable, Equatable {
 
     /// Apple's on-device model: a context window of about 4,000 tokens shared by the instructions, the context, and the
     /// output, which is about as long as the input. The transcript cap is 2,500 characters, and the text before the
-    /// cursor shrinks so that the two together stay within 2,800. The numbers are to be validated with the model's own
-    /// token count on Spanish text (open question 1).
+    /// cursor shrinks so that the two together stay within 2,800. The numbers were measured with the model's own token
+    /// count on Spanish text (ADR 0008): the cap is conservative, not tight.
     public static let foundationModels = ProviderBudget(
         maxTranscriptCharacters: 2_500, maxInputCharacters: 2_800, timeout: .seconds(4))
 
