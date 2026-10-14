@@ -10,6 +10,10 @@ extension String: SettingStorable {}
 
 /// One setting: where it is stored, what it is when nobody set it, and how its value goes to and from the stored form.
 /// A stored value that does not read back as `Value` is ignored and the default is used instead.
+///
+/// A key is named by its area, the part of the app the setting belongs to (`hotkey`, `overlay`, `history`), and its
+/// name in camel case, and is stored as `<area>.<name>`. Declaring the two parts apart is what keeps every key in that
+/// form.
 public struct SettingKey<Value: Sendable>: Sendable {
     public let storageName: String
     public let defaultValue: Value
@@ -17,12 +21,13 @@ public struct SettingKey<Value: Sendable>: Sendable {
     private let decoder: @Sendable (Any) -> Value?
 
     private init(
-        storageName: String,
+        area: String,
+        name: String,
         defaultValue: Value,
         encoder: @escaping @Sendable (Value) -> (any Sendable)?,
         decoder: @escaping @Sendable (Any) -> Value?
     ) {
-        self.storageName = storageName
+        storageName = "\(area).\(name)"
         self.defaultValue = defaultValue
         self.encoder = encoder
         self.decoder = decoder
@@ -37,16 +42,23 @@ public struct SettingKey<Value: Sendable>: Sendable {
 
 extension SettingKey where Value: SettingStorable {
     /// A setting stored as itself.
-    public init(_ name: String, default defaultValue: Value) {
-        self.init(storageName: name, defaultValue: defaultValue, encoder: { $0 }, decoder: { $0 as? Value })
+    public init(area: String, name: String, default defaultValue: Value) {
+        self.init(
+            area: area,
+            name: name,
+            defaultValue: defaultValue,
+            encoder: { $0 },
+            decoder: { $0 as? Value }
+        )
     }
 }
 
 extension SettingKey where Value: RawRepresentable, Value.RawValue: SettingStorable {
     /// A setting stored as the raw value of an enum.
-    public init(_ name: String, default defaultValue: Value) {
+    public init(area: String, name: String, default defaultValue: Value) {
         self.init(
-            storageName: name,
+            area: area,
+            name: name,
             defaultValue: defaultValue,
             encoder: { $0.rawValue },
             decoder: { ($0 as? Value.RawValue).flatMap(Value.init(rawValue:)) }
@@ -56,9 +68,10 @@ extension SettingKey where Value: RawRepresentable, Value.RawValue: SettingStora
 
 extension SettingKey where Value: Codable {
     /// A setting stored as JSON data.
-    public static func json(_ name: String, default defaultValue: Value) -> SettingKey {
+    public static func json(area: String, name: String, default defaultValue: Value) -> SettingKey {
         SettingKey(
-            storageName: name,
+            area: area,
+            name: name,
             defaultValue: defaultValue,
             encoder: { try? JSONEncoder().encode($0) },
             decoder: { ($0 as? Data).flatMap { try? JSONDecoder().decode(Value.self, from: $0) } }

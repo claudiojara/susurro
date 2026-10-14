@@ -29,7 +29,7 @@ struct SettingKeyTests {
 
     @Test("a key is stored under its name and carries its default")
     func nameAndDefault() {
-        let key = SettingKey<Int>("history.retentionDays", default: 7)
+        let key = SettingKey<Int>(area: "history", name: "retentionDays", default: 7)
 
         #expect(key.storageName == "history.retentionDays")
         #expect(key.defaultValue == 7)
@@ -37,10 +37,10 @@ struct SettingKeyTests {
 
     @Test("a basic value is stored as itself and read back as the same value")
     func basicValuesRoundTrip() throws {
-        let flag = SettingKey<Bool>("general.launchAtLogin", default: false)
-        let count = SettingKey<Int>("history.retentionDays", default: 7)
-        let seconds = SettingKey<Double>("hotkey.holdThreshold", default: 0.3)
-        let text = SettingKey<String>("speech.language", default: "auto")
+        let flag = SettingKey<Bool>(area: "general", name: "launchAtLogin", default: false)
+        let count = SettingKey<Int>(area: "history", name: "retentionDays", default: 7)
+        let seconds = SettingKey<Double>(area: "hotkey", name: "holdThreshold", default: 0.3)
+        let text = SettingKey<String>(area: "speech", name: "language", default: "auto")
 
         let storedFlag = try #require(encoded(flag, true))
         let storedCount = try #require(encoded(count, 30))
@@ -59,10 +59,10 @@ struct SettingKeyTests {
 
     @Test("a stored value of another type is not read, and is not turned into the wanted type")
     func basicValuesRejectOtherTypes() {
-        let flag = SettingKey<Bool>("general.launchAtLogin", default: false)
-        let count = SettingKey<Int>("history.retentionDays", default: 7)
-        let seconds = SettingKey<Double>("hotkey.holdThreshold", default: 0.3)
-        let text = SettingKey<String>("speech.language", default: "auto")
+        let flag = SettingKey<Bool>(area: "general", name: "launchAtLogin", default: false)
+        let count = SettingKey<Int>(area: "history", name: "retentionDays", default: 7)
+        let seconds = SettingKey<Double>(area: "hotkey", name: "holdThreshold", default: 0.3)
+        let text = SettingKey<String>(area: "speech", name: "language", default: "auto")
 
         #expect(flag.decode("yes") == nil)
         #expect(count.decode("7") == nil)
@@ -73,7 +73,7 @@ struct SettingKeyTests {
 
     @Test("an enum is stored as its raw value, and a raw value that is not one of its cases is not read")
     func rawRepresentableValues() throws {
-        let key = SettingKey<Edge>("overlay.edge", default: .bottom)
+        let key = SettingKey<Edge>(area: "overlay", name: "edge", default: .bottom)
 
         #expect(try #require(encoded(key, .top)) as? String == "screen-top")
         #expect(key.decode("screen-top") == .top)
@@ -85,7 +85,8 @@ struct SettingKeyTests {
 
     @Test("a Codable value is stored as JSON data, and data that is not that value is not read")
     func jsonValues() throws {
-        let key = SettingKey<Combo>.json("hotkey.combo", default: Combo(keyCode: 2, modifiers: ["control"]))
+        let key = SettingKey<Combo>.json(
+            area: "hotkey", name: "combo", default: Combo(keyCode: 2, modifiers: ["control"]))
         let combo = Combo(keyCode: 40, modifiers: ["control", "option"])
 
         let stored = try #require(encoded(key, combo) as? Data)
@@ -98,7 +99,7 @@ struct SettingKeyTests {
 
     @Test("a value that cannot be encoded has no stored form")
     func unencodableValue() {
-        let key = SettingKey<Unencodable>.json("hotkey.combo", default: Unencodable())
+        let key = SettingKey<Unencodable>.json(area: "hotkey", name: "combo", default: Unencodable())
 
         #expect(encoded(key, Unencodable()) == nil)
     }

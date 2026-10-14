@@ -54,7 +54,7 @@ struct SettingsStoreTests {
 
     @Test("a key read as another type than it was set as reads as its default", arguments: StoreKind.allCases)
     func typeMismatch(kind: StoreKind) async {
-        let asText = SettingKey<String>("general.launchAtLogin", default: "fallback")
+        let asText = SettingKey<String>(area: "general", name: "launchAtLogin", default: "fallback")
         await kind.withStore { store in
             store.set(false, for: SampleKeys.launchAtLogin)
 

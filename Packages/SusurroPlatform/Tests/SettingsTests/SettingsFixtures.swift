@@ -35,13 +35,14 @@ struct SamplePicky: Codable, Sendable, Equatable {
 enum SampleKeys {
     static let defaultCombo = SampleCombo(keyCode: 2, modifiers: ["control", "option"])
 
-    static let launchAtLogin = SettingKey<Bool>("general.launchAtLogin", default: true)
-    static let retentionDays = SettingKey<Int>("history.retentionDays", default: 7)
-    static let holdThreshold = SettingKey<Double>("hotkey.holdThreshold", default: 0.3)
-    static let language = SettingKey<String>("speech.language", default: "auto")
-    static let overlayEdge = SettingKey<SampleEdge>("overlay.edge", default: .bottom)
-    static let combo = SettingKey<SampleCombo>.json("hotkey.combo", default: defaultCombo)
-    static let picky = SettingKey<SamplePicky>.json("debug.picky", default: SamplePicky(storable: true, label: "none"))
+    static let launchAtLogin = SettingKey<Bool>(area: "general", name: "launchAtLogin", default: true)
+    static let retentionDays = SettingKey<Int>(area: "history", name: "retentionDays", default: 7)
+    static let holdThreshold = SettingKey<Double>(area: "hotkey", name: "holdThreshold", default: 0.3)
+    static let language = SettingKey<String>(area: "speech", name: "language", default: "auto")
+    static let overlayEdge = SettingKey<SampleEdge>(area: "overlay", name: "edge", default: .bottom)
+    static let combo = SettingKey<SampleCombo>.json(area: "hotkey", name: "combo", default: defaultCombo)
+    static let picky = SettingKey<SamplePicky>.json(
+        area: "debug", name: "picky", default: SamplePicky(storable: true, label: "none"))
 }
 
 /// Preferences of their own for one test, so it never touches the real ones or another test. `makeDefaults()` opens
