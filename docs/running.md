@@ -42,7 +42,7 @@ ignored by git) and set `DEVELOPMENT_TEAM`.
    steps for it (switch it off and on, remove and add the app again). While Microphone is missing dictation is off, and
    while only Accessibility is missing it still records and the text goes to the clipboard; the menu and the window say
    which. The menu has a "Set up Susurro…" item that opens the window again, and a permission that is revoked later
-   opens it again by itself.
+   opens it again by itself. On a display too short for the window, the checklist scrolls and the buttons stay in view.
 2. **The speech model.** The first run downloads the Parakeet v3 model (about 600 MB, once) and compiles it for the
    Neural Engine. The download takes about a minute on a fast connection, and the compile about 25 seconds more. The
    compile is cached for the app's identity, so later launches load the model in under a second, until a macOS update or
@@ -113,6 +113,9 @@ macOS permission prompts cannot and must not be answered by a script):
 - [ ] Revoke Microphone while the app runs: the menu and the banner say dictation is off, and the hotkey records nothing.
 - [ ] Open System Settings from a row, leave Accessibility off for 30 seconds after coming back: the row shows the
       troubleshooting steps (and, with the toggle on but not read, the steps are the way out).
+- [ ] On a small display, or at a low resolution (System Settings > Displays), open the window with the optional rows
+      showing and troubleshooting steps open: the window fits the visible area, the checklist scrolls between the title
+      and the buttons, and Check again and Done stay in view.
 - [ ] The menu bar icon opens the menu, the "Set up Susurro…" item opens the window again, and a permission row turns to
       "allowed" within a second of granting it.
 - [ ] Hold Control+Option+D in Notes, a text field in a browser, and Terminal, speak Spanish, and release: the text
