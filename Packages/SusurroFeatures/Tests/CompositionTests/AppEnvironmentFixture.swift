@@ -48,11 +48,12 @@ final class Counter: Sendable {
     }
 }
 
-/// The readiness the recognizer reports, to every subscriber, starting with the current value.
+/// The readiness the recognizer reports, to every subscriber, starting with the current value. The model is ready until
+/// a test says otherwise, so that no timer of the model watcher shares the clock with the one a test is waiting for.
 final class ReadinessFeed: Sendable {
     private let state = Mutex(
         (
-            current: RecognizerReadiness.loading(progress: 0),
+            current: RecognizerReadiness.ready,
             subscribers: [AsyncStream<RecognizerReadiness>.Continuation]()
         ))
 
@@ -78,21 +79,21 @@ final class ReadinessFeed: Sendable {
 @MainActor
 final class AppEnvironmentFixture {
     let hotkeys = FakeHotkeySource()
-    let capture = FakeAudioCaptureSource()
+    let capture: FakeAudioCaptureSource
     let recognizer: FakeRecognizer
     let inserter = FakeTextInserter()
     let permissions: MutablePermissionsChecker
     let diagnostics = RecordingDiagnostics()
-    let sleeper = FakeSleeper()
     let overlay = SpyOverlay()
     let readiness = ReadinessFeed()
     let activations = AsyncStream.makeStream(of: Void.self)
+    /// The one clock of the graph: it paces the permission poll, the dictation limits, and the overlay.
     let clock = ManualClock()
     let settings = InMemorySettingsStore()
     let window = SpyOnboardingWindow()
     let themes: ThemeStore
-    /// How many times the environment asked for the themes folder to be watched.
-    let themeWatches = Counter()
+    /// How many times the environment asked for the themes folder to be prepared and watched.
+    let themePreparations = Counter()
     private let themeFolder = FileManager.default.temporaryDirectory.appendingPathComponent(
         "susurro-themes-\(UUID().uuidString)")
     private(set) var openedSettings: [Permission] = []
@@ -103,10 +104,12 @@ final class AppEnvironmentFixture {
     init(
         permissions: [Permission: PermissionStatus] = [.microphone: .granted, .accessibility: .granted],
         recognizer: FakeRecognizer = FakeRecognizer(transcript: "hola"),
+        capture: FakeAudioCaptureSource = FakeAudioCaptureSource(),
         themeFiles: [String: String] = [:]
     ) {
         self.permissions = MutablePermissionsChecker(permissions)
         self.recognizer = recognizer
+        self.capture = capture
         if !themeFiles.isEmpty {
             try? FileManager.default.createDirectory(at: themeFolder, withIntermediateDirectories: true)
             for (name, json) in themeFiles {
@@ -116,8 +119,7 @@ final class AppEnvironmentFixture {
         themes = ThemeStore(directory: themeFolder)
         let readiness = readiness
         let activations = activations.stream
-        let sleeper = sleeper
-        let themeWatches = themeWatches
+        let themePreparations = themePreparations
         let window = window
         environment = AppEnvironment(
             AppEnvironment.Dependencies(
@@ -129,15 +131,16 @@ final class AppEnvironmentFixture {
                 permissions: self.permissions,
                 diagnostics: diagnostics,
                 overlay: overlay,
-                openSettings: { [unowned self] in openedSettings.append($0) },
-                activations: { activations },
                 restoreClipboardNow: { [unowned self] in clipboardRestores += 1 },
-                onboardingWindow: { window.built(from: $0, $1) },
                 settings: settings,
-                themes: themes,
-                watchThemes: { themeWatches.increment() },
-                clock: clock,
-                sleep: { try await sleeper.sleep($0) }
+                onboarding: AppEnvironment.Dependencies.Onboarding(
+                    window: { window.built(from: $0, $1) },
+                    openSettings: { [unowned self] in openedSettings.append($0) },
+                    activations: { activations }
+                ),
+                theming: AppEnvironment.Dependencies.Theming(
+                    store: themes, prepare: { themePreparations.increment() }),
+                clock: clock
             )
         )
     }
@@ -145,6 +148,21 @@ final class AppEnvironmentFixture {
     /// Removes the themes folder the test made.
     func removeThemeFolder() {
         try? FileManager.default.removeItem(at: themeFolder)
+    }
+
+    /// Moves the clock by `duration` again and again until `condition` holds, for up to five seconds. A timer that the
+    /// code under test has not started yet is started from the time now, so one advance can come too early; this does
+    /// not depend on when the timer starts.
+    func advance(
+        by duration: Duration, until what: String, sourceLocation: SourceLocation = #_sourceLocation,
+        _ condition: () -> Bool
+    ) async {
+        for _ in 0..<5_000 {
+            if condition() { return }
+            clock.advance(by: duration)
+            try? await Task.sleep(for: .milliseconds(1))
+        }
+        Issue.record("Timed out waiting for \(what).", sourceLocation: sourceLocation)
     }
 
     /// Waits until `condition` holds, polling for up to five seconds.
