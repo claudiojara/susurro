@@ -34,7 +34,9 @@ struct CoordinatorHarness {
         frontmost: FakeFrontmostAppProvider? = nil,
         context: ContextPipeline? = nil,
         diagnostics: RecordingDiagnostics = RecordingDiagnostics(),
-        clock: ManualClock = ManualClock()
+        clock: ManualClock = ManualClock(),
+        cleanup: CleanupStage? = nil,
+        vocabulary: VocabularyPipeline? = nil
     ) async {
         self.capture = capture
         self.recordings = recordings
@@ -56,6 +58,7 @@ struct CoordinatorHarness {
                 registry: registry, language: SettingsLanguagePreference(settings: settings),
                 diagnostics: diagnostics, sleep: sleep),
             inserter: inserter,
+            cleanup: cleanup,
             diagnostics: diagnostics,
             sleep: sleep
         )
@@ -72,7 +75,8 @@ struct CoordinatorHarness {
             recordingCap: recordingCap,
             diagnostics: diagnostics,
             sleep: sleep,
-            clock: clock
+            clock: clock,
+            vocabulary: vocabulary
         )
         sut = coordinator
         states = coordinator.states.makeAsyncIterator()

@@ -10,8 +10,7 @@ let package = Package(
             name: "SusurroPlatform",
             targets: [
                 "Permissions", "Hotkeys", "AudioIO", "TextInsertion", "Diagnostics", "Settings", "Persistence",
-                "AccessibilityContext",
-                "LanguageDetection",
+                "AccessibilityContext", "LanguageDetection", "EntityTagging", "ScreenOCR",
             ]
         )
     ],
@@ -35,6 +34,8 @@ let package = Package(
         .target(name: "AccessibilityContext", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .target(name: "Settings", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .target(name: "LanguageDetection", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
+        .target(name: "EntityTagging", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
+        .target(name: "ScreenOCR", dependencies: [.product(name: "SusurroCore", package: "SusurroCore")]),
         .target(
             name: "Persistence",
             dependencies: [
@@ -78,6 +79,18 @@ let package = Package(
             name: "SettingsTests",
             dependencies: [
                 "Settings",
+                .product(name: "SusurroCore", package: "SusurroCore"),
+                .product(name: "CoreTestSupport", package: "SusurroCore"),
+            ]
+        ),
+        .testTarget(
+            name: "EntityTaggingTests",
+            dependencies: ["EntityTagging", .product(name: "SusurroCore", package: "SusurroCore")]
+        ),
+        .testTarget(
+            name: "ScreenOCRTests",
+            dependencies: [
+                "ScreenOCR",
                 .product(name: "SusurroCore", package: "SusurroCore"),
                 .product(name: "CoreTestSupport", package: "SusurroCore"),
             ]

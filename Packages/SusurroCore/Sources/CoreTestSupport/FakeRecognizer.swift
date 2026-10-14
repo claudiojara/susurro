@@ -63,6 +63,9 @@ public final class FakeRecognizer: SpeechRecognizer {
 
     public var calls: [Call] { state.withLock { $0.calls } }
 
+    /// The options of every `transcribe` call, in order.
+    public var transcribedOptions: [RecognitionOptions] { state.withLock { $0.options } }
+
     public var transcribedClips: [AudioClip] {
         calls.compactMap { call in
             if case .transcribe(let clip) = call { clip } else { nil }

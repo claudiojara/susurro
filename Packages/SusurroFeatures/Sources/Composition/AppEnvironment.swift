@@ -85,6 +85,11 @@ public final class AppEnvironment {
         /// A recognizer that honors the language it is asked for, to transcribe again a clip that the main one answered
         /// in the wrong language. Nil when the app has none.
         public var languageRecognizer: (any SpeechRecognizer)?
+        /// Cleans the transcript before it is inserted. Nil inserts the raw transcript.
+        public var cleanup: CleanupStage?
+        /// Builds the vocabulary of each dictation from the user's dictionary, the context, and the screen. Nil gives the
+        /// recognizer and the cleaner no vocabulary.
+        public var vocabulary: VocabularyPipeline?
 
         public init(
             hotkeys: any HotkeySource,
@@ -106,7 +111,9 @@ public final class AppEnvironment {
             context: ContextPipeline? = nil,
             vad: any VoiceActivityDetector = FakeVoiceActivityDetector(),
             languageDetector: any LanguageDetecting = FakeLanguageDetector(),
-            languageRecognizer: (any SpeechRecognizer)? = nil
+            languageRecognizer: (any SpeechRecognizer)? = nil,
+            cleanup: CleanupStage? = nil,
+            vocabulary: VocabularyPipeline? = nil
         ) {
             self.hotkeys = hotkeys
             self.capture = capture
@@ -128,6 +135,8 @@ public final class AppEnvironment {
             self.vad = vad
             self.languageDetector = languageDetector
             self.languageRecognizer = languageRecognizer
+            self.cleanup = cleanup
+            self.vocabulary = vocabulary
         }
 
         /// What turns a clip into a raw transcript: the recognizers the app has, which of them is selected, the wait for
@@ -178,6 +187,8 @@ public final class AppEnvironment {
     // The rest is internal: the tests read it, and the app does not need it.
     /// What the app knows about the permissions: the menu, the onboarding, and the overlay read it.
     let monitor: PermissionsMonitor
+    /// The switches in the menu: cleanup, app context, and screen text.
+    let preferences: MenuPreferences
     /// The onboarding screen's view model, over the monitor.
     let onboardingModel: OnboardingViewModel
     /// The theme the app's windows are drawn in, which follows the theme store.
@@ -205,6 +216,7 @@ public final class AppEnvironment {
             detector: dependencies.vad,
             runner: dependencies.recognitionRunner(sleep: sleep),
             inserter: dependencies.inserter,
+            cleanup: dependencies.cleanup,
             dates: dependencies.history.dates,
             diagnostics: dependencies.diagnostics,
             sleep: sleep
@@ -220,7 +232,8 @@ public final class AppEnvironment {
             context: dependencies.context,
             diagnostics: dependencies.diagnostics,
             sleep: sleep,
-            clock: clock
+            clock: clock,
+            vocabulary: dependencies.vocabulary
         )
         themeModel = ThemeModel()
         let overlayModel = OverlayViewModel(sleep: sleep, uptime: OverlayViewModel.uptime(of: clock))
@@ -250,8 +263,12 @@ public final class AppEnvironment {
         retention = RetentionSweeper(
             repository: history.repository, deleter: history.deleter, dates: history.dates, clock: clock)
         let historyWindow = history.window(historyModel, themeModel)
+        preferences = MenuPreferences(
+            settings: dependencies.settings,
+            ocr: OCRPreferenceController(settings: dependencies.settings, monitor: monitor))
         menu = MenuModel(
-            monitor: monitor, showOnboarding: { onboardingPresenter.show() }, showHistory: { historyWindow.show() })
+            monitor: monitor, showOnboarding: { onboardingPresenter.show() }, showHistory: { historyWindow.show() },
+            preferences: preferences)
     }
 
     /// Starts the app's work: the overlay, the hotkey, the model, the permission monitor and the onboarding, and the
@@ -275,6 +292,7 @@ public final class AppEnvironment {
         run { await $0.launchHistory(at: launchedAt) }
         run { await $0.onboardingPresenter.run() }
         run { await $0.monitor.run(activations: $0.dependencies.onboarding.activations()) }
+        run { await $0.preferences.ocr.start() }
         run { await $0.followHotkeyKind() }
         run { await $0.themeModel.follow(await $0.dependencies.theming.store.updates()) }
         // The folder is read away from the main actor, so a slow disk or a link to a volume that is not there cannot hold

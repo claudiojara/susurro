@@ -50,6 +50,8 @@ public actor DictationCoordinator {
     private let permissions: any PermissionsChecker
     private let frontmost: (any FrontmostAppProvider)?
     private let context: ContextPipeline?
+    /// Builds the vocabulary of each dictation. Nil gives the recognizer and the cleaner none.
+    private let vocabulary: VocabularyPipeline?
     private let recordingCap: Duration
     private let diagnostics: any DiagnosticsLog
     private let sleep: @Sendable (Duration) async throws -> Void
@@ -96,6 +98,8 @@ public actor DictationCoordinator {
     private var dictationTarget: AppIdentity?
     /// The capture of the context of the recording under way, started as the key went down.
     private var contextJob: ContextJob?
+    /// The vocabulary work of the recording under way, started with its context.
+    private var vocabularyJob: VocabularyJob?
     private let queue = ProcessingQueue()
     /// The jobs that are queued or running, oldest first.
     private var jobs: [UUID] = []
@@ -119,6 +123,8 @@ public actor DictationCoordinator {
     ///   - sleep: Paces readiness checks and times out the waits. Tests pass a fake.
     ///   - clock: Runs the timers of the activation machine: the recording cap and the double-tap window. Tests pass a
     ///     `ManualClock`.
+    ///   - vocabulary: Builds the vocabulary from the user's dictionary, the context, and the screen, starting at
+    ///     key-down. Without it the recognizer and the cleaner get none.
     public init(
         hotkeys: any HotkeySource,
         capture: any AudioCaptureSource,
@@ -131,8 +137,10 @@ public actor DictationCoordinator {
         recordingCap: Duration = DictationLimits.recordingCap,
         diagnostics: any DiagnosticsLog = NoDiagnostics(),
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
-        clock: any Clock<Duration> = ContinuousClock()
+        clock: any Clock<Duration> = ContinuousClock(),
+        vocabulary: VocabularyPipeline? = nil
     ) {
+        self.vocabulary = vocabulary
         self.hotkeys = hotkeys
         self.capture = capture
         self.recordings = recordings
@@ -326,11 +334,14 @@ public actor DictationCoordinator {
         dropContextJob()
         dictationTarget = await frontmost?.current()
         contextJob = context.map { ContextJob(app: dictationTarget, pipeline: $0) }
+        vocabularyJob = vocabulary.map { VocabularyJob(context: contextJob, pipeline: $0) }
     }
 
     private func dropContextJob() {
         contextJob?.cancel()
         contextJob = nil
+        vocabularyJob?.cancel()
+        vocabularyJob = nil
     }
 
     // MARK: Start
@@ -540,10 +551,13 @@ public actor DictationCoordinator {
             let release = keyIsDown ? keyUps : nil
             let target = dictationTarget
             let context = contextJob
+            let vocabulary = vocabularyJob
             contextJob = nil
+            vocabularyJob = nil
             recordingState = nil
             phase = .idle
-            await enqueue(verified, waitingFor: release, target: target, context: context)
+            await enqueue(
+                verified, waitingFor: release, target: target, context: context, vocabulary: vocabulary)
         }
     }
 
@@ -572,7 +586,7 @@ public actor DictationCoordinator {
     /// Queues a finished recording behind the ones before it.
     private func enqueue(
         _ recording: VerifiedRecording, waitingFor release: AsyncStream<Void>?, target: AppIdentity?,
-        context: ContextJob?
+        context: ContextJob?, vocabulary: VocabularyJob?
     ) async {
         let id = recording.id.rawValue
         jobs.append(id)
@@ -581,7 +595,8 @@ public actor DictationCoordinator {
         var waitForRelease: (@Sendable () async throws -> Void)?
         if let release { waitForRelease = { try await self.waitForKeyRelease(release) } }
         let job = DictationJob(
-            recording: recording, waitForKeyRelease: waitForRelease, target: target, context: context)
+            recording: recording, waitForKeyRelease: waitForRelease, target: target, context: context,
+            vocabulary: vocabulary)
         await queue.enqueue(id) { await self.run(job) }
     }
 

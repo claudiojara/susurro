@@ -8,9 +8,6 @@ enum OverlayMapping {
     static let handsFreeHint = "Press the shortcut again to stop. Esc cancels."
 
     /// The state of the overlay for a pipeline state. An idle pipeline shows nothing.
-    ///
-    /// There is no case for a polishing pipeline yet: the overlay can draw one (`OverlayViewState.polishing`), and the
-    /// case is added here with the stage that publishes it.
     static func viewState(for state: PipelineState) -> OverlayViewState {
         switch state {
         case .idle:
@@ -24,6 +21,8 @@ enum OverlayMapping {
             modelLoading(progress: progress)
         case .transcribing(nil):
             .transcribing(text: "Transcribing…", progress: nil)
+        case .polishing:
+            .polishing(text: "Polishing…")
         case .inserted:
             .inserted(text: "Pasted")
         case .notice(let kind):
@@ -84,6 +83,7 @@ enum OverlayMapping {
             case .timedOut(.readiness): "The speech model is taking too long to load."
             case .timedOut(.capture): "The microphone did not stop in time."
             case .timedOut(.transcription): "Transcription took too long."
+            case .timedOut(.cleanup): "Cleanup took too long."
             case .timedOut(.insertion): "Pasting took too long. The text may already be there."
             case .notInserted(.clipboardChanged): "Not pasted: the clipboard changed meanwhile."
             case .notInserted(.clipboardWriteFailed): "The text could not be pasted or copied."

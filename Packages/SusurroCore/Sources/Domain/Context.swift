@@ -132,6 +132,10 @@ public enum ContextSettings {
     /// Whether the text around the cursor and the selection are read ("use app context"). When off, only the app, the
     /// window title, and the page address are captured.
     public static let useAppContext = SettingKey<Bool>(area: "context", name: "useAppContext", default: true)
+
+    /// Whether the frontmost window is read with OCR to find names for the vocabulary. Off by default, and it also needs
+    /// the Screen Recording permission.
+    public static let ocrEnabled = SettingKey<Bool>(area: "context", name: "ocrEnabled", default: false)
 }
 
 extension DictationRecord {

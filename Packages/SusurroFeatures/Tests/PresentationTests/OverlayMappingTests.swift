@@ -18,6 +18,7 @@ struct OverlayMappingTests {
             (PipelineState.starting, Tint.neutral, "Getting ready…"),
             (.recording(.hold), .recording, "Listening…"),
             (.transcribing(progress: nil), .neutral, "Transcribing…"),
+            (.polishing, .neutral, "Polishing…"),
             (.inserted, .success, "Pasted"),
         ]
     )

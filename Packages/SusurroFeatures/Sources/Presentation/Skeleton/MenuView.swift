@@ -10,6 +10,7 @@ struct MenuView: View {
     let onSetUp: () -> Void
     let onRequest: (Permission) -> Void
     let onOpenSettings: (Permission) -> Void
+    let onPreference: (MenuContent.Preference.Kind, Bool) -> Void
     let onQuit: () -> Void
     var onShowHistory: () -> Void = {}
 
@@ -26,6 +27,15 @@ struct MenuView: View {
         permissionRows(content.microphone)
         permissionRows(content.accessibility)
         Divider()
+        if !content.preferences.isEmpty {
+            ForEach(content.preferences, id: \.kind) { preference in
+                Toggle(
+                    preference.title,
+                    isOn: Binding(get: { preference.isOn }, set: { onPreference(preference.kind, $0) }))
+                if let note = preference.note { Text(note) }
+            }
+            Divider()
+        }
         Text(content.modelLine)
         Divider()
         Button("Quit Susurro", action: onQuit)

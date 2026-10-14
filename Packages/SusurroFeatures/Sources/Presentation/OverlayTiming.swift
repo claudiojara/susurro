@@ -15,7 +15,7 @@ struct OverlayTiming: Equatable, Sendable {
         case .inserted: inserted
         case .notice: notice
         case .error: error
-        case .idle, .starting, .recording, .transcribing: nil
+        case .idle, .starting, .recording, .transcribing, .polishing: nil
         }
     }
 }

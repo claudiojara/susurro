@@ -56,6 +56,9 @@ public enum PipelineError: Error, Sendable, Equatable {
         case readiness
         case capture
         case transcription
+        /// The transcript is being cleaned. A limit running out here never ends the dictation in an error: the raw
+        /// transcript is used instead.
+        case cleanup
         case insertion
     }
 
@@ -97,6 +100,8 @@ public enum PipelineState: Sendable, Equatable {
     case recording(RecordingMode)
     /// `progress` is the speech model's load progress while the clip waits for it.
     case transcribing(progress: Double?)
+    /// The transcript is being cleaned up: punctuation, filler words, and the tone of the app it goes to.
+    case polishing
     case inserted
     case notice(NoticeKind)
     case error(PipelineError)

@@ -1,10 +1,12 @@
 import AccessibilityContext
 import AppKit
+import AppleIntelligenceCleaner
 import AppleSpeechASR
 import AudioIO
 import DesignSystem
 import Diagnostics
 import Domain
+import EntityTagging
 import FluidAudioASR
 import Foundation
 import Hotkeys
@@ -12,6 +14,7 @@ import LanguageDetection
 import Permissions
 import Pipeline
 import Presentation
+import ScreenOCR
 import Settings
 import SusurroUI
 import TextInsertion
@@ -50,6 +53,17 @@ extension AppEnvironment.Dependencies {
             runner: AppEnvironment.Dependencies.recognitionRunner(
                 recognizer: recognizer, languageRecognizer: languageRecognizer, settings: settings,
                 languageDetector: languageDetector, diagnostics: diagnostics, sleep: sleep))
+        let cleanup = CleanupStage(
+            settings: settings,
+            registry: CleanerRegistry(settings: settings, entries: [.local(AppleIntelligenceCleaner())]),
+            sleep: { try await clock.sleep(for: $0) })
+        let vocabulary = VocabularyPipeline(
+            dictionary: DictionaryStore(settings: settings),
+            builder: VocabularyBuilder(tagger: NLTaggerEntityTagger()),
+            enrichment: ContextEnrichment(
+                settings: settings, permissions: permissions,
+                recognizer: VisionScreenTextRecognizer(images: ScreenCaptureWindowImageProvider()),
+                frontmost: { await MainActor.run { frontmost.current().map { ScreenTarget(app: $0) } } }))
         return AppEnvironment.Dependencies(
             hotkeys: HotkeyService(settings: settings, permissions: permissions),
             capture: AVAudioEngineCaptureSource(diagnostics: diagnostics),
@@ -74,7 +88,9 @@ extension AppEnvironment.Dependencies {
             context: Self.contextPipeline(settings: settings),
             vad: vad,
             languageDetector: languageDetector,
-            languageRecognizer: languageRecognizer
+            languageRecognizer: languageRecognizer,
+            cleanup: cleanup,
+            vocabulary: vocabulary
         )
     }
 

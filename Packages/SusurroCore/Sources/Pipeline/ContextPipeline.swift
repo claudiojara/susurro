@@ -67,6 +67,12 @@ struct ContextJob: Sendable {
         task.cancel()
     }
 
+    /// The context as the source captured it, however long that takes. Work that runs beside the dictation and stops with
+    /// it waits here, never the dictation itself, which waits at most `resolve`'s deadline.
+    func capturedContext() async -> DictationContext {
+        await task.value
+    }
+
     /// Waits for the context at most `deadline`, then chooses the style. A context that is late is replaced by an empty
     /// one that holds the app, which is known from the start, so the style still follows the app.
     func resolve(

@@ -14,22 +14,26 @@ public struct DictationJob: Sendable {
     public let target: AppIdentity?
     /// The capture of the context that began as the key went down. Nil when no context is captured.
     let context: ContextJob?
+    /// The vocabulary work that began with the context. Nil gives the recognizer and the cleaner no vocabulary.
+    let vocabulary: VocabularyJob?
 
     public init(
         recording: VerifiedRecording, waitForKeyRelease: (@Sendable () async throws -> Void)? = nil,
         target: AppIdentity? = nil
     ) {
-        self.init(recording: recording, waitForKeyRelease: waitForKeyRelease, target: target, context: nil)
+        self.init(
+            recording: recording, waitForKeyRelease: waitForKeyRelease, target: target, context: nil, vocabulary: nil)
     }
 
     init(
         recording: VerifiedRecording, waitForKeyRelease: (@Sendable () async throws -> Void)?, target: AppIdentity?,
-        context: ContextJob?
+        context: ContextJob?, vocabulary: VocabularyJob?
     ) {
         self.recording = recording
         self.waitForKeyRelease = waitForKeyRelease
         self.target = target
         self.context = context
+        self.vocabulary = vocabulary
     }
 }
 
@@ -40,8 +44,9 @@ public struct DictationJob: Sendable {
 /// 3. the recognizer transcribes the speech span, waiting for a model that is still loading; a blank transcript ends the
 ///    attempt as no speech. Meanwhile the context captured at key-down is waited for, briefly, and the style is chosen;
 ///    the record keeps the app, the page host and the style, never the text of the context;
-/// 4. the text goes to the inserter, once the key of a capped hold is up;
-/// 5. the record is updated with the outcome.
+/// 4. the cleanup stage polishes the transcript for that style, or falls back to the raw text with a reason;
+/// 5. the text goes to the inserter, once the key of a capped hold is up;
+/// 6. the record is updated with the outcome: the raw, cleaned and final text, the providers and any fallback.
 ///
 /// The recording stays on disk whatever happens, and the record says how the attempt ended, so a failure can be retried
 /// from the history. The pipeline never leaves a stage open: each is bounded, the whole is bounded, and the cancel
@@ -60,17 +65,20 @@ public struct DictationPipeline: Sendable {
     private let detector: any VoiceActivityDetector
     private let runner: RecognitionRunner
     private let inserter: any TextInserter
+    private let cleanup: CleanupStage?
     private let dates: any DateSource
     private let diagnostics: any DiagnosticsLog
     private let sleep: @Sendable (Duration) async throws -> Void
     private let cancelRequests = CancelRequests()
 
+    /// - Parameter cleanup: The stage that cleans the transcript. Without one the raw transcript is inserted.
     public init(
         recordings: any AudioRecordingStore,
         history: any HistoryRepository,
         detector: any VoiceActivityDetector,
         runner: RecognitionRunner,
         inserter: any TextInserter,
+        cleanup: CleanupStage? = nil,
         dates: any DateSource = SystemDateSource(),
         diagnostics: any DiagnosticsLog = NoDiagnostics(),
         sleep: @escaping @Sendable (Duration) async throws -> Void
@@ -80,6 +88,7 @@ public struct DictationPipeline: Sendable {
         self.detector = detector
         self.runner = runner
         self.inserter = inserter
+        self.cleanup = cleanup
         self.dates = dates
         self.diagnostics = diagnostics
         self.sleep = sleep
@@ -110,7 +119,10 @@ public struct DictationPipeline: Sendable {
         _ job: DictationJob, report: @escaping @Sendable (PipelineState) async -> Void
     ) async -> Result {
         let id = job.recording.id.rawValue
-        defer { job.context?.cancel() }
+        defer {
+            job.context?.cancel()
+            job.vocabulary?.cancel()
+        }
         let tracker = StageTracker()
         let attempt = await Attempt.begin(
             for: job.recording, status: .processing, history: history, dates: dates, diagnostics: diagnostics)
@@ -169,8 +181,12 @@ public struct DictationPipeline: Sendable {
             Task { [sleep] in await context.resolve(deadline: DictationLimits.contextDeadline, sleep: sleep) }
         }
         defer { resolution?.cancel() }
+        // The vocabulary needs the context, so a dictation that has one waits for it here, at most `contextDeadline`: it
+        // is there already unless the source is slow. A dictation with no vocabulary does not wait.
+        let early: ResolvedContext? = if job.vocabulary != nil { await resolution?.value } else { nil }
+        let vocabulary = job.vocabulary?.terms(for: early?.context) ?? []
         let input = found.flatMap { SpeechSpan.input(from: clip, result: $0) } ?? clip
-        let recognition = try await runner.run(input) { progress in
+        let recognition = try await runner.run(input, vocabulary: vocabulary) { progress in
             if progress == nil { tracker.enter(.transcription) }
             await report(.transcribing(progress: progress))
         }
@@ -180,7 +196,8 @@ public struct DictationPipeline: Sendable {
             $0.asrProvider = recognition.provider
             $0.fallbackReason = recognition.fallbackReason
         }
-        if let resolved = await resolution?.value {
+        let resolved = if let early { early } else { await resolution?.value }
+        if let resolved {
             diagnostics.record(ContextJob.event(for: resolved))
             await attempt.amend { $0 = resolved.stamped($0) }
         }
@@ -189,10 +206,14 @@ public struct DictationPipeline: Sendable {
             return .notice(.noSpeech)
         }
 
+        try checkpoint(id)
+        let text = try await polished(
+            recognition.text, context: resolved, vocabulary: vocabulary, attempt: attempt, tracker: tracker,
+            report: report)
+
         tracker.enter(.insertion)
         try await job.waitForKeyRelease?()
         try checkpoint(id)
-        let text = recognition.text
         let inserter = inserter
         let target = job.target
         let outcome = try await withDeadline(DictationLimits.insertionTimeout, stage: .insertion, sleep: sleep) {
@@ -208,6 +229,38 @@ public struct DictationPipeline: Sendable {
         case .copiedToClipboard(let reason): return .notice(.copiedToClipboard(reason))
         case .notInserted(let reason): return .error(.notInserted(reason))
         }
+    }
+
+    /// The text to insert: the transcript after cleanup, shaped for the cursor, or the transcript itself when there is no
+    /// cleanup stage. The record keeps what the cleanup did: the cleaned text, the cleaner, and why it fell back. The
+    /// stage never fails except to say the dictation was cancelled, so nothing is inserted.
+    private func polished(
+        _ raw: String, context: ResolvedContext?, vocabulary: [String], attempt: Attempt, tracker: StageTracker,
+        report: @escaping @Sendable (PipelineState) async -> Void
+    ) async throws -> String {
+        guard let cleanup else { return raw }
+        tracker.enter(.cleanup)
+        let input = CleanupInput(
+            transcript: raw, style: context?.style ?? Self.unknownStyle, vocabulary: vocabulary,
+            cursor: context.flatMap { Self.cursor(in: $0.context) })
+        let result = try await cleanup.run(input, willClean: { await report(.polishing) })
+        await attempt.amend {
+            $0.cleanedText = result.cleaned
+            $0.cleanerProvider = result.provider?.rawValue
+            // A cleanup fallback is the newest reason; an ASR fallback stays when the cleanup had none.
+            if let reason = result.fallbackReason { $0.fallbackReason = reason.rawValue }
+        }
+        return result.finalText
+    }
+
+    /// The style of a dictation whose context did not arrive: an unknown app, which the neutral tone suits.
+    private static let unknownStyle = StyleProfile(category: .other, tone: .neutral, source: .default)
+
+    /// The text around the cursor, or nil when none of it could be read. A secure field gives none. A field with nothing
+    /// before or after the cursor reads the same as one that could not be read, and the text is left as it is for both.
+    private static func cursor(in context: DictationContext) -> CursorContext? {
+        guard !context.isSecureField, !(context.beforeCursor.isEmpty && context.afterCursor.isEmpty) else { return nil }
+        return CursorContext(before: context.beforeCursor, after: context.afterCursor)
     }
 
     /// The speech in the clip, or nil when the detector could not tell.
