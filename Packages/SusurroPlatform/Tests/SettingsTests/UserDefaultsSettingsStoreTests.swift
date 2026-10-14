@@ -140,6 +140,18 @@ struct UserDefaultsSettingsStoreTests {
         #expect(UserDefaultsSettingsStore(defaults: scratch.makeDefaults()).value(for: SampleKeys.retentionDays) == 7)
     }
 
+    @Test("cleanup is off for a fresh install, and a switch that was stored as on while it was the default stays on")
+    func cleanupSwitchSurvivesTheNewDefault() {
+        let scratch = ScratchDefaults()
+        defer { scratch.remove() }
+        #expect(
+            UserDefaultsSettingsStore(defaults: scratch.makeDefaults()).value(for: CleanupSettings.enabled) == false)
+
+        // What an earlier version, or the user, wrote under the key's name.
+        scratch.makeDefaults().set(true, forKey: "cleanup.enabled")
+        #expect(UserDefaultsSettingsStore(defaults: scratch.makeDefaults()).value(for: CleanupSettings.enabled))
+    }
+
     @Test("a key that was never written is not created by reading it")
     func readingWritesNothing() {
         let scratch = ScratchDefaults()

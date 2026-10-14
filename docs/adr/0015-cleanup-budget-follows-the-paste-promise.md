@@ -70,3 +70,51 @@ warm-up).
 - Bad: a model call that was cut keeps running and can slow the next recognition. Cancelling the session on a timeout
   does not stop it at once. Revisit if it is reported.
 - Bad: the prewarm loads the model for a tap that is then discarded.
+
+## Addendum, 2026-10-14: cleanup is off by default, and the model is no longer prewarmed
+
+This addendum supersedes two parts of the decision above: "Cleanup stays on by default" and the warm-up at key-down. The
+limit that follows the length of the transcript (1.2 s plus 8 ms for each character, up to 6 s) stays, for the user who
+turns cleanup on.
+
+**Measured** under the user's normal load (Mail, Teams, and OrbStack open), after the decision above shipped:
+
+| Check | Result |
+| --- | --- |
+| Release to text without cleanup | about 0.13 s |
+| Release to text with cleanup | about 4.8 s |
+| Cleanup succeeded | 0 of 12 dictations |
+| Parakeet with the key-down prewarm | 2 to 6 s, instead of about 0.12 s |
+
+The model did not answer within its limit in any dictation, so the user paid 4.8 s for the raw text. The prewarm made it
+worse and not better: loading the on-device model while the person speaks slowed speech recognition by an order of
+magnitude, which is the effect the "second effect" paragraph above saw after a call that timed out.
+
+**Decision** (the user's): speed matters more than cleanup.
+
+- `cleanup.enabled` defaults to false. Cleanup is opt-in, and the menu switch reads "Clean up text (adds a few seconds)".
+  A user who already stored true keeps it, since a stored value wins over the default.
+- The key-down prewarm is removed: `CleanupStage.prewarm()`, `TranscriptCleaner.prewarm()`, the coordinator's
+  `prewarmCleaner`, and its wiring in `AppEnvironment`. So are `FoundationModelsEngine.prewarm(instructions:)` and
+  `WarmSlot`, which only the prewarm used. Each call makes a session of its own and drops it when the call ends.
+- The promise of 2 s after the release (success criteria, `tasks.md` 4d.10) is the promise with cleanup off, which is the
+  default: a warm median of 125 to 142 ms. With cleanup on, the user pays for it in time, and the history still shows the
+  fallback reason when the limit is missed.
+- A model call that ran out of time is cancelled where it runs. `withDeadline` already cancelled the task of the call
+  (`CleanupStageTests.timeoutCancelsTheCleaner`, and `TimeoutCancellationTests` for the engine behind
+  `AppleIntelligenceCleaner`, with a fake engine that records `Task.isCancelled`). What the real model added: a `respond`
+  that was cancelled in the middle of a long reply returned 3 to 6 s later, when the model had finished writing and the
+  call threw `CancellationError`, so the call still held the cleaner's queue for seconds. `LiveFoundationModelsEngine` now
+  reads the reply with `streamResponse`, which ends in under a millisecond when the task is cancelled, and then checks the
+  cancellation so that the text written so far is never taken for an answer. `RealModelTests.cancelledCallLeavesAtOnce`
+  measures it. The framework does not show whether the model stops writing once its stream is dropped, so a call that
+  timed out can still load the machine for a moment; that part is not under the app's control.
+
+### Consequences of the addendum
+
+- Good: a fresh install pastes in about 0.13 s, and nothing loads the on-device model unless the user asked for cleanup.
+- Good: a call that timed out frees the cleaner's queue at once, so the next cleanup does not wait behind it.
+- Bad: the app no longer polishes text unless the user turns the switch on, and the Settings screen still describes the
+  switch without the warning about time (its snapshots are recorded on the CI image).
+- Bad: with cleanup on, a loaded Mac still misses the limit often (0 of 12 above) and the raw text is pasted after 2 s or
+  more. Revisit the on-device model's speed, not the default, if that is to change.

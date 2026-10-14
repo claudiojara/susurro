@@ -170,22 +170,42 @@ struct CleanupStageTests {
         }
     }
 
-    // MARK: Prewarm
-
-    @Test("a prewarm gets the cleaner ready while cleanup is on")
-    func prewarmWhenEnabled() async {
-        let cleaner = FakeCleaner()
-        await stage(cleaner).prewarm()
-        #expect(cleaner.prewarmCount == 1)
-        #expect(cleaner.callCount == 0)
+    @Test("a cleaner that is still running when the limit passes has its task cancelled, not left running")
+    func timeoutCancelsTheCleaner() async throws {
+        let clock = ManualClock()
+        let cleaner = FakeCleaner(gated: true)
+        let stage = stage(cleaner, clock: clock)
+        let running = Task { try await stage.run(input()) }
+        await clock.waitForSleeps(1)
+        await cleaner.entered.wait()
+        clock.advance(by: .seconds(6))
+        let result = try await running.value
+        #expect(result.fallbackReason == .timeout)
+        // Nobody released the cleaner: it left because its task was cancelled.
+        await cleaner.returned.wait()
+        #expect(cleaner.wasCancelledOnResume == true)
     }
 
-    @Test("a prewarm does nothing while cleanup is off or when there is no cleaner")
-    func prewarmSkipped() async {
+    // MARK: Opt-in
+
+    @Test("over the settings, a fresh install makes no cleaner call, and a stored on switch still cleans")
+    func settingsDecideWhetherToClean() async throws {
         let cleaner = FakeCleaner()
-        await stage(cleaner, enabled: false).prewarm()
-        #expect(cleaner.prewarmCount == 0)
-        await stage(nil).prewarm()
+        let settings = InMemorySettingsStore()
+        let stage = CleanupStage(
+            settings: settings, registry: CleanerRegistry(settings: settings, entries: [.local(cleaner)]),
+            sleep: { try await ManualClock().sleep(for: $0) })
+
+        let fresh = try await stage.run(input())
+        #expect(fresh.cleaned == nil)
+        #expect(fresh.fallbackReason == nil)
+        #expect(cleaner.callCount == 0)
+        #expect(cleaner.availabilityChecks == 0)
+
+        settings.set(true, for: CleanupSettings.enabled)
+        let enabled = try await stage.run(input())
+        #expect(enabled.cleaned == "cleaned")
+        #expect(cleaner.callCount == 1)
     }
 
     @Test("cancelling the dictation during cleanup ends the stage with no text")

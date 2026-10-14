@@ -57,6 +57,27 @@ struct RealModelTests {
         }
     }
 
+    /// The reason the live engine reads the reply as a stream. `respond` honors a cancellation only when the model has
+    /// finished writing (3 to 6 s for this reply, measured), and the cleaner's deadline cancels a call that ran out of
+    /// time, so a call that lingers would hold the queue behind it.
+    @Test("a call that is cancelled in the middle of a long reply leaves at once and throws CancellationError")
+    func cancelledCallLeavesAtOnce() async throws {
+        let engine = LiveFoundationModelsEngine()
+        guard engine.availability() == .available else { return }
+        let request = EngineRequest(
+            instructions: "You write long stories.",
+            prompt: "Write a very long story about the sea, at least 800 words.",
+            sampling: .greedy, maximumResponseTokens: 1_500)
+        let running = Task { try await engine.generate(request) }
+        try await Task.sleep(for: .seconds(1.5))
+        let cancelled = ContinuousClock.now
+        running.cancel()
+        await #expect(throws: CancellationError.self) { try await running.value }
+        let took = ContinuousClock.now - cancelled
+        print("cancelled call left after \(took)")
+        #expect(took < .seconds(1))
+    }
+
     @Test("Spanish dictation keeps its language and its accents")
     func spanish() async throws {
         let raw = "hola equipo quería comentarles que la reunión de mañana con el cliente se mueve a las tres"

@@ -299,10 +299,6 @@ public final class AppEnvironment {
             diagnostics: dependencies.diagnostics,
             sleep: sleep
         )
-        // The key going down warms the cleaner, so that its model is ready when the key comes up.
-        let prewarmCleaner: (@Sendable () async -> Void)? = dependencies.cleanup.map { stage in
-            { @Sendable in await stage.prewarm() }
-        }
         coordinator = DictationCoordinator(
             hotkeys: dependencies.hotkeys,
             capture: dependencies.capture,
@@ -315,8 +311,7 @@ public final class AppEnvironment {
             diagnostics: dependencies.diagnostics,
             sleep: sleep,
             clock: clock,
-            vocabulary: dependencies.vocabulary,
-            prewarmCleaner: prewarmCleaner
+            vocabulary: dependencies.vocabulary
         )
         themeModel = ThemeModel()
         let overlayModel = OverlayViewModel(sleep: sleep, uptime: OverlayViewModel.uptime(of: clock))

@@ -176,11 +176,8 @@ struct RealPipelineTests {
         let text: String
     }
 
-    /// - Parameter beforeEachRun: What happens as the key goes down, before the speech is written. The app warms the
-    ///   cleaner there.
     private static func dictate(
-        _ samples: [Float], runs count: Int, cleaner: (any TranscriptCleaner)?, in folder: URL,
-        beforeEachRun: () async -> Void = {}
+        _ samples: [Float], runs count: Int, cleaner: (any TranscriptCleaner)?, in folder: URL
     ) async throws -> (runs: [Run], history: GRDBHistoryRepository, recordings: [VerifiedRecording]) {
         let parakeet = try await loadedParakeet()
         let settings = InMemorySettingsStore()
@@ -204,7 +201,6 @@ struct RealPipelineTests {
         var runs: [Run] = []
         var recordings: [VerifiedRecording] = []
         for _ in 0..<count {
-            await beforeEachRun()
             // The recording is written as the user speaks; the clock starts when the key comes up.
             let sink = try await Self.write(samples, to: store)
             let released = ContinuousClock.now
@@ -280,8 +276,10 @@ struct RealPipelineTests {
         )
     }
 
+    /// Cleanup is opt-in (ADR 0015, addendum), so the promise of 2 s is `releaseToText`'s, with cleanup off. This check
+    /// prints what the user pays for turning cleanup on, and asserts only that a dictation still ends with text.
     @Test(
-        "with Apple Intelligence cleanup on, which is the default, a dictation whose model was warmed at key-down takes under 2 s after the release"
+        "with Apple Intelligence cleanup turned on, a dictation still ends with text, and the time and hit rate are printed"
     )
     func releaseToTextWithCleanup() async throws {
         let cleaner = AppleIntelligenceCleaner()
@@ -293,12 +291,7 @@ struct RealPipelineTests {
         let speech = try SpokenClip.speak(Self.fiveSeconds)
         let samples = SpokenClip.silence(seconds: 0.3) + speech + SpokenClip.silence(seconds: 0.3)
 
-        let (runs, _, _) = try await Self.dictate(samples, runs: 6, cleaner: cleaner, in: folder) {
-            // The key goes down: the app warms the model while the person speaks. The speech here is written at once, so
-            // a pause of 1.5 s stands in for the first part of a hold that lasts as long as the clip.
-            await cleaner.prewarm()
-            try? await Task.sleep(for: .seconds(1.5))
-        }
+        let (runs, _, _) = try await Self.dictate(samples, runs: 6, cleaner: cleaner, in: folder)
         Self.report("with cleanup", runs)
 
         let warm = runs.dropFirst()
@@ -310,7 +303,6 @@ struct RealPipelineTests {
         )
 
         #expect(runs.allSatisfy { !$0.text.isEmpty })
-        #expect(median < .seconds(2))
     }
 
     // MARK: 8a.9 A dictionary term

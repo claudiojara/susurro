@@ -141,8 +141,8 @@ struct AppEnvironmentTests {
         await f.environment.shutdown()
     }
 
-    @Test("the key going down gets the cleaner of the graph ready")
-    func keyDownWarmsTheCleaner() async {
+    @Test("the key going down does not touch the cleaner of the graph: it is used only after the release")
+    func keyDownLeavesTheCleanerAlone() async {
         let cleaner = FakeCleaner()
         let clock = ManualClock()
         let stage = CleanupStage(
@@ -150,7 +150,11 @@ struct AppEnvironmentTests {
         let f = AppEnvironmentFixture(cleanup: stage)
         f.environment.start()
         f.hotkeys.send(.down(at: Self.pressTime))
-        await f.eventually("the cleaner to be warmed") { cleaner.prewarmCount == 1 }
+        f.capture.emit(AudioChunk(samples: [Float](repeating: 0.1, count: AudioClip.sampleRate)))
+        await f.eventually("the recording indicator") { f.overlay.current == "Listening…" }
+
+        #expect(cleaner.availabilityChecks == 0)
+        #expect(cleaner.callCount == 0)
         await f.environment.shutdown()
     }
 

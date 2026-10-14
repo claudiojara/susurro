@@ -92,7 +92,7 @@ Greenfield: revert the offending slice PR. Context and cleanup sit behind settin
 
 ## Success Criteria
 
-- [ ] Spanish dictation pastes into the focused app in under 2 s after release (short utterances, with cleanup on)
+- [ ] Spanish dictation pastes into the focused app in under 2 s after release (cleanup off, the default; ADR 0015, addendum)
 - [ ] No dictation lost: audio saved for every attempt; raw shown when cleanup fails
 - [ ] Output tone differs correctly between Mail, Slack, Terminal and an AI chat
 - [ ] User clipboard intact after paste

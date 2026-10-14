@@ -19,21 +19,34 @@ struct MenuPreferencesTests {
         return (MenuPreferences(settings: settings, ocr: ocr), rig, settings)
     }
 
-    @Test("a fresh install cleans up text, uses the app context, and leaves screen text off")
+    @Test("a fresh install leaves cleanup off, uses the app context, and leaves screen text off")
     func defaults() {
         let items = make().preferences.items
-        #expect(items.map(\.title) == ["Clean up text", "Use app context", "Use screen text (OCR)"])
-        #expect(items.map(\.isOn) == [true, true, false])
+        #expect(
+            items.map(\.title) == [
+                "Clean up text (adds a few seconds)", "Use app context", "Use screen text (OCR)",
+            ])
+        #expect(items.map(\.isOn) == [false, true, false])
         #expect(items.allSatisfy { $0.note == nil })
     }
 
     @Test("the cleanup switch writes cleanup.enabled")
     func cleanupSwitch() async {
         let sut = make()
-        await sut.preferences.set(.cleanup, to: false)
-        #expect(!sut.settings.value(for: CleanupSettings.enabled))
-        #expect(sut.preferences.items[0].isOn == false)
+        await sut.preferences.set(.cleanup, to: true)
+        #expect(sut.settings.value(for: CleanupSettings.enabled))
+        #expect(sut.preferences.items[0].isOn)
         #expect(CleanupSettings.enabled.storageName == "cleanup.enabled")
+    }
+
+    @Test("a cleanup switch that an earlier version stored as on is still on")
+    func storedCleanupSurvives() {
+        let settings = InMemorySettingsStore()
+        settings.set(true, for: CleanupSettings.enabled)
+        let rig = Rig(granted)
+        let preferences = MenuPreferences(
+            settings: settings, ocr: OCRPreferenceController(settings: settings, monitor: rig.monitor))
+        #expect(preferences.items[0].isOn)
     }
 
     @Test("the app context switch writes context.useAppContext")
@@ -68,8 +81,8 @@ struct MenuPreferencesTests {
         let sut = make()
         let model = MenuModel(monitor: sut.rig.monitor, preferences: sut.preferences)
         #expect(model.content.preferences.map(\.kind) == [.cleanup, .appContext, .screenText])
-        await model.setPreference(.cleanup, to: false)
-        #expect(model.content.preferences[0].isOn == false)
+        await model.setPreference(.cleanup, to: true)
+        #expect(model.content.preferences[0].isOn)
     }
 
     @Test("a menu without preferences shows none")

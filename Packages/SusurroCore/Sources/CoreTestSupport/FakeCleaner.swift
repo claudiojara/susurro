@@ -2,7 +2,8 @@ import Domain
 import Synchronization
 
 /// A cleaner with scripted availability and a fixed answer. It records every payload it is given. A `gated` cleaner
-/// suspends in `clean` until `releaseCleaning()` or until it is cancelled, after signalling `entered`.
+/// suspends in `clean` until `releaseCleaning()` or until it is cancelled, after signalling `entered`. When a call
+/// resumes it records whether its task was cancelled and signals `returned`.
 public final class FakeCleaner: TranscriptCleaner {
     public enum Answer: Sendable {
         case text(String)
@@ -13,6 +14,8 @@ public final class FakeCleaner: TranscriptCleaner {
 
     /// Opened when `clean` is entered.
     public let entered = Gate()
+    /// Opened when `clean` leaves, whichever way.
+    public let returned = Gate()
     public let id: CleanerProviderID
     public let locality: Locality
     public let budget: ProviderBudget
@@ -21,7 +24,7 @@ public final class FakeCleaner: TranscriptCleaner {
         var answer: Answer
         var payloads: [CleanupPayload] = []
         var availabilityChecks = 0
-        var prewarms = 0
+        var cancelledOnResume: Bool?
     }
     private let state: Mutex<State>
     private let gate: Gate?
@@ -45,8 +48,8 @@ public final class FakeCleaner: TranscriptCleaner {
     public var payloads: [CleanupPayload] { state.withLock { $0.payloads } }
     public var callCount: Int { payloads.count }
     public var availabilityChecks: Int { state.withLock { $0.availabilityChecks } }
-    /// How many times the cleaner was asked to get ready.
-    public var prewarmCount: Int { state.withLock { $0.prewarms } }
+    /// Whether the task of the last call that resumed was cancelled by then, or nil while none has resumed.
+    public var wasCancelledOnResume: Bool? { state.withLock { $0.cancelledOnResume } }
 
     public func setAvailability(_ availability: CleanerAvailability) {
         state.withLock { $0.availability = availability }
@@ -65,14 +68,12 @@ public final class FakeCleaner: TranscriptCleaner {
         }
     }
 
-    public func prewarm() async {
-        state.withLock { $0.prewarms += 1 }
-    }
-
     public func clean(_ payload: CleanupPayload) async throws -> String {
         state.withLock { $0.payloads.append(payload) }
         entered.open()
+        defer { returned.open() }
         await gate?.wait()
+        state.withLock { $0.cancelledOnResume = Task.isCancelled }
         try Task.checkCancellation()
         let answer = state.withLock { $0.answer }
         switch answer {
