@@ -140,7 +140,7 @@ struct OverlayViewModelTests {
     }
 
     @Test(
-        "an error, a new recording, and a busy notice replace a held indicator at once",
+        "an error and a new recording replace a held indicator at once",
         arguments: [
             (
                 PipelineState.error(PipelineError.recognitionFailed("engine")),
@@ -148,7 +148,6 @@ struct OverlayViewModelTests {
             ),
             (.starting, "Getting ready…"),
             (.recording(.hold), "Listening…"),
-            (.notice(.busy), "Still working on the last dictation"),
         ]
     )
     func preemption(state: PipelineState, message: String) async {
@@ -176,77 +175,8 @@ struct OverlayViewModelTests {
         #expect(await h.nextDisplay() == .hidden)
     }
 
-    @Test("a press during processing shows the busy notice, and the wait comes back after it")
-    func busyNoticeThenTheWait() async {
-        var h = await OverlayHarness()
-        await h.model.apply(.transcribing(progress: nil))
-        await h.model.apply(.notice(.busy))
-        await h.model.apply(.transcribing(progress: nil))
-        h.sleeper.fire(h.timing.notice)
-
-        #expect(h.message(of: await h.nextDisplay()) == "Transcribing…")
-        #expect(h.message(of: await h.nextDisplay()) == "Still working on the last dictation")
-        #expect(h.message(of: await h.nextDisplay()) == "Transcribing…")
-    }
-
-    // MARK: A busy notice does not hold the result back
-
-    @Test(
-        "a result that arrives while the busy notice is held replaces it at once",
-        arguments: [
-            (PipelineState.inserted, "Pasted"),
-            (.notice(.noSpeech), "No speech heard"),
-            (.notice(.copiedToClipboard(.pasteFailed)), "Copied to the clipboard. Paste it with Command-V."),
-        ]
-    )
-    func resultReplacesTheBusyNotice(result: PipelineState, message: String) async {
-        var h = await OverlayHarness()
-        await h.model.apply(.transcribing(progress: nil))
-        await h.model.apply(.notice(.busy))
-        await h.model.apply(.transcribing(progress: nil))  // the coordinator brings the wait back after the notice
-        await h.model.apply(result)
-        await h.model.apply(.idle)
-
-        #expect(h.message(of: await h.nextDisplay()) == "Transcribing…")
-        #expect(h.message(of: await h.nextDisplay()) == "Still working on the last dictation")
-        #expect(h.message(of: await h.nextDisplay()) == message)
-        #expect(await h.model.state.text == message)
-    }
-
-    @Test("the result that replaced a busy notice gets its own dwell, which the notice's dwell does not cut short")
-    func resultKeepsItsOwnDwell() async {
-        var h = await OverlayHarness()
-        await h.model.apply(.transcribing(progress: nil))
-        await h.model.apply(.notice(.busy))
-        await h.model.apply(.inserted)
-        h.sleeper.fire(h.timing.notice)  // the dwell of the notice that was replaced
-        await h.settle()
-
-        #expect(await h.model.state.text == "Pasted")
-        h.sleeper.fire(h.timing.inserted)
-        _ = await h.nextDisplay()  // transcribing
-        _ = await h.nextDisplay()  // busy
-        #expect(h.message(of: await h.nextDisplay()) == "Pasted")
-        #expect(await h.nextDisplay() == .hidden)
-    }
-
-    @Test("a busy notice that was held keeps the wait and the idle state behind it, as any other notice does")
-    func busyNoticeStillHoldsTheWait() async {
-        var h = await OverlayHarness()
-        await h.model.apply(.transcribing(progress: nil))
-        await h.model.apply(.notice(.busy))
-        await h.model.apply(.transcribing(progress: 0.5))
-        await h.settle()
-
-        #expect(await h.model.state.text == "Still working on the last dictation")
-        h.sleeper.fire(h.timing.notice)
-        _ = await h.nextDisplay()  // transcribing
-        _ = await h.nextDisplay()  // busy
-        #expect(h.message(of: await h.nextDisplay()) == "Preparing the speech model… 50%")
-    }
-
-    @Test("a result still waits behind a notice that is not the busy one")
-    func resultStillWaitsBehindOtherNotices() async {
+    @Test("a result waits behind a notice")
+    func resultWaitsBehindANotice() async {
         var h = await OverlayHarness()
         await h.model.apply(.notice(.noSpeech))
         await h.model.apply(.inserted)

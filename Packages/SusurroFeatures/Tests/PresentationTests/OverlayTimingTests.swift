@@ -22,7 +22,6 @@ struct OverlayTimingTests {
     func whichStatesDismiss() {
         #expect(timing.dwell(for: .inserted) == timing.inserted)
         #expect(timing.dwell(for: .notice(.capReached)) == timing.notice)
-        #expect(timing.dwell(for: .notice(.busy)) == timing.notice)
         #expect(timing.dwell(for: .error(.microphoneNotGranted)) == timing.error)
         let others: [PipelineState] = [.idle, .starting, .recording(.hold), .transcribing(progress: nil)]
         #expect(others.map { timing.dwell(for: $0) } == [nil, nil, nil, nil])

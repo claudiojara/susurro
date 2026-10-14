@@ -99,7 +99,6 @@ struct OverlayMappingTests {
                 "Copied to the clipboard. Turn on Accessibility in the Susurro menu to paste automatically."
             ),
             (.copiedToClipboard(.pasteFailed), "Copied to the clipboard. Paste it with Command-V."),
-            (.busy, "Still working on the last dictation"),
             (.deviceDisconnected, "The microphone was disconnected. Transcribing what was recorded…"),
             (.silentMicrophone, "The microphone seems to be silent. Check that it is not muted."),
         ]

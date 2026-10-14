@@ -9,9 +9,6 @@ public enum NoticeKind: Sendable, Equatable {
     case noSpeech
     case capReached
     case copiedToClipboard(ClipboardReason)
-    /// A press arrived while the last dictation was still being transcribed or inserted, so it was ignored. The
-    /// pipeline state that was showing comes right back after this notice.
-    case busy
     /// The input device went away mid-recording. What was captured before is kept and goes on to be transcribed.
     case deviceDisconnected
     /// The recording is digital silence, so the microphone looks muted or disconnected, and nothing is transcribed.

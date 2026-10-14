@@ -123,7 +123,8 @@ macOS permission prompts cannot and must not be answered by a script):
 - [ ] The overlay never steals focus: keep the caret in the field while it shows.
 - [ ] A hold longer than 60 seconds stops listening at the limit, shows the limit notice, and pastes what was said
       once you release the keys (not before, and not to the clipboard).
-- [ ] A second press while a dictation is still processing shows "Still working on the last dictation".
+- [ ] A second press while a dictation is still processing starts a new recording at once, and the first text is
+      pasted before the second.
 - [ ] With another Apple device signed in to the same account and Universal Clipboard on, a dictation does not reach
       that device's clipboard (the app writes with the current-host-only option).
 - [ ] Quit from the menu while a paste is under way: the clipboard you had comes back.

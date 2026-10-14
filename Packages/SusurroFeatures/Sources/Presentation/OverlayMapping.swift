@@ -57,8 +57,6 @@ enum OverlayMapping {
                 )
             case .copiedToClipboard(.pasteFailed):
                 ("doc.on.clipboard", "Copied to the clipboard. Paste it with Command-V.")
-            case .busy:
-                ("hourglass", "Still working on the last dictation")
             case .deviceDisconnected:
                 ("mic.slash", "The microphone was disconnected. Transcribing what was recorded…")
             case .silentMicrophone:

@@ -5,9 +5,7 @@ import SusurroUI
 
 /// Turns the pipeline's states into the state of the overlay. A state that dismisses itself (inserted, a notice, an
 /// error) is held for its dwell even though the pipeline moves on at once, and the states that arrive meanwhile wait for
-/// it, the latest of them first in line. A new recording, an error, and a busy notice cannot wait and replace it. A busy
-/// notice is the exception among the held states: it only says that the last dictation is still under way, so the result
-/// of that dictation replaces it at once.
+/// it, the latest of them first in line. A new recording and an error cannot wait and replace it.
 ///
 /// While the pipeline is idle, the progress of the speech model load shows, if there is any, and so does the warning
 /// that the model could not load.
@@ -35,8 +33,6 @@ public final class OverlayViewModel: OverlayViewModeling {
     @ObservationIgnored private var holding: Task<Void, Never>?
     /// The latest state that arrived while a state was held.
     @ObservationIgnored private var waiting: PipelineState?
-    /// Whether the state that is held is the busy notice.
-    @ObservationIgnored private var isHoldingBusyNotice = false
     @ObservationIgnored private var isPipelineActive = false
 
     /// - Parameters:
@@ -138,13 +134,11 @@ public final class OverlayViewModel: OverlayViewModeling {
 
     // MARK: Showing
 
-    /// A recording that starts, an error, and a press that was refused matter more than whatever is held. So does the
-    /// result of a dictation when what is held is only the notice that it is still under way.
+    /// A recording that starts and an error matter more than whatever is held.
     private func replacesAHeldState(_ pipeline: PipelineState) -> Bool {
         switch pipeline {
-        case .starting, .recording, .error, .notice(.busy): true
-        case .inserted, .notice: isHoldingBusyNotice
-        case .idle, .transcribing, .polishing: false
+        case .starting, .recording, .error: true
+        case .inserted, .notice, .idle, .transcribing, .polishing: false
         }
     }
 
@@ -159,7 +153,6 @@ public final class OverlayViewModel: OverlayViewModeling {
         holding?.cancel()
         holding = nil
         waiting = nil
-        isHoldingBusyNotice = pipeline == .notice(.busy)
         isPipelineActive = pipeline != .idle
         let mapped = OverlayMapping.viewState(for: pipeline)
         update(mapped.isHidden ? modelState() : mapped)
