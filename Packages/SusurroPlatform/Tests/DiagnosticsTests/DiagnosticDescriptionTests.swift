@@ -24,6 +24,10 @@ struct DiagnosticDescriptionTests {
             (.clipboardRestoreFailed, .error, "the pasteboard refused the old contents"),
             (.clipboardNotRestored(reason: "tooLarge"), .default, "the old clipboard was not put back: tooLarge"),
             (
+                .styleResolved(category: "work_chat", tone: "casual", source: "bundle"), .default,
+                "style: category=work_chat tone=casual source=bundle"
+            ),
+            (
                 .captureFirstBuffer(frames: 1_024, sampleRate: 48_000), .default,
                 "first tap buffer: 1024 frames at 48000 Hz"
             ),

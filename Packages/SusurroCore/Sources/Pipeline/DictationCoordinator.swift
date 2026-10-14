@@ -28,6 +28,7 @@ public actor DictationCoordinator {
     private let inserter: any TextInserter
     private let permissions: any PermissionsChecker
     private let frontmost: (any FrontmostAppProvider)?
+    private let context: ContextPipeline?
     private let diagnostics: any DiagnosticsLog
     private let sleep: @Sendable (Duration) async throws -> Void
 
@@ -51,6 +52,8 @@ public actor DictationCoordinator {
     private var processTask: Task<Void, Never>?
     /// The app that was in front when the key went down, which the text is pasted into and no other.
     private var dictationTarget: AppIdentity?
+    /// The capture of the context of the dictation under way, started as the key went down.
+    private var contextJob: ContextJob?
     /// The stage of the dictation being processed, which a cap that runs out names in its error.
     private var processingStage = PipelineError.Stage.readiness
     /// Whether the total cap ran out on the dictation being processed, as opposed to the limit of one of its stages.
@@ -61,6 +64,8 @@ public actor DictationCoordinator {
     /// - Parameters:
     ///   - frontmost: Tells which app is in front as the key goes down. Without it the text is pasted wherever the focus
     ///     is when the transcript is ready.
+    ///   - context: Captures the context of each dictation as the key goes down and chooses its style. Without it no
+    ///     context is captured.
     ///   - diagnostics: Where failures that would otherwise be swallowed are reported. They carry no text.
     ///   - sleep: Paces readiness checks and times out the waits. Tests pass a fake.
     public init(
@@ -70,6 +75,7 @@ public actor DictationCoordinator {
         inserter: any TextInserter,
         permissions: any PermissionsChecker,
         frontmost: (any FrontmostAppProvider)? = nil,
+        context: ContextPipeline? = nil,
         diagnostics: any DiagnosticsLog = NoDiagnostics(),
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
     ) {
@@ -79,6 +85,7 @@ public actor DictationCoordinator {
         self.inserter = inserter
         self.permissions = permissions
         self.frontmost = frontmost
+        self.context = context
         self.diagnostics = diagnostics
         self.sleep = sleep
         (states, continuation) = AsyncStream.makeStream()
@@ -104,6 +111,8 @@ public actor DictationCoordinator {
             phase = .stopped
             captureTask?.cancel()
             processing?.cancel()
+            contextJob?.cancel()
+            contextJob = nil
             samples = []
             shutdownTask = Task { await self.finishShutdown(wasRecording: wasRecording, processing: processing) }
         }
@@ -159,6 +168,7 @@ public actor DictationCoordinator {
             captureFailure = nil
             phase = .capturing
             captureTask = Task { await self.consume(stream) }
+            contextJob = context.map { ContextJob(app: dictationTarget, pipeline: $0) }
             if let release = pendingRelease { await released(at: release) }
         } catch {
             settle(.error(Self.pipelineError(from: error, otherwise: PipelineError.captureFailed)))
@@ -323,6 +333,9 @@ public actor DictationCoordinator {
     }
 
     private func transcribeAndInsert(_ clip: AudioClip) async throws -> PipelineState {
+        // The wait for the context runs while the clip is transcribed, so a slow context costs the dictation nothing.
+        let resolution = startContextResolution()
+        defer { resolution?.cancel() }
         try await waitUntilRecognizerIsReady()
         processingStage = .transcription
         let transcript = try await withDeadline(
@@ -331,6 +344,7 @@ public actor DictationCoordinator {
             try await recognizer.transcribe(clip, options: RecognitionOptions())
         }
         guard !transcript.text.allSatisfy(\.isWhitespace) else { return .notice(.noSpeech) }
+        if let resolved = await resolution?.value { diagnostics.record(ContextJob.event(for: resolved)) }
         processingStage = .insertion
         try await waitForKeyRelease()
         let target = dictationTarget
@@ -343,6 +357,13 @@ public actor DictationCoordinator {
         case .copiedToClipboard(let reason): return .notice(.copiedToClipboard(reason))
         case .notInserted(let reason): return .error(.notInserted(reason))
         }
+    }
+
+    /// Starts waiting for the context of the dictation, at most `contextDeadline`, and then chooses its style.
+    private func startContextResolution() -> Task<ResolvedContext?, Never>? {
+        guard let job = contextJob else { return nil }
+        let sleep = sleep
+        return Task { await job.resolve(deadline: DictationLimits.contextDeadline, sleep: sleep) }
     }
 
     /// Holds the text back while the key of a hold that ran into the recording cap is still down. The inserter would
@@ -406,6 +427,8 @@ public actor DictationCoordinator {
     /// Ends a cycle: shows the outcome, if any, and returns to idle.
     private func settle(_ outcome: PipelineState? = nil) {
         guard phase != .stopped else { return }
+        contextJob?.cancel()
+        contextJob = nil
         if let outcome {
             if case .error(let error) = outcome { diagnostics.record(.dictationFailed(kind: error.kind)) }
             publish(outcome)

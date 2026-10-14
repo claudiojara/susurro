@@ -31,6 +31,10 @@ public enum DictationLimits {
     /// insertion together, and for a hold that ran into the recording cap the wait for the key as well. It is shorter than the sum of their limits, so a dictation cannot hold the coordinator busy
     /// for all of them in a row, and no shorter than the wait for the model, which a first launch can use up.
     public static let processingCap = Duration.seconds(200)
+    /// How long a finished recording waits for the context of the app it was dictated in, from the moment the key comes up.
+    /// A context that is not there by then is left out, and the dictation goes on without it. It is apart from the other
+    /// limits so that a test can run out one and not the others.
+    public static let contextDeadline = Duration.milliseconds(300)
     /// How long a shutdown waits for the inserter to finish what it has in hand, such as putting the clipboard back.
     /// What is left after that is put back by the app as it terminates.
     public static let drainTimeout = Duration.seconds(2)

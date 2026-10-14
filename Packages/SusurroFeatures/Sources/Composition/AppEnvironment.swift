@@ -67,6 +67,8 @@ public final class AppEnvironment {
         /// Tells which app is in front as a dictation starts, so its text goes only to that app. Without it the text is
         /// pasted wherever the focus is when it is ready.
         public var frontmost: (any FrontmostAppProvider)?
+        /// Captures the context of each dictation and chooses its style. Without it no context is captured.
+        public var context: ContextPipeline?
 
         public init(
             hotkeys: any HotkeySource,
@@ -82,7 +84,8 @@ public final class AppEnvironment {
             onboarding: Onboarding,
             theming: Theming,
             clock: any Clock<Duration> = ContinuousClock(),
-            frontmost: (any FrontmostAppProvider)? = nil
+            frontmost: (any FrontmostAppProvider)? = nil,
+            context: ContextPipeline? = nil
         ) {
             self.hotkeys = hotkeys
             self.capture = capture
@@ -98,6 +101,7 @@ public final class AppEnvironment {
             self.theming = theming
             self.clock = clock
             self.frontmost = frontmost
+            self.context = context
         }
     }
 
@@ -130,6 +134,7 @@ public final class AppEnvironment {
             inserter: dependencies.inserter,
             permissions: dependencies.permissions,
             frontmost: dependencies.frontmost,
+            context: dependencies.context,
             diagnostics: dependencies.diagnostics,
             sleep: sleep
         )

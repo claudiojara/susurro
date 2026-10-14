@@ -82,7 +82,8 @@ struct AXContextReaderTests {
             ])
         tree.set(Self.group, [.role: .string("AXGroup"), .parent: .element(Self.webArea)])
         if documentOnWindow {
-            tree.set(Self.webArea, [.role: .string("AXWebArea"), .url: .failure(.noValue), .parent: .failure(.noValue)])
+            tree.set(
+                Self.webArea, [.role: .string("AXWebArea"), .url: .failure(.noValue), .parent: .failure(.noValue)])
             tree.set(Self.window, [.title: .string("Inbox"), .document: .string("https://mail.google.com/mail/u/0/")])
         } else {
             tree.set(
