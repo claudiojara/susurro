@@ -23,7 +23,7 @@ public final class MenuModel {
         MenuContent.make(
             microphone: monitor.statuses[.microphone] ?? .notDetermined,
             accessibility: monitor.statuses[.accessibility] ?? .notDetermined,
-            disabledReason: monitor.disabledReason,
+            restriction: monitor.restriction,
             readiness: readiness)
     }
 

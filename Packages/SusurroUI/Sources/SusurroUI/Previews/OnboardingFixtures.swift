@@ -25,13 +25,13 @@
         static func state(_ screen: Screen) -> OnboardingViewState {
             switch screen {
             case .fresh:
-                OnboardingViewState(rows: rows(.fresh), isDoneEnabled: false, dictationDisabledMessage: longBanner)
+                OnboardingViewState(rows: rows(.fresh), isDoneEnabled: false, restrictionMessage: longBanner)
             case .allGranted:
-                OnboardingViewState(rows: rows(.allGranted), isDoneEnabled: true, dictationDisabledMessage: nil)
+                OnboardingViewState(rows: rows(.allGranted), isDoneEnabled: true, restrictionMessage: nil)
             case .stale:
-                OnboardingViewState(rows: rows(.stale), isDoneEnabled: false, dictationDisabledMessage: shortBanner)
+                OnboardingViewState(rows: rows(.stale), isDoneEnabled: false, restrictionMessage: shortBanner)
             case .withOptional:
-                OnboardingViewState(rows: rows(.withOptional), isDoneEnabled: true, dictationDisabledMessage: nil)
+                OnboardingViewState(rows: rows(.withOptional), isDoneEnabled: true, restrictionMessage: nil)
             }
         }
 

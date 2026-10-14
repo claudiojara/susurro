@@ -16,7 +16,7 @@ public final class OnboardingViewModel: OnboardingViewModeling {
         OnboardingViewState(
             rows: monitor.requested.map(row(for:)),
             isDoneEnabled: monitor.isOnboardingComplete,
-            dictationDisabledMessage: monitor.disabledReason?.message
+            restrictionMessage: monitor.restriction?.message
         )
     }
 

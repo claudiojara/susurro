@@ -164,7 +164,7 @@ struct OnboardingViewModelTests {
         #expect(shown.action?.kind == .request)
     }
 
-    // MARK: Done and the disabled reason
+    // MARK: Done and the restriction
 
     @Test("Done is off before the statuses are read, and on once nothing blocks dictation")
     func doneEnablesWhenNothingBlocks() async {

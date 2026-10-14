@@ -1,8 +1,8 @@
 import Domain
 import SwiftUI
 
-/// The contents of the menu bar menu, in system styling: why dictation is off when it is, with the item that sets Susurro
-/// up, the hotkey, one row for each required permission, the speech model, and Quit. A permission that is not granted has
+/// The contents of the menu bar menu, in system styling: what a missing permission costs when one is missing, with the
+/// item that sets Susurro up, the hotkey, one row for each required permission, the speech model, and Quit. A permission that is not granted has
 /// an item that opens the matching pane of System Settings. The view knows nothing of the model or the application: it
 /// shows `content`, and what its items do is passed in.
 struct MenuView: View {
@@ -12,7 +12,7 @@ struct MenuView: View {
     let onQuit: () -> Void
 
     var body: some View {
-        if let message = content.disabledMessage {
+        if let message = content.restrictionMessage {
             Text(message)
             if let title = content.setUpTitle { Button(title, action: onSetUp) }
             Divider()

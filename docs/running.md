@@ -39,8 +39,10 @@ ignored by git) and set `DEVELOPMENT_TEAM`.
      overlay says so.
    A row turns to "Allowed" within a second of the permission being granted, and Done enables once both are allowed.
    If a permission stays "Waiting" or "Not allowed" 30 seconds after you came back from System Settings, the row shows the
-   steps for it (switch it off and on, remove and add the app again). While dictation is off, the menu says why and has a
-   "Set up Susurro…" item that opens the window again, and a permission that is revoked later opens it again by itself.
+   steps for it (switch it off and on, remove and add the app again). While Microphone is missing dictation is off, and
+   while only Accessibility is missing it still records and the text goes to the clipboard; the menu and the window say
+   which. The menu has a "Set up Susurro…" item that opens the window again, and a permission that is revoked later
+   opens it again by itself.
 2. **The speech model.** The first run downloads the Parakeet v3 model (about 600 MB, once) and compiles it for the
    Neural Engine. The download takes about a minute on a fast connection, and the compile about 25 seconds more. The
    compile is cached for the app's identity, so later launches load the model in under a second, until a macOS update or
@@ -48,10 +50,10 @@ ignored by git) and set `DEVELOPMENT_TEAM`.
    transcription waits for the model.
    The model files live in `~/Library/Application Support/Susurro/Models`, pinned to one reviewed revision.
 
-The menu bar menu shows why dictation is off while a required permission is missing, the hotkey, one row for each
-permission (with an "Open System Settings" item while one is missing), the state of the speech model, and Quit. The app
-reads the permissions when it becomes active and every second, so a permission you grant or revoke in System Settings
-shows within a second, without a relaunch.
+The menu bar menu says what a missing required permission costs (dictation is off, or the text goes to the
+clipboard), the hotkey, one row for each permission (with an "Open System Settings" item while one is missing), the
+state of the speech model, and Quit. The app reads the permissions when it becomes active and every second, so a
+permission you grant or revoke in System Settings shows within a second, without a relaunch.
 
 ## Dictate
 
@@ -104,8 +106,10 @@ macOS permission prompts cannot and must not be answered by a script):
       system prompt once, "Allow Accessibility" shows the prompt that leads to System Settings, each row turns to
       "Allowed" within a second of the grant, Done enables when both are allowed, and the window is not there at the
       next launch.
-- [ ] Revoke Accessibility in System Settings while the app runs: within about a second the menu says dictation is off,
-      the onboarding window opens with the banner, and a press of the hotkey gives the overlay notice.
+- [ ] Revoke Accessibility in System Settings while the app runs: within about a second the menu says dictated text goes
+      to the clipboard, the onboarding window opens with that banner, and the next dictation still records and leaves the
+      text on the clipboard with the overlay notice.
+- [ ] Revoke Microphone while the app runs: the menu and the banner say dictation is off, and the hotkey records nothing.
 - [ ] Open System Settings from a row, leave Accessibility off for 30 seconds after coming back: the row shows the
       troubleshooting steps (and, with the toggle on but not read, the steps are the way out).
 - [ ] The menu bar icon opens the menu, the "Set up Susurro…" item opens the window again, and a permission row turns to

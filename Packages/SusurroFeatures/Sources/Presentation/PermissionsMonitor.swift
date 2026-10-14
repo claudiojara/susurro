@@ -9,9 +9,10 @@ import Observation
 /// that rarely becomes active, so the read on a timer is what finds a revocation while the app idles. A second costs
 /// little: each status is one call to the system that raises no prompt, about 80 microseconds of CPU (Accessibility,
 /// about 1) plus a wait of about 3 ms on the privacy service that is not on the main actor, measured on this Mac.
-/// Only the requested permissions are read (`PermissionPolicy.requested(for:)`), and only the required ones can disable
-/// dictation or bring the onboarding back (`blocking`): a conditional permission that is missing leaves its own feature
-/// inactive and nothing else.
+/// Only the requested permissions are read (`PermissionPolicy.requested(for:)`), and only the required ones can restrict
+/// dictation or bring the onboarding back (`missingRequired`): Microphone missing turns dictation off (`blocking`),
+/// Accessibility missing sends the transcript to the clipboard, and a conditional permission that is missing leaves its
+/// own feature inactive and nothing else.
 ///
 /// It also follows what the user was asked to do (`followUps`). A permission the user was asked for with a prompt, or sent
 /// to System Settings for, is followed until its status changes. If it has not changed `staleAfter` after the user came
@@ -89,15 +90,17 @@ public final class PermissionsMonitor {
 
     /// What the setup asks the user for, the onboarding rows.
     public var requested: [Permission] { PermissionPolicy.requested(for: needs) }
-    /// The required permissions that are not granted.
+    /// The permissions that are not granted and without which dictation cannot record: Microphone.
     public var blocking: [Permission] { PermissionPolicy.blocking(statuses: statuses) }
+    /// The required permissions that are not granted, the ones the onboarding still asks for.
+    public var missingRequired: [Permission] { PermissionPolicy.missingRequired(statuses: statuses) }
     public var isOnboardingComplete: Bool { PermissionPolicy.isOnboardingComplete(statuses: statuses) }
     /// Whether the onboarding must be shown: a required permission is missing, once the statuses are known.
     public var needsOnboarding: Bool { hasReadStatuses && !isOnboardingComplete }
-    /// Why dictation is off, from `blocking` only, or nil when nothing blocks it.
-    /// Nothing is said before the first read, as with `needsOnboarding`, because nothing is known yet.
-    public var disabledReason: DictationDisabledReason? {
-        hasReadStatuses ? DictationDisabledReason(blocking: blocking) : nil
+    /// What the missing required permissions cost, or nil when none is missing. Nothing is said before the first read,
+    /// as with `needsOnboarding`, because nothing is known yet.
+    public var restriction: DictationRestriction? {
+        hasReadStatuses ? DictationRestriction(missing: missingRequired) : nil
     }
     /// Where the monitor stands with each permission the user was asked to act on and whose status has not changed since.
     public var followUps: [Permission: FollowUp] { steps.mapValues(\.phase) }

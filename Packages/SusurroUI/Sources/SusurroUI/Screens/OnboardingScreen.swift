@@ -1,7 +1,7 @@
 import DesignSystem
 import SwiftUI
 
-/// The onboarding: what Susurro needs and why, a banner while dictation is off, the permissions with the step for each,
+/// The onboarding: what Susurro needs and why, a banner while a required permission is missing, the permissions with the step for each,
 /// and the buttons to check again and to finish. It is a pure function of the state and the theme: what the steps and
 /// the buttons do is passed in, and the screen asks the system for nothing.
 struct OnboardingScreen: View {
@@ -30,7 +30,7 @@ struct OnboardingScreen: View {
                     .accessibilityAddTraits(.isHeader)
                 TextLabel(Copy.subtitle, tint: .neutral)
             }
-            if let message = state.dictationDisabledMessage {
+            if let message = state.restrictionMessage {
                 Banner(message)
             }
             PermissionChecklist(state.rows, onAction: onAction)

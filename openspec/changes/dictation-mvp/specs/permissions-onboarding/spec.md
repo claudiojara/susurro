@@ -14,7 +14,7 @@ The system MUST expose the status (not determined, granted, denied) of Microphon
 
 ### Requirement: Required vs conditional permissions
 
-Microphone and Accessibility MUST be required for dictation. Input Monitoring MUST be requested only when a modifier-only or fn hotkey is selected. Screen Recording MUST be requested only when OCR is enabled. Unneeded permissions MUST NOT be requested.
+Microphone MUST be required to record; Accessibility MUST be required for automatic paste. Both are requested by the onboarding. Input Monitoring MUST be requested only when a modifier-only or fn hotkey is selected. Screen Recording MUST be requested only when OCR is enabled. Unneeded permissions MUST NOT be requested.
 
 #### Scenario: Default setup
 
@@ -30,13 +30,19 @@ Microphone and Accessibility MUST be required for dictation. Input Monitoring MU
 
 ### Requirement: Guided request flow
 
-For each missing permission the onboarding MUST explain why it is needed, trigger the system request or open the matching System Settings pane, and show a waiting state until the status changes. Dictation MUST be disabled with a visible reason while a required permission is missing.
+For each missing permission the onboarding MUST explain why it is needed, trigger the system request or open the matching System Settings pane, and show a waiting state until the status changes. Dictation MUST be disabled with a visible reason while Microphone is missing. While Accessibility is missing, dictation MUST run and the transcript MUST go to the clipboard with a notice (text-insertion: Failure fallback); the menu and onboarding MUST say so.
 
 #### Scenario: Missing required permission
 
 - GIVEN Microphone is denied
 - WHEN the user opens the menu or presses the hotkey
 - THEN the missing permission and a link to the settings pane are shown and no recording starts
+
+#### Scenario: Accessibility missing
+
+- GIVEN Microphone is granted and Accessibility is denied
+- WHEN the user dictates
+- THEN recording and transcription run, the transcript is on the clipboard with a notice that names Accessibility, and the menu and onboarding say that dictated text goes to the clipboard
 
 ### Requirement: Runtime revocation
 
@@ -46,7 +52,7 @@ If a permission is revoked while running, the system MUST detect it, disable the
 
 - GIVEN the app is idle and Accessibility is granted
 - WHEN it is revoked
-- THEN the status updates and dictation is disabled with a reason
+- THEN the status updates, the banner says dictated text is copied to the clipboard, and the next dictation still records
 
 ### Requirement: Stale-grant guidance
 

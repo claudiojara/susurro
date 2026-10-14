@@ -246,7 +246,7 @@ struct PermissionsMonitorTests {
         #expect(rig.monitor.needsOnboarding)
     }
 
-    @Test("Accessibility revoked does not block recording: the onboarding comes back and the restriction says the clipboard")
+    @Test("Accessibility revoked does not block recording: the onboarding returns and the restriction says clipboard")
     func accessibilityRevoked() async {
         let rig = Rig([.microphone: .granted, .accessibility: .granted])
         await rig.monitor.refresh()

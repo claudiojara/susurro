@@ -44,7 +44,7 @@ struct OnboardingScreenTests {
         #expect(try Probe.theme(.light).size(.onboardingWidth) == 440)
     }
 
-    @Test("the banner is there when dictation is off, and is not when nothing holds it back")
+    @Test("the banner is there when a required permission is missing, and is not when nothing is")
     func bannerFollowsTheMessage() {
         let off = state(.fresh)
         let withoutMessage = OnboardingViewState(
