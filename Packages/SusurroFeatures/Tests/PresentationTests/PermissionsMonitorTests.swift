@@ -870,5 +870,6 @@ struct PermissionsMonitorTests {
         await rig.settle()
 
         #expect(rig.monitor.followUps.isEmpty)
+        #expect(!rig.diagnostics.events.contains(.permissionGuidanceShown(permission: .accessibility)))
     }
 }

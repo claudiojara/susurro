@@ -43,6 +43,21 @@ public struct OSLogDiagnostics: DiagnosticsLog {
         case .settingUnreadable(let key): (.error, "setting unreadable, its default is used: \(key)")
         case .launchPermissions(let microphone, let accessibility):
             (.default, "permissions at launch: microphone \(microphone), accessibility \(accessibility)")
+        case .permissionStatusChanged(let permission, let from, let to):
+            (.default, Self.describeChange(of: permission, from: from, to: to))
+        case .permissionGuidanceShown(let permission):
+            (.default, "permission \(permission): troubleshooting steps shown")
+        case .permissionRequestEnded(let permission, let status):
+            (.default, "permission \(permission): request ended, now \(status)")
         }
+    }
+
+    /// A change from granted is a revocation, which the line says. The first read has no status before it.
+    private static func describeChange(of permission: Permission, from: PermissionStatus?, to: PermissionStatus)
+        -> String
+    {
+        let before = from.map { String(describing: $0) } ?? "unread"
+        let revoked = from == .granted && to != .granted
+        return "permission \(permission)\(revoked ? " revoked" : ""): \(before) -> \(to)"
     }
 }

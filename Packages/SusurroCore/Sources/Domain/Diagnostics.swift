@@ -48,6 +48,14 @@ public enum DiagnosticEvent: Sendable, Equatable {
     /// The status of the two required permissions once the launch prompts were answered. Each is "granted", "denied",
     /// or "notDetermined".
     case launchPermissions(microphone: String, accessibility: String)
+    /// A read of a permission's status differs from the one before. `from` is nil the first time the permission is read.
+    /// A change from granted is a revocation. Only the permission and its status are recorded.
+    case permissionStatusChanged(permission: Permission, from: PermissionStatus?, to: PermissionStatus)
+    /// The permission stayed as it was long after the user was sent to System Settings, so the troubleshooting steps for
+    /// it were shown.
+    case permissionGuidanceShown(permission: Permission)
+    /// A request to the system for the permission returned, and a read after it found the permission in `status`.
+    case permissionRequestEnded(permission: Permission, status: PermissionStatus)
 }
 
 /// Where the pipeline reports what it would otherwise swallow. The live log lives in the platform package.
