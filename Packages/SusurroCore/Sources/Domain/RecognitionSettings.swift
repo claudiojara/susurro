@@ -17,6 +17,16 @@ public enum SpeechLanguageMode: String, Sendable, Equatable, CaseIterable {
 }
 
 public enum RecognitionSettings {
+    /// The id of the selected recognizer. An id that no registered recognizer has reads as the default one.
+    public static let provider = SettingKey<String>(
+        area: "recognition", name: "provider", default: ASRProviderID.parakeetV3.rawValue)
+
+    /// Whether the user turned a cloud recognizer on. Nothing is sent to a service until this is true, the recognizer is
+    /// selected, and it has a key. Provider ids have no dots.
+    public static func cloudEnabled(for provider: ASRProviderID) -> SettingKey<Bool> {
+        SettingKey<Bool>(area: "recognition", name: "enabled-\(provider.rawValue)", default: false)
+    }
+
     /// The language choice of the Settings screen.
     public static let languageMode = SettingKey<SpeechLanguageMode>(
         area: "recognition", name: "languageMode", default: .guaranteedSpanish)

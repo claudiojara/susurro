@@ -53,7 +53,18 @@ public struct ASRProviderID: Sendable, Hashable {
     }
 }
 
+extension ASRProviderID {
+    /// The default provider: Parakeet v3, which runs on this Mac.
+    public static let parakeetV3 = ASRProviderID("parakeet-v3")
+}
+
 public protocol SpeechRecognizer: Sendable {
+    /// The name under which the recognizer is selected, and recorded in the history.
+    var id: ASRProviderID { get }
+    var locality: Locality { get }
+    /// The longest clip the recognizer takes in one call, or nil when it takes any length. The pipeline splits a longer
+    /// clip at silences and joins the transcripts in order.
+    var maxClipDuration: Duration? { get }
     func readiness() async -> RecognizerReadiness
     /// Starts loading the model, or tries again after a failure, and returns at once. It does nothing while a load runs
     /// or once the model is ready, so calling it again is harmless. The coordinator calls it on every press that does

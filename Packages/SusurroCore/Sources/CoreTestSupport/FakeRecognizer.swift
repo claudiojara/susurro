@@ -1,4 +1,5 @@
 import Domain
+import Foundation
 import Synchronization
 
 /// A recognizer with scripted readiness and a fixed result. It logs every call in order.
@@ -12,10 +13,15 @@ public final class FakeRecognizer: SpeechRecognizer {
     private struct State {
         var script: [RecognizerReadiness]
         var calls: [Call] = []
+        var options: [RecognitionOptions] = []
     }
 
     /// Opened when `transcribe` is entered.
     public let transcribeEntered = Gate()
+    public let id: ASRProviderID
+    public let locality: Locality
+    public let maxClipDuration: Duration?
+    private let transport: (any NetworkTransport)?
     private let state: Mutex<State>
     private let result: Result<String, any Error>
     private let gate: Gate?
@@ -25,14 +31,25 @@ public final class FakeRecognizer: SpeechRecognizer {
     /// `readiness` has one value per call and the last one repeats. A `failure` makes `transcribe` throw. A `gated`
     /// recognizer suspends in `transcribe` until `releaseTranscription()`. A recognizer that is `readyAfterPrepare`
     /// reads as ready from the first `prepare()` on, and one with a `gatedPrepare` never returns from it.
+    ///
+    /// A cloud recognizer (`locality`) sends a request through `transport` for each transcription, as a real one would,
+    /// so a test can show that a local one sent nothing.
     public init(
         readiness: [RecognizerReadiness] = [.ready],
         transcript: String = "hello",
         failure: (any Error)? = nil,
         gated: Bool = false,
         readyAfterPrepare: Bool = false,
-        gatedPrepare: Bool = false
+        gatedPrepare: Bool = false,
+        id: ASRProviderID = ASRProviderID("fake"),
+        locality: Locality = .local,
+        maxClipDuration: Duration? = nil,
+        transport: (any NetworkTransport)? = nil
     ) {
+        self.id = id
+        self.locality = locality
+        self.maxClipDuration = maxClipDuration
+        self.transport = transport
         state = Mutex(State(script: readiness))
         result = failure.map { .failure($0) } ?? .success(transcript)
         gate = gated ? Gate() : nil
@@ -47,6 +64,9 @@ public final class FakeRecognizer: SpeechRecognizer {
             if case .transcribe(let clip) = call { clip } else { nil }
         }
     }
+
+    /// The options of each transcription, in order.
+    public var receivedOptions: [RecognitionOptions] { state.withLock { $0.options } }
 
     public func releaseTranscription() { gate?.open() }
 
@@ -71,8 +91,14 @@ public final class FakeRecognizer: SpeechRecognizer {
     }
 
     public func transcribe(_ clip: AudioClip, options: RecognitionOptions) async throws -> RawTranscript {
-        state.withLock { $0.calls.append(.transcribe(clip)) }
+        state.withLock { state in
+            state.calls.append(.transcribe(clip))
+            state.options.append(options)
+        }
         transcribeEntered.open()
+        if let transport {
+            _ = try await transport.send(URLRequest(url: URL(string: "https://speech.example.invalid/transcribe")!))
+        }
         await gate?.wait()
         return RawTranscript(text: try result.get())
     }
