@@ -91,7 +91,7 @@ struct MenuContentTests {
     @Test(
         "a follow-up changes the step as it does in the onboarding: nothing while the prompt is up, Settings after",
         arguments: [
-            (nil as PermissionsMonitor.FollowUp?, PermissionStep.Action.request),
+            (nil as PermissionsMonitor.FollowUp?, PermissionStep.Action.request as PermissionStep.Action?),
             (.requesting, nil),
             (.sentToSettings, .openSettings),
             (.stale, .openSettings),

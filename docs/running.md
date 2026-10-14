@@ -51,8 +51,9 @@ ignored by git) and set `DEVELOPMENT_TEAM`.
    The model files live in `~/Library/Application Support/Susurro/Models`, pinned to one reviewed revision.
 
 The menu bar menu says what a missing required permission costs (dictation is off, or the text goes to the
-clipboard), the hotkey, one row for each permission (with an "Open System Settings" item while one is missing), the
-state of the speech model, and Quit. The app reads the permissions when it becomes active and every second, so a
+clipboard), the hotkey, one row for each permission (with the item for the step that fits while one is missing: "Allow
+Microphone…" when it was never asked, "Open System Settings for Microphone…" when it was refused, "Allow
+Accessibility…" first for Accessibility), the state of the speech model, and Quit. The app reads the permissions when it becomes active and every second, so a
 permission you grant or revoke in System Settings shows within a second, without a relaunch.
 
 ## Dictate
@@ -105,7 +106,7 @@ macOS permission prompts cannot and must not be answered by a script):
       dev.claudiojara.susurro` and `tccutil reset Accessibility dev.claudiojara.susurro`). "Allow Microphone" shows the
       system prompt once, "Allow Accessibility" shows the prompt that leads to System Settings, each row turns to
       "Allowed" within a second of the grant, Done enables when both are allowed, and the window is not there at the
-      next launch.
+      next launch. Before Microphone is answered, the menu item says "Allow Microphone…" and shows the same prompt.
 - [ ] Revoke Accessibility in System Settings while the app runs: within about a second the menu says dictated text goes
       to the clipboard, the onboarding window opens with that banner, and the next dictation still records and leaves the
       text on the clipboard with the overlay notice.
