@@ -15,6 +15,9 @@ public nonisolated struct RGBAColor: Hashable, Sendable, Codable {
         self.alpha = alpha
     }
 
+    /// What stands in for a color that cannot be read, where the rest of its theme is still being checked.
+    public static let placeholder = RGBAColor(red: 0, green: 0, blue: 0)
+
     /// Reads `#RRGGBB` or `#RRGGBBAA`, in either case. Anything else is nil.
     public init?(hex: String) {
         guard hex.hasPrefix("#") else { return nil }

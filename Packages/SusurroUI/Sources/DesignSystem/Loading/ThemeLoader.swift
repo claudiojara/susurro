@@ -208,7 +208,7 @@ public nonisolated enum ThemeLoader {
     /// What stands in for a bad or missing part of a palette color the bundled theme does not have, so that the
     /// color's other part is still checked. Only palette colors are named by a file; every other value has a bundled
     /// one to fall back on.
-    private static let placeholderColor = "#000000"
+    private static let placeholderColor = RGBAColor.placeholder.hex
 
     /// Takes the value at `path` out of the way so the merge can go on, and says whether it could.
     ///

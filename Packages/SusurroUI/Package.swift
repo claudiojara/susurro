@@ -20,7 +20,7 @@ let package = Package(
             dependencies: ["DesignSystem"],
             swiftSettings: [.defaultIsolation(MainActor.self)]
         ),
-        .testTarget(name: "DesignSystemTests", dependencies: ["DesignSystem"]),
+        .testTarget(name: "DesignSystemTests", dependencies: ["DesignSystem"], exclude: ["Fixtures"]),
         .testTarget(name: "SusurroUITests", dependencies: ["SusurroUI"]),
     ],
     swiftLanguageModes: [.v6]

@@ -1,0 +1,9 @@
+import SwiftUI
+
+struct ViolatingView: View {
+    var body: some View {
+        Text("Recording")
+            .background(Color(red: 0.8, green: 0.1, blue: 0.1))
+            .cornerRadius(8)
+    }
+}
