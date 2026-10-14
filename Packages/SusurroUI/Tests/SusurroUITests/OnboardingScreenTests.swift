@@ -16,8 +16,8 @@ extension OnboardingViewState {
 @MainActor
 @Suite("Onboarding screen")
 struct OnboardingScreenTests {
-    private func screen(_ state: OnboardingViewState) -> OnboardingScreen {
-        OnboardingScreen(state: state, onAction: { _, _ in }, onRecheck: {}, onDone: {})
+    private func screen(_ state: OnboardingViewState, maxHeight: CGFloat? = nil) -> OnboardingScreen {
+        OnboardingScreen(state: state, maxHeight: maxHeight, onAction: { _, _ in }, onRecheck: {}, onDone: {})
     }
 
     private func state(_ fixture: OnboardingFixtures.Screen) -> OnboardingViewState {
@@ -69,6 +69,53 @@ struct OnboardingScreenTests {
         let twoWithout = two.with(restrictionMessage: .some(nil), isDoneEnabled: true)
 
         #expect(Probe.height(of: screen(four), width: 440) > Probe.height(of: screen(twoWithout), width: 440) + 100)
+    }
+
+    // MARK: A cap on the height
+
+    @Test("a screen taller than the height it is given stays within it, with the title and both buttons in view")
+    func capKeepsTheScreenWithinTheHeight() throws {
+        let tall = state(.withOptional)
+        let natural = Probe.height(of: screen(tall), width: 440)
+        let cap: CGFloat = 400
+        let capped = screen(tall, maxHeight: cap)
+        let size = CGSize(width: 440 + 2 * SnapshotSupport.margin(), height: cap + 2 * SnapshotSupport.margin())
+
+        let height = Probe.height(of: capped, width: 440)
+        let picture = Probe.picture(of: capped, size: size, scheme: .light)
+        let theme = try Probe.theme(.light)
+        let done = try #require(
+            SnapshotSupport.extent(of: picture, matching: theme.color(.accentPrimary), tolerance: Probe.exact))
+
+        #expect(natural > cap + 100, "the screen must be taller than the cap for this test to mean anything")
+        #expect(height <= cap, "\(height) against the cap \(cap)")
+        // The foot stays at the bottom of the capped screen, inside its padding, and does not scroll away.
+        let foot = size.height - SnapshotSupport.margin() - theme.spacing(.xl)
+        #expect(abs(done.maxY - foot) <= 3, "\(done) against the foot at \(foot)")
+    }
+
+    @Test(
+        "a screen that fits the height it is given is as tall as one with no cap, and so is one with a cap of nothing")
+    func capLeavesAFittingScreenAlone() {
+        let two = state(.fresh)
+        let natural = Probe.height(of: screen(two), width: 440)
+
+        #expect(Probe.height(of: screen(two, maxHeight: natural + 300), width: 440) == natural)
+        #expect(Probe.height(of: screen(two, maxHeight: nil), width: 440) == natural)
+    }
+
+    @Test(
+        "the more room there is, the more of the checklist shows: a taller cap gives a taller screen up to its content")
+    func capGrowsWithTheRoom() {
+        let tall = state(.withOptional)
+        let natural = Probe.height(of: screen(tall), width: 440)
+
+        let small = Probe.height(of: screen(tall, maxHeight: 400), width: 440)
+        let larger = Probe.height(of: screen(tall, maxHeight: 500), width: 440)
+        let roomy = Probe.height(of: screen(tall, maxHeight: natural + 200), width: 440)
+
+        #expect(small < larger)
+        #expect(roomy == natural)
     }
 
     // MARK: Words
