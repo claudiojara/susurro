@@ -24,6 +24,15 @@ public final class InMemorySecretStore: SecretStore {
         }
     }
 
+    /// Answers without counting a read, as the Keychain's answer to a question about the attributes does: the key is not
+    /// handed over.
+    public func hasSecret(for account: SecretAccount) -> Bool {
+        state.withLock { state in
+            guard state.failure == nil, let secret = state.secrets[account] else { return false }
+            return !secret.isEmpty
+        }
+    }
+
     public func set(_ secret: String?, for account: SecretAccount) {
         state.withLock { $0.secrets[account] = secret }
     }
