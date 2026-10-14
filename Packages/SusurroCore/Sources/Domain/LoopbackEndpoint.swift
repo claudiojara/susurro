@@ -20,6 +20,21 @@ public enum LoopbackEndpoint {
     }
 }
 
+/// The rule for the address of a cloud service the user configured. The transcript goes there, so the connection has to
+/// be encrypted, unless the service runs on this Mac (a local proxy).
+public enum CloudEndpoint {
+    public static func validated(_ text: String) -> URL? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let components = URLComponents(string: trimmed), let scheme = components.scheme?.lowercased(),
+            components.user == nil, components.password == nil, let host = components.host, !host.isEmpty,
+            let url = components.url
+        else { return nil }
+        if scheme == "https" { return url }
+        if scheme == "http", LoopbackEndpoint.validated(trimmed) != nil { return url }
+        return nil
+    }
+}
+
 /// The rule for the path of a program the user configured to run.
 public enum ExecutablePath {
     /// Why a path cannot be run.

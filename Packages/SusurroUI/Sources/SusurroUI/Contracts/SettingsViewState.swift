@@ -88,13 +88,19 @@ public nonisolated struct ProviderFieldState: Equatable, Sendable, Identifiable 
     public let placeholder: String
     /// What is wrong with the value, or nil when it is usable.
     public let error: String?
+    /// The values to pick from, when the field is a choice and not free text. `value` is the id of the one picked.
+    public let choices: [SettingsChoice]
 
-    public init(id: String, label: String, value: String, placeholder: String, error: String?) {
+    public init(
+        id: String, label: String, value: String, placeholder: String = "", error: String? = nil,
+        choices: [SettingsChoice] = []
+    ) {
         self.id = id
         self.label = label
         self.value = value
         self.placeholder = placeholder
         self.error = error
+        self.choices = choices
     }
 }
 

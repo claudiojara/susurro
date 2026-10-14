@@ -10,6 +10,8 @@ public final class ThemeModel {
     public private(set) var theme: Theme
     /// What was wrong with the theme file in use, or nothing when it was used.
     public private(set) var errors: [ThemeError] = []
+    /// Whether the windows follow the system's light or dark, or always use one of them.
+    public var appearance: AppearanceOverride = .system
 
     public init(theme: Theme = .default) {
         self.theme = theme

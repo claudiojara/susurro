@@ -36,6 +36,16 @@ public struct SettingsRecognitionLanguage: RecognitionLanguageSource {
     }
 }
 
+/// The ids the settings store for the providers, which the recognizers and the cleaners answer to.
+public enum ProviderID {
+    public static let parakeetV3 = "parakeet-v3"
+    public static let localWhisper = "local-whisper"
+    public static let deepgram = "deepgram"
+    public static let appleIntelligence = "apple-intelligence"
+    public static let anthropic = "anthropic"
+    public static let openAICompatible = "openai-compatible"
+}
+
 /// The settings of speech recognition. A value nobody set is the default, and a stored value that does not read as its
 /// type is the default too.
 public enum SpeechSettings {

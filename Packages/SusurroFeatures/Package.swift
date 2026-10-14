@@ -39,6 +39,7 @@ let package = Package(
             name: "PresentationTests",
             dependencies: [
                 "Presentation",
+                .product(name: "SusurroPlatform", package: "SusurroPlatform"),
                 .product(name: "SusurroCore", package: "SusurroCore"),
                 .product(name: "CoreTestSupport", package: "SusurroCore"),
                 .product(name: "SusurroUI", package: "SusurroUI"),
