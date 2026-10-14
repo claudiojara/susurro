@@ -1,0 +1,122 @@
+import Domain
+import TextShaping
+import Testing
+
+@testable import AppleIntelligenceCleaner
+
+@Suite("Apple Intelligence cleaner", .timeLimit(.minutes(1)))
+struct AppleIntelligenceCleanerTests {
+    private let style = StyleProfile(category: .email, tone: .formal)
+
+    private func local(_ transcript: String = "hola equipo") -> CleanupPayload {
+        .local(
+            LocalCleanupRequest(
+                transcript: transcript, style: style, vocabulary: ["Acme"], beforeCursor: "Dear team,"))
+    }
+
+    @Test("it is local, named Apple Intelligence, and budgeted for the on-device model")
+    func identity() {
+        let cleaner = AppleIntelligenceCleaner(engine: FakeFoundationModelsEngine())
+        #expect(cleaner.id == .appleIntelligence)
+        #expect(cleaner.locality == .local)
+        #expect(cleaner.budget == .foundationModels)
+    }
+
+    @Test("availability maps what the system reports")
+    func availabilityMapping() async {
+        let cases: [(EngineAvailability, CleanerAvailability)] = [
+            (.available, .available),
+            (.unavailable(.deviceNotEligible), .unavailable("This Mac does not support Apple Intelligence.")),
+            (
+                .unavailable(.appleIntelligenceNotEnabled),
+                .unavailable("Apple Intelligence is turned off in System Settings.")
+            ),
+            (.unavailable(.modelNotReady), .unavailable("The Apple Intelligence model is not ready yet.")),
+            (.unavailable(.other), .unavailable("Apple Intelligence is not available.")),
+        ]
+        for (engine, expected) in cases {
+            let cleaner = AppleIntelligenceCleaner(engine: FakeFoundationModelsEngine(availability: engine))
+            #expect(await cleaner.availability() == expected)
+        }
+    }
+
+    @Test("the request is the prompt builder's output, sampled greedily, and the answer comes back")
+    func request() async throws {
+        let engine = FakeFoundationModelsEngine(answer: "Hola, equipo.")
+        let cleaner = AppleIntelligenceCleaner(engine: engine)
+        let payload = local()
+        let text = try await cleaner.clean(payload)
+
+        let expected = PromptBuilder.build(try payload.requireLocal())
+        #expect(text == "Hola, equipo.")
+        #expect(engine.requests == [EngineRequest(instructions: expected.system, prompt: expected.user, sampling: .greedy)])
+    }
+
+    @Test("a cloud payload is refused and the model is never called")
+    func cloudPayloadThrows() async {
+        let engine = FakeFoundationModelsEngine()
+        let cleaner = AppleIntelligenceCleaner(engine: engine)
+        let payload = CleanupPayload.cloud(CloudCleanupRequest(transcript: "hola", style: style, vocabulary: []))
+        await #expect(throws: CloudBoundaryViolation.self) { try await cleaner.clean(payload) }
+        #expect(engine.requests.isEmpty)
+    }
+
+    @Test("model errors map to cleaner errors")
+    func errorMapping() async {
+        struct Other: Error {}
+        let cases: [(any Error, CleanerError)] = [
+            (EngineError.guardrailViolation, .guardrail),
+            (EngineError.contextWindowExceeded, .contextWindowExceeded),
+            (EngineError.failed("boom"), .failed("boom")),
+            (Other(), .failed(String(describing: Other()))),
+        ]
+        for (failure, expected) in cases {
+            let cleaner = AppleIntelligenceCleaner(engine: FakeFoundationModelsEngine(failure: failure))
+            await #expect(throws: expected) { try await cleaner.clean(local()) }
+        }
+    }
+
+    @Test("concurrent calls run one at a time, in the order they arrived")
+    func calls() async throws {
+        let engine = FakeFoundationModelsEngine(gated: true)
+        let cleaner = AppleIntelligenceCleaner(engine: engine)
+        let first = Task { try await cleaner.clean(local("one")) }
+        await engine.entered.wait()
+        let second = Task { try await cleaner.clean(local("two")) }
+        try #require(await waitForQueue(cleaner, count: 1))
+        let third = Task { try await cleaner.clean(local("three")) }
+        try #require(await waitForQueue(cleaner, count: 2))
+        for _ in 0..<3 { engine.release() }
+        _ = try await [first.value, second.value, third.value]
+
+        #expect(engine.peakActive == 1)
+        #expect(engine.requests.map { $0.prompt.contains("<TRANSCRIPT>one<") ? "one" : $0.prompt.contains(">two<") ? "two" : "three" } == ["one", "two", "three"])
+    }
+
+    @Test("a cancelled call leaves the queue at once")
+    func cancelledWaiter() async throws {
+        let engine = FakeFoundationModelsEngine(gated: true)
+        let cleaner = AppleIntelligenceCleaner(engine: engine)
+        let first = Task { try await cleaner.clean(local("one")) }
+        await engine.entered.wait()
+        let second = Task { try await cleaner.clean(local("two")) }
+        try #require(await waitForQueue(cleaner, count: 1))
+        second.cancel()
+        try #require(await waitForQueue(cleaner, count: 0))
+        await #expect(throws: CancellationError.self) { try await second.value }
+        engine.release()
+        _ = try await first.value
+        #expect(engine.requests.count == 1)
+    }
+
+    /// Waits until exactly `count` calls are queued behind the one running. False after ten seconds, so a regression
+    /// fails instead of hanging.
+    private func waitForQueue(_ cleaner: AppleIntelligenceCleaner, count: Int) async -> Bool {
+        let deadline = ContinuousClock.now + .seconds(10)
+        while await cleaner.queuedCalls != count {
+            guard ContinuousClock.now < deadline, !Task.isCancelled else { return false }
+            await Task.yield()
+        }
+        return true
+    }
+}
