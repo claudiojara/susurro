@@ -41,7 +41,7 @@ public struct SettingsDependencies {
     /// Whether the account has a key in the key store. The key itself is never read here.
     public var hasKey: @Sendable (SecretAccount) -> Bool
     public var permissions: any PermissionsChecker
-    public var hotkey: @Sendable () -> HotkeyDescription
+    public var hotkey: @MainActor () -> HotkeyDescription
     /// Whether Secure Event Input is on right now.
     public var secureInputActive: @Sendable () -> Bool
     /// The overlay variants that exist. The one with `OverlayVariantOption.defaultID` must be among them.
@@ -63,7 +63,7 @@ public struct SettingsDependencies {
         settings: any SettingsStore,
         hasKey: @escaping @Sendable (SecretAccount) -> Bool,
         permissions: any PermissionsChecker,
-        hotkey: @escaping @Sendable () -> HotkeyDescription,
+        hotkey: @escaping @MainActor () -> HotkeyDescription,
         secureInputActive: @escaping @Sendable () -> Bool,
         overlayVariants: [OverlayVariantOption],
         style: any StylePreferencesStore,

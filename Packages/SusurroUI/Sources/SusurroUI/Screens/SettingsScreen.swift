@@ -3,7 +3,7 @@ import SwiftUI
 
 /// The settings: a bar of tabs and the tab in use. The window has the size the theme says and does not change from one
 /// tab to the next, so a tab with more in it scrolls. A pure function of the state and the theme: what the controls do
-/// is passed in, and the hotkey recorder, a native control, is a slot the app fills.
+/// is passed in, and the hotkey recorder is a slot the app fills.
 struct SettingsScreen<Recorder: View>: View {
     @Environment(\.theme) private var theme
     @Environment(\.staticControls) private var isStatic

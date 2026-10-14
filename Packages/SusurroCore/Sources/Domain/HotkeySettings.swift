@@ -19,4 +19,11 @@ extension SettingsStore {
         set(configuration.combo, for: HotkeySettings.combo)
         set(configuration.kind, for: HotkeySettings.kind)
     }
+
+    /// Goes back to the default hotkey by removing what the user chose, not by storing the default: nothing is stored
+    /// until the user chooses, so the default can still change for everyone who never did.
+    public func resetHotkey() {
+        remove(HotkeySettings.combo)
+        remove(HotkeySettings.kind)
+    }
 }

@@ -54,7 +54,7 @@ public final class AppEnvironment {
             public var window: @MainActor (SettingsViewModel, ThemeModel) -> any SettingsSurface
             /// Whether the key store has a key for the account. The key itself is never read for the settings.
             public var hasKey: @Sendable (SecretAccount) -> Bool
-            public var hotkey: @Sendable () -> HotkeyDescription
+            public var hotkey: @MainActor () -> HotkeyDescription
             public var secureInputActive: @Sendable () -> Bool
             public var overlayVariants: [OverlayVariantOption]
             public var style: any StylePreferencesStore
@@ -66,7 +66,7 @@ public final class AppEnvironment {
             public init(
                 window: @escaping @MainActor (SettingsViewModel, ThemeModel) -> any SettingsSurface,
                 hasKey: @escaping @Sendable (SecretAccount) -> Bool,
-                hotkey: @escaping @Sendable () -> HotkeyDescription,
+                hotkey: @escaping @MainActor () -> HotkeyDescription,
                 secureInputActive: @escaping @Sendable () -> Bool,
                 overlayVariants: [OverlayVariantOption],
                 style: any StylePreferencesStore,

@@ -2,8 +2,8 @@ import SwiftUI
 
 /// Puts the settings screen in front of the code that drives it. It reads the state of its model and sends the steps the
 /// user takes to it: the screen below knows neither. The model computes `state` from observable properties, so a change
-/// redraws the screen without anything here asking for it. The recorder of the hotkey is a native control from the
-/// platform, which the UI package cannot import, so the app passes it in.
+/// redraws the screen without anything here asking for it. The recorder of the hotkey (`HotkeyRecorderContainer`) is built
+/// by the app over the keys of the platform, which the UI package cannot import, so the app passes it in.
 public struct SettingsContainer<Recorder: View>: View {
     private let model: any SettingsViewModeling
     private let recorder: Recorder

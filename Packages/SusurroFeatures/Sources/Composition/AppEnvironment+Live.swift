@@ -148,15 +148,22 @@ extension AppEnvironment.Dependencies {
     }
 
     /// What the settings window reads from the system. The key store is the user's Keychain, asked only whether a key is
-    /// there. The hotkey shown is the configured one (`HotkeySettings`); there is no recorder yet, so it is changed in
-    /// the settings store only.
+    /// there. The hotkey shown is the configured one (`HotkeySettings`), and the Hotkey tab changes it with the recorder:
+    /// the keys come from the app's own events (`NSEventHotkeyCaptureSource`) and the shortcuts that System Settings has
+    /// turned on are refused (`SystemShortcuts`).
     @MainActor
     private static func settingsScreen(
         settings: any SettingsStore, recognizer: ParakeetRecognizer, diagnostics: any DiagnosticsLog
     ) -> SettingsScreen {
         let keys = KeychainSecretStore(diagnostics: diagnostics)
         return SettingsScreen(
-            window: { SettingsWindowController(model: $0, themes: $1) },
+            window: { model, themes in
+                let recorder = HotkeyRecorderViewModel(
+                    settings: settings, source: NSEventHotkeyCaptureSource(),
+                    isTakenBySystem: { SystemShortcuts.isTaken($0) })
+                return SettingsWindowController(
+                    model: model, themes: themes, recorder: AnyView(HotkeyRecorderContainer(model: recorder)))
+            },
             hasKey: { keys.hasSecret(for: $0) },
             hotkey: { Self.describe(settings.hotkeyConfiguration()) },
             secureInputActive: { IsSecureEventInputEnabled() },
@@ -175,24 +182,10 @@ extension AppEnvironment.Dependencies {
     }
 
     /// The configured hotkey as key caps, from the setting the hotkey service reads.
+    @MainActor
     private static func describe(_ configuration: HotkeyConfiguration) -> HotkeyDescription {
-        let modifiers = configuration.combo.modifiers
-        let caps: [(HotkeyModifiers, String)] = [
-            (.function, "fn"), (.control, "⌃"), (.option, "⌥"), (.shift, "⇧"), (.command, "⌘"),
-        ]
-        var keys = caps.filter { modifiers.contains($0.0) }.map { $0.1 }
-        if let code = configuration.combo.keyCode { keys.append(keyName(code)) }
-        return HotkeyDescription(keys: keys, isModifierOnly: configuration.kind == .modifierOnly)
-    }
-
-    /// The letter of a virtual key code on the ANSI layout, or its number when it is not a letter.
-    private static func keyName(_ code: Int) -> String {
-        let letters: [Int: String] = [
-            0: "A", 1: "S", 2: "D", 3: "F", 4: "H", 5: "G", 6: "Z", 7: "X", 8: "C", 9: "V", 11: "B", 12: "Q", 13: "W",
-            14: "E", 15: "R", 16: "Y", 17: "T", 31: "O", 32: "U", 34: "I", 35: "P", 37: "L", 38: "J", 40: "K", 45: "N",
-            46: "M", 49: "Space",
-        ]
-        return letters[code] ?? "Key \(code)"
+        HotkeyDescription(
+            keys: HotkeyKeyCaps.caps(for: configuration), isModifierOnly: configuration.kind == .modifierOnly)
     }
 
     /// Whether Apple's on-device model can clean text on this Mac.

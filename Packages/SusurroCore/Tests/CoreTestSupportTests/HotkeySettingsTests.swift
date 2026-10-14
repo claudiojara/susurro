@@ -45,4 +45,18 @@ struct HotkeySettingsTests {
         #expect(store.value(for: HotkeySettings.combo) == fn.combo)
         #expect(store.hotkeyConfiguration() == fn)
     }
+
+    @Test("resetting the hotkey gives the default back and announces both keys, which the hotkey service follows")
+    func resetHotkey() async {
+        let store = InMemorySettingsStore()
+        let fn = HotkeyCombo(keyCode: nil, modifiers: .function)
+        store.setHotkey(HotkeyConfiguration(kind: .modifierOnly, combo: fn))
+        var changes = store.changes().makeAsyncIterator()
+
+        store.resetHotkey()
+
+        #expect(store.hotkeyConfiguration() == .standard)
+        let names = [await changes.next()?.name, await changes.next()?.name]
+        #expect(Set(names) == ["hotkey.kind", "hotkey.combo"])
+    }
 }

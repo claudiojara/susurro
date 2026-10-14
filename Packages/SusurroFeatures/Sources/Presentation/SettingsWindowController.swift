@@ -25,7 +25,8 @@ public final class SettingsWindowController: SettingsSurface {
     private let activate: @MainActor () -> Void
     private var hasBeenPlaced = false
 
-    /// - Parameter recorder: The control that changes the hotkey, from the platform, which the UI package cannot import.
+    /// - Parameter recorder: The control that changes the hotkey, which the app builds over the keys of the platform, a
+    ///   package the UI package cannot import.
     public convenience init(model: SettingsViewModel, themes: ThemeModel, recorder: AnyView = AnyView(EmptyView())) {
         self.init(model: model, themes: themes, recorder: recorder, activate: { NSApplication.shared.activate() })
     }

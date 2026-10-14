@@ -2,8 +2,9 @@ import DesignSystem
 import SwiftUI
 
 /// The Hotkey tab: the shortcut that starts a dictation, the recorder that changes it, and the warnings that apply: a
-/// modifier-only hotkey that needs Input Monitoring, and Secure Event Input. The recorder is a native control that the
-/// app injects, since the UI package imports no platform module. A pure function of the state and the slot.
+/// modifier-only hotkey that needs Input Monitoring, and Secure Event Input. The recorder is a slot that the app fills
+/// with `HotkeyRecorderContainer`, since its keys come from the platform and the UI package imports no platform module.
+/// A pure function of the state and the slot.
 struct HotkeySection<Recorder: View>: View {
     @Environment(\.theme) private var theme
     private let state: HotkeySettingsState

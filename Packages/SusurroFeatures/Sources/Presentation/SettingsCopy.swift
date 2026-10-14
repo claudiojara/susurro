@@ -79,6 +79,22 @@ enum SettingsCopy {
     static let secureInputWarning =
         "Secure Event Input is on, so keyed shortcuts may not respond until it ends. A password field or another app has turned it on."
 
+    /// Why a shortcut that the user pressed is not accepted, with what to press instead.
+    static func rejection(_ reason: HotkeyRejection) -> String {
+        switch reason {
+        case .needsStrongerModifiers:
+            "Press the key together with Control, or with Option and Command. Other combinations clash with typing or with the shortcuts of other apps."
+        case .escapeIsReserved:
+            "Esc cancels a dictation, so it cannot also start one. Press another key."
+        case .functionNeedsToBeAlone:
+            "fn cannot be combined with a key. Press fn alone, or use another modifier."
+        case .takenBySystem:
+            "macOS already uses this shortcut. Press another one, or turn the system shortcut off in System Settings."
+        case .needsFunctionOrTwoModifiers:
+            "One modifier key alone is pressed by accident too often. Press fn, or hold two or more modifier keys."
+        }
+    }
+
     // MARK: Style
 
     static let noOverrideTarget = "Enter a bundle id or a website."

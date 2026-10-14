@@ -1,0 +1,106 @@
+import Domain
+import Observation
+import SusurroUI
+
+/// Records a new hotkey for the Hotkey tab of the settings. While it listens it feeds the keys of the user to
+/// `HotkeyCapture`, shows the modifier keys that are held, and, when the user has pressed a shortcut, asks
+/// `HotkeyValidation` whether it is allowed: an allowed one is stored in the settings, where the hotkey service reads it and
+/// starts to listen to it at once, and one that is refused is told with the reason and the recorder goes on listening. Esc,
+/// the Cancel button, or the end of the keys (the window lost them) stop it with the hotkey as it was.
+@MainActor
+@Observable
+public final class HotkeyRecorderViewModel: HotkeyRecorderModeling {
+    @ObservationIgnored private let settings: any SettingsStore
+    @ObservationIgnored private let source: any HotkeyCaptureSource
+    @ObservationIgnored private let isTakenBySystem: @MainActor (HotkeyCombo) -> Bool
+    @ObservationIgnored private var listening: Task<Void, Never>?
+    /// Tells a recording from the one before it, so that the end of an old one cannot stop a new one.
+    @ObservationIgnored private var recording = 0
+
+    private var isListening = false
+    private var capture = HotkeyCapture()
+    private var rejection: String?
+    /// Counts the changes made to the hotkey. `state` reads it, so it is drawn again after each of them, though the settings
+    /// store is not observable.
+    private var revision = 0
+
+    /// - Parameters:
+    ///   - source: Where the keys come from while the recorder listens.
+    ///   - isTakenBySystem: Whether an enabled shortcut of System Settings already uses the combo.
+    public init(
+        settings: any SettingsStore, source: any HotkeyCaptureSource,
+        isTakenBySystem: @escaping @MainActor (HotkeyCombo) -> Bool
+    ) {
+        self.settings = settings
+        self.source = source
+        self.isTakenBySystem = isTakenBySystem
+    }
+
+    public var state: HotkeyRecorderState {
+        _ = revision
+        return HotkeyRecorderState(
+            phase: isListening ? .listening(held: capture.held.caps) : .idle,
+            rejection: rejection,
+            canRestoreDefault: settings.hotkeyConfiguration() != .standard)
+    }
+
+    public func begin() {
+        guard !isListening else { return }
+        isListening = true
+        capture = HotkeyCapture()
+        rejection = nil
+        recording += 1
+        let mine = recording
+        let inputs = source.inputs()
+        listening = Task {
+            for await input in inputs {
+                guard mine == recording else { return }
+                handle(input)
+            }
+            // The keys ended: the window lost them, or the recorder stopped itself.
+            if mine == recording { stop() }
+        }
+    }
+
+    public func cancel() {
+        stop()
+    }
+
+    public func restoreDefault() {
+        stop()
+        settings.resetHotkey()
+        revision &+= 1
+    }
+
+    /// Takes one key of the recording.
+    func handle(_ input: HotkeyCaptureInput) {
+        guard isListening else { return }
+        switch capture.handle(input) {
+        case .none:
+            break
+        case .cancel:
+            stop()
+        case .candidate(let configuration):
+            choose(configuration)
+        }
+    }
+
+    private func choose(_ configuration: HotkeyConfiguration) {
+        if let reason = HotkeyValidation.rejection(of: configuration, isTakenBySystem: isTakenBySystem) {
+            rejection = SettingsCopy.rejection(reason)
+            return
+        }
+        settings.setHotkey(configuration)
+        stop()
+    }
+
+    private func stop() {
+        listening?.cancel()
+        listening = nil
+        recording += 1
+        isListening = false
+        capture = HotkeyCapture()
+        rejection = nil
+        revision &+= 1
+    }
+}
