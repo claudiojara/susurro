@@ -73,7 +73,7 @@ public final class HotkeyRecorderViewModel: HotkeyRecorderModeling {
     }
 
     /// Takes one key of the recording.
-    func handle(_ input: HotkeyCaptureInput) {
+    private func handle(_ input: HotkeyCaptureInput) {
         guard isListening else { return }
         switch capture.handle(input) {
         case .none:
