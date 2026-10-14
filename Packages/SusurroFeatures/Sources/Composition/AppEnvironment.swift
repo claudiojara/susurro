@@ -10,6 +10,40 @@ import Presentation
 public final class AppEnvironment {
     /// The parts of the graph. `live()` and `preview()` build the two sets.
     public struct Dependencies {
+        /// What the onboarding and the permissions monitor need from the system.
+        public struct Onboarding {
+            /// Makes the window of the onboarding, which shows the view model in the theme.
+            public var window: @MainActor (OnboardingViewModel, ThemeModel) -> any OnboardingSurface
+            /// Opens the System Settings pane where the user changes a permission.
+            public var openSettings: @MainActor (Permission) -> Void
+            /// A value each time the app becomes the active app.
+            public var activations: @Sendable () -> AsyncStream<Void>
+
+            public init(
+                window: @escaping @MainActor (OnboardingViewModel, ThemeModel) -> any OnboardingSurface,
+                openSettings: @escaping @MainActor (Permission) -> Void,
+                activations: @escaping @Sendable () -> AsyncStream<Void>
+            ) {
+                self.window = window
+                self.openSettings = openSettings
+                self.activations = activations
+            }
+        }
+
+        /// Where the app's themes come from.
+        public struct Theming {
+            /// The themes the user has put in the themes folder, and the one in use.
+            public var store: ThemeStore
+            /// Gets the themes folder ready and, in debug builds, starts watching it so an edited theme file shows at
+            /// once. It runs once, at launch, away from the main actor.
+            public var prepare: @Sendable () async -> Void
+
+            public init(store: ThemeStore, prepare: @escaping @Sendable () async -> Void = {}) {
+                self.store = store
+                self.prepare = prepare
+            }
+        }
+
         public var hotkeys: any HotkeySource
         public var capture: any AudioCaptureSource
         public var recognizer: any SpeechRecognizer
@@ -19,24 +53,17 @@ public final class AppEnvironment {
         public var permissions: any PermissionsChecker
         public var diagnostics: any DiagnosticsLog
         public var overlay: any OverlaySurface
-        /// Opens the System Settings pane where the user changes a permission.
-        public var openSettings: @MainActor (Permission) -> Void
-        /// A value each time the app becomes the active app.
-        public var activations: @Sendable () -> AsyncStream<Void>
         /// Puts the user's clipboard back at once if a paste is still under way. It runs as the app terminates.
         public var restoreClipboardNow: @MainActor () -> Void
-        /// Makes the window of the onboarding, which shows the view model in the theme.
-        public var onboardingWindow: @MainActor (OnboardingViewModel, ThemeModel) -> any OnboardingSurface
-        /// The user's settings. No setting is read yet: the first ones arrive with the hotkey configuration.
+        /// The user's settings. The graph holds them for the code that will read them: the first setting is read with the
+        /// hotkey configuration.
         public var settings: any SettingsStore
-        /// The themes the user has put in the themes folder, and the one in use.
-        public var themes: ThemeStore
-        /// Starts watching the themes folder, so an edited theme file shows at once. Only debug builds do anything.
-        public var watchThemes: @Sendable () async -> Void
-        /// Times the permissions monitor: its poll and the wait before it shows the troubleshooting steps.
+        public var onboarding: Onboarding
+        public var theming: Theming
+        /// The one clock of the graph. It paces everything that waits: the permissions poll and the wait before the
+        /// troubleshooting steps, the pauses and limits of a dictation, the time an overlay indicator stays, and the
+        /// delay before the model's progress shows. Tests pass a `ManualClock`.
         public var clock: any Clock<Duration>
-        /// Paces every wait of the graph. Tests pass a fake.
-        public var sleep: @Sendable (Duration) async throws -> Void
 
         public init(
             hotkeys: any HotkeySource,
@@ -47,15 +74,11 @@ public final class AppEnvironment {
             permissions: any PermissionsChecker,
             diagnostics: any DiagnosticsLog,
             overlay: any OverlaySurface,
-            openSettings: @escaping @MainActor (Permission) -> Void,
-            activations: @escaping @Sendable () -> AsyncStream<Void>,
             restoreClipboardNow: @escaping @MainActor () -> Void,
-            onboardingWindow: @escaping @MainActor (OnboardingViewModel, ThemeModel) -> any OnboardingSurface,
             settings: any SettingsStore,
-            themes: ThemeStore,
-            watchThemes: @escaping @Sendable () async -> Void = {},
-            clock: any Clock<Duration> = ContinuousClock(),
-            sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+            onboarding: Onboarding,
+            theming: Theming,
+            clock: any Clock<Duration> = ContinuousClock()
         ) {
             self.hotkeys = hotkeys
             self.capture = capture
@@ -65,28 +88,23 @@ public final class AppEnvironment {
             self.permissions = permissions
             self.diagnostics = diagnostics
             self.overlay = overlay
-            self.openSettings = openSettings
-            self.activations = activations
             self.restoreClipboardNow = restoreClipboardNow
-            self.onboardingWindow = onboardingWindow
             self.settings = settings
-            self.themes = themes
-            self.watchThemes = watchThemes
+            self.onboarding = onboarding
+            self.theming = theming
             self.clock = clock
-            self.sleep = sleep
         }
     }
 
-    /// The state behind the menu bar menu.
+    /// The state behind the menu bar menu, the one part of the graph the app reads.
     public let menu: MenuModel
+    // The rest is internal: the tests read it, and the app does not need it.
     /// What the app knows about the permissions: the menu, the onboarding, and the overlay read it.
-    public let monitor: PermissionsMonitor
+    let monitor: PermissionsMonitor
     /// The onboarding screen's view model, over the monitor.
-    public let onboarding: OnboardingViewModel
-    /// The theme the app's windows are drawn in.
-    public let themes: ThemeModel
-    /// The user's settings.
-    public let settings: any SettingsStore
+    let onboardingModel: OnboardingViewModel
+    /// The theme the app's windows are drawn in, which follows the theme store.
+    let themeModel: ThemeModel
 
     private let dependencies: Dependencies
     private let coordinator: DictationCoordinator
@@ -98,7 +116,8 @@ public final class AppEnvironment {
 
     public init(_ dependencies: Dependencies) {
         self.dependencies = dependencies
-        let sleep = dependencies.sleep
+        let clock = dependencies.clock
+        let sleep: @Sendable (Duration) async throws -> Void = { try await clock.sleep(for: $0) }
         coordinator = DictationCoordinator(
             hotkeys: dependencies.hotkeys,
             capture: dependencies.capture,
@@ -115,15 +134,14 @@ public final class AppEnvironment {
             sleep: sleep, report: { presenter.setModelProgress($0) },
             reportUnavailable: { presenter.showModelUnavailable() })
         monitor = PermissionsMonitor(
-            checker: dependencies.permissions, openSettings: dependencies.openSettings, clock: dependencies.clock,
+            checker: dependencies.permissions, openSettings: dependencies.onboarding.openSettings, clock: clock,
             diagnostics: dependencies.diagnostics)
-        onboarding = OnboardingViewModel(monitor: monitor)
-        themes = ThemeModel()
+        onboardingModel = OnboardingViewModel(monitor: monitor)
+        themeModel = ThemeModel()
         let onboardingPresenter = OnboardingPresenter(
-            monitor: monitor, surface: dependencies.onboardingWindow(onboarding, themes))
+            monitor: monitor, surface: dependencies.onboarding.window(onboardingModel, themeModel))
         self.onboardingPresenter = onboardingPresenter
         menu = MenuModel(monitor: monitor, showOnboarding: { onboardingPresenter.show() })
-        settings = dependencies.settings
     }
 
     /// Starts the app's work: the overlay, the hotkey, the model, the permission monitor and the onboarding, and the
@@ -141,9 +159,12 @@ public final class AppEnvironment {
         run { await $0.logModelReadiness() }
         run { await $0.launch() }
         run { await $0.onboardingPresenter.run() }
-        run { await $0.monitor.run(activations: $0.dependencies.activations()) }
-        run { await $0.themes.follow(await $0.dependencies.themes.updates()) }
-        run { await $0.dependencies.watchThemes() }
+        run { await $0.monitor.run(activations: $0.dependencies.onboarding.activations()) }
+        run { await $0.themeModel.follow(await $0.dependencies.theming.store.updates()) }
+        // The folder is read away from the main actor, so a slow disk or a link to a volume that is not there cannot hold
+        // the launch up. The bundled theme shows until the files are known.
+        run { await $0.dependencies.theming.store.reload() }
+        run { await $0.dependencies.theming.prepare() }
     }
 
     /// Stops the permission poll and the coordinator, which stops a recording and waits a moment for a paste to put the

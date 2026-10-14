@@ -166,7 +166,7 @@ struct AppEnvironmentTests {
         await f.eventually("a read of the permissions") { f.permissions.statusReads > readsBefore }
         await f.advance(by: OverlayTiming.standard.error, until: "the overlay to hide") { f.overlay.current == nil }
 
-        #expect(error == "The microphone did not stop in time.")
+        #expect(error == "The microphone did not stop in time. Hold the key to try again.")
         f.capture.releaseStart()
         await f.environment.shutdown()
     }

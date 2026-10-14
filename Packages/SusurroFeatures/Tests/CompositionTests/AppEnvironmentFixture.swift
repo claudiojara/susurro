@@ -150,18 +150,21 @@ final class AppEnvironmentFixture {
         try? FileManager.default.removeItem(at: themeFolder)
     }
 
-    /// Moves the clock by `duration` again and again until `condition` holds, for up to five seconds. A timer that the
-    /// code under test has not started yet is started from the time now, so one advance can come too early; this does
-    /// not depend on when the timer starts.
+    /// Moves the clock by `duration` again and again until `condition` holds. A timer that the code under test has not
+    /// started yet is started from the time now, so one advance can come too early; this does not depend on when the
+    /// timer starts. It gives up after under a second of real time, which is less than the shortest real wait in the
+    /// graph (the hold of an indicator is 1.2 s), so a timer that does not run on the clock cannot pass for one that does.
     func advance(
         by duration: Duration, until what: String, sourceLocation: SourceLocation = #_sourceLocation,
         _ condition: () -> Bool
     ) async {
-        for _ in 0..<5_000 {
+        let giveUp = ContinuousClock.now + .milliseconds(800)
+        while ContinuousClock.now < giveUp {
             if condition() { return }
             clock.advance(by: duration)
             try? await Task.sleep(for: .milliseconds(1))
         }
+        if condition() { return }
         Issue.record("Timed out waiting for \(what).", sourceLocation: sourceLocation)
     }
 
