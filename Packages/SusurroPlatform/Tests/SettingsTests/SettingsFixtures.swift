@@ -68,19 +68,22 @@ enum StoreKind: CaseIterable, Sendable, CustomTestStringConvertible {
         }
     }
 
+    /// A fresh store over the preferences of `scratch`, reporting to `diagnostics`.
+    func make(scratch: ScratchDefaults, diagnostics: any DiagnosticsLog = NoDiagnostics()) -> any SettingsStore {
+        switch self {
+        case .userDefaults: UserDefaultsSettingsStore(defaults: scratch.makeDefaults(), diagnostics: diagnostics)
+        case .inMemory: InMemorySettingsStore(diagnostics: diagnostics)
+        }
+    }
+
     /// Runs `body` with a fresh store that reports to `diagnostics`.
     func withStore(
         diagnostics: any DiagnosticsLog = NoDiagnostics(),
         _ body: (any SettingsStore) async throws -> Void
     ) async rethrows {
-        switch self {
-        case .userDefaults:
-            let scratch = ScratchDefaults()
-            defer { scratch.remove() }
-            try await body(UserDefaultsSettingsStore(defaults: scratch.makeDefaults(), diagnostics: diagnostics))
-        case .inMemory:
-            try await body(InMemorySettingsStore(diagnostics: diagnostics))
-        }
+        let scratch = ScratchDefaults()
+        defer { scratch.remove() }
+        try await body(make(scratch: scratch, diagnostics: diagnostics))
     }
 }
 

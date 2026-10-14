@@ -56,4 +56,19 @@ struct SettingChangeBroadcasterTests {
         #expect(whileSubscribed == 1)
         #expect(broadcaster.subscriberCount == 0)
     }
+
+    @Test("when the broadcaster goes away, every stream delivers what it holds and then ends")
+    func streamsEndWithTheBroadcaster() async {
+        var broadcaster: SettingChangeBroadcaster? = SettingChangeBroadcaster()
+        var first = broadcaster?.stream().makeAsyncIterator()
+        var second = broadcaster?.stream().makeAsyncIterator()
+        broadcaster?.send(Self.first)
+
+        broadcaster = nil
+
+        #expect(await first?.next() == Self.first)
+        #expect(await first?.next() == nil)
+        #expect(await second?.next() == Self.first)
+        #expect(await second?.next() == nil)
+    }
 }

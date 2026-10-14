@@ -205,4 +205,70 @@ struct SettingsStoreTests {
             }
         }
     }
+
+    @Test("when the store goes away, the change stream ends instead of waiting forever", arguments: StoreKind.allCases)
+    func changesEndWithTheStore(kind: StoreKind) async {
+        let scratch = ScratchDefaults()
+        defer { scratch.remove() }
+        var store: (any SettingsStore)? = kind.make(scratch: scratch)
+        var changes = store?.changes().makeAsyncIterator()
+        store?.set("es", for: SampleKeys.language)
+
+        store = nil
+
+        #expect(await changes?.next() == SettingChange(name: "speech.language"))
+        #expect(await changes?.next() == nil)
+    }
+
+    @Test(
+        "the values of a key follow its sets and removals, typed, and skip the other keys",
+        arguments: StoreKind.allCases)
+    func valuesFollowTheKey(kind: StoreKind) async {
+        await kind.withStore { store in
+            var days = store.values(for: SampleKeys.retentionDays).makeAsyncIterator()
+            var edges = store.values(for: SampleKeys.overlayEdge).makeAsyncIterator()
+
+            store.set(30, for: SampleKeys.retentionDays)
+            #expect(await days.next() == 30)
+
+            store.set("es", for: SampleKeys.language)
+            store.set(.top, for: SampleKeys.overlayEdge)
+            store.set(45, for: SampleKeys.retentionDays)
+            #expect(await days.next() == 45)
+            #expect(await edges.next() == .top)
+
+            store.remove(SampleKeys.retentionDays)
+            #expect(await days.next() == 7)
+        }
+    }
+
+    @Test(
+        "a value is read when the consumer takes it, so it is never older than the last set",
+        arguments: StoreKind.allCases)
+    func valuesAreReadFresh(kind: StoreKind) async {
+        await kind.withStore { store in
+            var days = store.values(for: SampleKeys.retentionDays).makeAsyncIterator()
+
+            store.set(1, for: SampleKeys.retentionDays)
+            store.set(2, for: SampleKeys.retentionDays)
+
+            #expect(await days.next() == 2)
+        }
+    }
+
+    @Test(
+        "a stream of values ends when the store goes away, and does not keep the store alive",
+        arguments: StoreKind.allCases)
+    func valuesEndWithTheStore(kind: StoreKind) async {
+        let scratch = ScratchDefaults()
+        defer { scratch.remove() }
+        var store: (any SettingsStore)? = kind.make(scratch: scratch)
+        weak var released = store
+        var days = store?.values(for: SampleKeys.retentionDays).makeAsyncIterator()
+
+        store = nil
+
+        #expect(released == nil)
+        #expect(await days?.next() == nil)
+    }
 }
