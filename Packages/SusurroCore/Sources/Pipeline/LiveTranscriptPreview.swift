@@ -8,7 +8,7 @@ import Synchronization
 /// A partial transcribes the newest `Policy.window` of audio on a background task of low priority. Partials never
 /// overlap: the next one starts `Policy.interval` after the previous one ended, and only once enough new audio has
 /// arrived. The end of the recording cancels the work: a partial that waits is dropped, and the text of one that is
-/// already inside the engine is thrown away. ADR 0031 has the numbers behind the throttle.
+/// already inside the engine is thrown away. ADR 0032 has the numbers behind the throttle.
 public final class LiveTranscriptPreview: Sendable {
     public struct Policy: Sendable, Equatable {
         /// The time between the end of one partial and the start of the next.

@@ -1,4 +1,5 @@
 import CoreTestSupport
+import DesignSystem
 import Domain
 import SusurroUI
 import Testing
@@ -81,7 +82,27 @@ struct SettingsViewModelTests {
         model.setOverlayVariant("gone")
         #expect(model.state.general.selectedVariant == OverlayVariantOption.defaultID)
         #expect(model.state.general.variantError?.contains("gone") == true)
-        #expect(model.state.general.overlayVariants.map(\.id) == ["default", "compact"])
+        #expect(model.state.general.overlayVariants.map(\.id) == ["pill", "compact"])
+    }
+
+    @Test(
+        "the overlay styles of the app are named in the interface language, and the id older settings stored is the default"
+    )
+    func overlayStyleNames() {
+        var rig = SettingsRig()
+        rig.variants = [
+            OverlayVariantOption(id: "pill", title: "pill"), OverlayVariantOption(id: "minimal", title: "minimal"),
+            OverlayVariantOption(id: "liveText", title: "liveText"),
+        ]
+        rig.settings.set("default", for: OverlaySettings.variant)
+        let model = rig.model()
+
+        #expect(model.state.general.overlayVariants.map(\.title) == ["Default", "Minimal", "Live text"])
+        #expect(model.state.general.selectedVariant == "pill")
+        #expect(model.state.general.variantError == nil)
+        InterfaceLocale.$override.withValue("es") {
+            #expect(model.state.general.overlayVariants.map(\.title) == ["Predeterminado", "Mínimo", "Texto en vivo"])
+        }
     }
 
     @Test("a change made elsewhere, such as a menu toggle, shows while the model runs")

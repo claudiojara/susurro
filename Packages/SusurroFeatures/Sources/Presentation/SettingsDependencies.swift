@@ -24,7 +24,7 @@ public struct OverlayVariantOption: Equatable, Sendable {
     }
 
     /// The id of the variant that is used when the stored one is unknown.
-    public static let defaultID = "default"
+    public static var defaultID: String { OverlaySettings.variant.defaultValue }
 }
 
 /// Chooses the theme in use. The theme store is the live one.

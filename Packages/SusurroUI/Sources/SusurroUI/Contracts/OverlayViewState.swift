@@ -77,4 +77,10 @@ public protocol OverlayViewModeling: AnyObject {
     var level: Double { get }
     /// The id of the overlay variant the user selected.
     var styleID: String { get }
+    /// The words heard so far while recording, for a style that shows them. Display only: it is never what is pasted.
+    var transcript: String { get }
+}
+
+extension OverlayViewModeling {
+    public var transcript: String { "" }
 }

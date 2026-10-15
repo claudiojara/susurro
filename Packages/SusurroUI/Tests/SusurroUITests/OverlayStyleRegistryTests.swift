@@ -11,6 +11,7 @@ final class StubOverlayModel: OverlayViewModeling {
     var state: OverlayViewState
     var level: Double
     var styleID: String
+    var transcript = ""
 
     init(state: OverlayViewState, level: Double = 0.5, styleID: String = PillOverlayStyle.id) {
         self.state = state

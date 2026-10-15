@@ -382,7 +382,7 @@ struct RealModelTests {
         #expect(added < 500)
     }
 
-    /// The numbers behind ADR 0031: what one partial over the trailing window costs, and how much later the transcript
+    /// The numbers behind ADR 0032: what one partial over the trailing window costs, and how much later the transcript
     /// of a dictation comes back when the key goes up while a partial is inside the engine (the worst case, since a
     /// partial cannot be stopped once it runs).
     @Test("a partial over the window costs a fraction of a second, and delays a dictation by one partial at most")

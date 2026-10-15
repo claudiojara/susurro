@@ -281,7 +281,8 @@ struct RecordingSessionTests {
         capture.emit(Self.chunk(seconds: 0.6, value: 0.2))
         while let event = await events.next(), event != .limitReached {}
 
-        #expect(heard.withLock { $0 } == Self.chunk(seconds: 0.6).samples + Self.chunk(seconds: 0.4, value: 0.2).samples)
+        #expect(
+            heard.withLock { $0 } == Self.chunk(seconds: 0.6).samples + Self.chunk(seconds: 0.4, value: 0.2).samples)
         _ = await session.finish()
     }
 

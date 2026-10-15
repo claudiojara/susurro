@@ -71,6 +71,10 @@ public nonisolated enum LayoutToken: String, ThemeToken {
     case settingsWidth
     /// The height of the settings window's content, which does not change from one tab to the next.
     case settingsHeight
+    /// The width of the minimal overlay, which shows a symbol and the input level and little else.
+    case overlayCompactWidth
+    /// The width of the overlay that shows the words while they are spoken.
+    case overlayWideWidth
 
     public static var group: String { "layout" }
 }

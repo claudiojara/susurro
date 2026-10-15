@@ -7,8 +7,21 @@ import SwiftUI
 public protocol OverlayStyle {
     /// The id the setting `overlay.variant` selects it by.
     static var id: String { get }
+    /// Whether it shows the words while they are spoken. The app transcribes partials only for a style that does.
+    static var showsLiveTranscript: Bool { get }
     /// What the overlay shows for the state. It is not asked for a hidden state.
     func body(state: OverlayViewState, level: Double) -> AnyView
+    /// The same, with the words heard so far while recording (empty when there are none yet). A style that shows them
+    /// implements this; the others get the body above.
+    func body(state: OverlayViewState, level: Double, transcript: String) -> AnyView
+}
+
+extension OverlayStyle {
+    public static var showsLiveTranscript: Bool { false }
+
+    public func body(state: OverlayViewState, level: Double, transcript: String) -> AnyView {
+        body(state: state, level: level)
+    }
 }
 
 /// What went wrong in selecting a style.
@@ -38,9 +51,20 @@ public final class OverlayStyleRegistry {
         register(fallback)
     }
 
-    /// The registry of the app: the pill.
+    /// The registry of the app: the pill, the minimal pill, and the live text panel.
     public static func standard(report: @escaping (OverlayStyleError) -> Void = { _ in }) -> OverlayStyleRegistry {
-        OverlayStyleRegistry(report: report)
+        let registry = OverlayStyleRegistry(report: report)
+        registry.register(MinimalOverlayStyle())
+        registry.register(LiveTextOverlayStyle())
+        return registry
+    }
+
+    /// The id of every style, sorted.
+    public var ids: [String] { styles.keys.sorted() }
+
+    /// The ids of the styles that show the words while they are spoken.
+    public var liveTranscriptStyleIDs: Set<String> {
+        Set(styles.filter { type(of: $0.value).showsLiveTranscript }.keys)
     }
 
     /// Adds a style under its id, replacing the one that had it.

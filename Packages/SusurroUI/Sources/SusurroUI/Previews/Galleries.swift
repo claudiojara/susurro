@@ -77,6 +77,36 @@ import SwiftUI
         }
     }
 
+    extension MinimalOverlayHUD {
+        struct Gallery: View {
+            @Environment(\.theme) private var theme
+
+            var body: some View {
+                VStack(spacing: theme.spacing(.sm)) {
+                    ForEach(OverlayFixtures.Fixture.allCases, id: \.self) {
+                        MinimalOverlayHUD(state: OverlayFixtures.state($0), level: OverlayFixtures.level)
+                    }
+                }
+            }
+        }
+    }
+
+    extension LiveTextOverlayHUD {
+        struct Gallery: View {
+            @Environment(\.theme) private var theme
+
+            var body: some View {
+                VStack(spacing: theme.spacing(.sm)) {
+                    ForEach(OverlayFixtures.Fixture.allCases, id: \.self) {
+                        LiveTextOverlayHUD(
+                            state: OverlayFixtures.state($0), level: OverlayFixtures.level,
+                            transcript: OverlayFixtures.transcript)
+                    }
+                }
+            }
+        }
+    }
+
     extension WaveformMeter {
         struct Gallery: View {
             @Environment(\.theme) private var theme
@@ -91,6 +121,8 @@ import SwiftUI
     }
 
     #Preview("OverlayHUD") { PreviewMatrix { OverlayHUD.Gallery() } }
+    #Preview("MinimalOverlayHUD") { PreviewMatrix { MinimalOverlayHUD.Gallery() } }
+    #Preview("LiveTextOverlayHUD") { PreviewMatrix { LiveTextOverlayHUD.Gallery() } }
     #Preview("WaveformMeter") { PreviewMatrix { WaveformMeter.Gallery() } }
 
     /// A model with a fixed state, for the preview of the container.

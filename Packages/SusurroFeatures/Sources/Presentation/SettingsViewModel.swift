@@ -97,7 +97,7 @@ public final class SettingsViewModel: SettingsViewModeling {
 
     private var generalState: GeneralSettingsState {
         let variants = dependencies.overlayVariants
-        let storedVariant = settings.value(for: GeneralSettings.overlayVariant)
+        let storedVariant = OverlaySettings.variantID(stored: settings.value(for: GeneralSettings.overlayVariant))
         let known = variants.contains { $0.id == storedVariant }
         return GeneralSettingsState(
             languages: SpeechLanguageMode.allCases.map {
@@ -110,8 +110,7 @@ public final class SettingsViewModel: SettingsViewModeling {
             overlayEdges: OverlayEdge.allCases.map { SettingsChoice(id: $0.rawValue, title: SettingsCopy.edge($0)) },
             selectedEdge: settings.value(for: GeneralSettings.overlayEdge).rawValue,
             overlayVariants: variants.map {
-                SettingsChoice(
-                    id: $0.id, title: $0.id == OverlayVariantOption.defaultID ? SettingsCopy.defaultTheme : $0.title)
+                SettingsChoice(id: $0.id, title: SettingsCopy.overlayStyle($0.id) ?? $0.title)
             },
             selectedVariant: known ? storedVariant : OverlayVariantOption.defaultID,
             variantError: known ? nil : SettingsCopy.variantUnavailable(storedVariant),
