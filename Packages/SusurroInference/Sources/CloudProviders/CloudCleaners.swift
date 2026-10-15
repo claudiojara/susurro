@@ -13,8 +13,8 @@ public enum CloudCleanerError: Error, Sendable, Equatable {
 }
 
 /// What the two cloud cleaners have in common: they take only a cloud payload, are unusable until they are turned on and
-/// have a key, send one request, and read the text of the answer. The key is read from the key store for each request,
-/// goes in a header, and is dropped.
+/// have a key, send one request, and read the text of the answer. The key is asked from the key store for each request
+/// (which may keep it for the session, ADR 0037), goes in a header, and is dropped.
 struct CloudCleanerCore: Sendable {
     let provider: String
     let account: SecretAccount

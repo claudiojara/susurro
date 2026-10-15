@@ -17,7 +17,8 @@ keeps provider API keys in a Keychain service created by another tool, and Susur
 
 The bundle ID is `dev.claudiojara.susurro` and never changes. The Keychain service `app.tuminuta` is an external,
 pre-existing key source: the app reads accounts from it on demand (`deepgram`, `anthropic`, `openai-compatible`) and never
-creates, writes, caches, or logs a secret.
+creates, writes, or logs a secret. ADR 0037 amends the caching rule: a key that was read is kept in memory for the
+session.
 
 ### Consequences
 

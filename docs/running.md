@@ -27,9 +27,25 @@ the keychain it stalls on the keychain lookup, which waits for a prompt that nob
 
 ### Keeping the permissions between builds
 
-A build signed ad hoc gets a new identity every time, and macOS then forgets the Microphone and Accessibility grants.
-To keep them, sign with your own team: copy `App/Config/Local.xcconfig.example` to `App/Config/Local.xcconfig` (it is
-ignored by git) and set `DEVELOPMENT_TEAM`.
+A build signed ad hoc gets a new identity every time, and macOS then forgets the Microphone and Accessibility grants
+and the "Always Allow" answer to the Keychain prompt for the cloud keys. So `make build` signs with the first Apple
+Development identity in your login keychain, and its team, found when it runs (`make signing` prints them). With a stable
+identity the grants and "Always Allow" survive rebuilds: after the first build signed this way, grant Microphone and
+Accessibility once more and answer the Keychain prompt with "Always Allow" once more, and that is the last time.
+
+Without an Apple Development identity (as on CI) the build is signed ad hoc. To choose another identity, pass
+`CODE_SIGN_IDENTITY` and `DEVELOPMENT_TEAM` to `make`; `make build CODE_SIGN_IDENTITY=-` forces ad hoc. Builds from Xcode
+itself read `App/Config/Local.xcconfig` instead (copy it from `Local.xcconfig.example`; it is not committed).
+
+Check the signature with `codesign -dv --verbose=2 build/Build/Products/Debug/Susurro.app`: it shows `Authority=Apple
+Development: ...` and `TeamIdentifier`.
+
+### Cloud keys and the Keychain prompt
+
+The keys of the cloud providers are read from the Keychain service `app.tuminuta` only for a provider that is selected
+and turned on, once per session, in the background at launch or when you change the provider. macOS may ask for the
+login password then; "Always Allow" stops it for good. Settings only asks whether a key exists, which never prompts. A
+key you change in the Keychain is picked up after you switch the provider off and on, or restart the app.
 
 ## First run
 

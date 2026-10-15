@@ -14,11 +14,29 @@ SWIFTPM_FLAGS := --disable-keychain
 SOURCE_PACKAGES := $(DERIVED_DATA)/SourcePackages
 XCODEBUILD_PACKAGE_FLAGS := -clonedSourcePackagesDirPath $(SOURCE_PACKAGES) -disableAutomaticPackageResolution
 
+# Signing. A build signed ad hoc gets a new identity each time, and macOS then forgets the Microphone and Accessibility
+# grants and the "Always Allow" of the Keychain items. So the build signs with the first Apple Development identity of
+# the login keychain, found at make time, and with its team, read from the certificate (its OU). Without one, as on CI,
+# nothing is passed and App/Config/Base.xcconfig signs ad hoc. Set CODE_SIGN_IDENTITY (and DEVELOPMENT_TEAM) to choose
+# another identity, or CODE_SIGN_IDENTITY=- to sign ad hoc.
+ifeq ($(origin CODE_SIGN_IDENTITY),undefined)
+CODE_SIGN_IDENTITY := $(shell security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Apple Development: .*\)"$$/\1/p' | head -n 1)
+endif
+ifeq ($(origin DEVELOPMENT_TEAM),undefined)
+DEVELOPMENT_TEAM := $(if $(filter-out -,$(CODE_SIGN_IDENTITY)),$(shell security find-certificate -c "$(CODE_SIGN_IDENTITY)" -p 2>/dev/null | openssl x509 -noout -subject 2>/dev/null | sed -n 's/.*OU *= *\([A-Z0-9]\{10\}\).*/\1/p'))
+endif
+XCODEBUILD_SIGNING_FLAGS := $(if $(CODE_SIGN_IDENTITY),CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY="$(CODE_SIGN_IDENTITY)" DEVELOPMENT_TEAM="$(DEVELOPMENT_TEAM)")
+
 # RECORD=1 re-records snapshot references. Do it only on the CI image (record-snapshots workflow). Without it nothing is
 # ever written: a missing reference fails the test and creates no file.
 SNAPSHOT_ENV := SNAPSHOT_TESTING_RECORD=$(if $(RECORD),all,never)
 
-.PHONY: bootstrap resolve format lint test snapshots build run icon clean
+.PHONY: bootstrap resolve format lint test snapshots build run icon clean signing
+
+# Prints the identity and team the build signs with.
+signing:
+	@echo "CODE_SIGN_IDENTITY=$(if $(CODE_SIGN_IDENTITY),$(CODE_SIGN_IDENTITY),- (ad hoc, from Base.xcconfig))"
+	@echo "DEVELOPMENT_TEAM=$(DEVELOPMENT_TEAM)"
 
 bootstrap:
 	@command -v xcodegen >/dev/null || { echo "xcodegen is required: brew install xcodegen" >&2; exit 1; }
@@ -48,7 +66,8 @@ resolve:
 	swift package $(SWIFTPM_FLAGS) --package-path Packages/SusurroFeatures --scratch-path $(SOURCE_PACKAGES) resolve
 
 build: bootstrap resolve
-	xcodebuild build -project $(PROJECT) -scheme Susurro -destination 'platform=macOS' -derivedDataPath $(DERIVED_DATA) $(XCODEBUILD_PACKAGE_FLAGS)
+	xcodebuild build -project $(PROJECT) -scheme Susurro -destination 'platform=macOS' -derivedDataPath $(DERIVED_DATA) $(XCODEBUILD_PACKAGE_FLAGS) \
+		$(XCODEBUILD_SIGNING_FLAGS)
 
 # Builds the app and starts it, replacing a copy that is already running. The first launch downloads the speech model.
 # A running copy is asked to quit, as the menu does, so that it stops the recording and puts the clipboard back. Only a

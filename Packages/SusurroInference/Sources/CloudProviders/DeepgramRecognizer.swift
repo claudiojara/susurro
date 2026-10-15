@@ -13,7 +13,7 @@ extension ASRProviderID {
 /// hands over, already cut to the speech.
 ///
 /// The key travels in the `Authorization` header and nowhere else: not in the address, not in a log, not in an error. It
-/// is read from the key store for each request and dropped after it. The only thing besides the audio that goes with a
+/// is asked from the key store for each request and dropped after it (the store may keep it for the session, ADR 0037). The only thing besides the audio that goes with a
 /// request is the vocabulary, as Deepgram's key terms: no app, no text around the cursor, no selection.
 ///
 /// A failure of any kind throws, and the pipeline then tries Parakeet once (4a); the error says only what kind of failure

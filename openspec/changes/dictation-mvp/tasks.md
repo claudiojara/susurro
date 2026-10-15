@@ -902,3 +902,12 @@ Slices 2–9 were delivered together in #68 (fast track, strict TDD, no per-PR r
 - [x] BT1.4 RED+GREEN: `FormatConverter` streams 8/16/24/44.1/48 kHz mono and stereo to 16 kHz mono, and accepts a mono buffer that differs only in channel layout.
 - [x] BT1.5 DOC: ADR 0036, "The capture rides through engine configuration changes".
 - [x] BT1.6 VERIFY: Manual: with AirPods as the system input (and as the chosen microphone), hold the key and dictate several times in a row, and see the text pasted each time; `/usr/bin/log show --last 10m --predicate 'subsystem == "dev.claudiojara.susurro"'` shows "capture restarted after a configuration change: 24000 Hz, 1 ch" (or 16000) and no "dictation failed: captureFailed". (verified by hand 2026-10-15)
+
+### PR SK1: Stable signing and one Keychain read per session
+
+- [x] SK1.1 RED+GREEN: `SessionSecretCache` (Domain) keeps a found key in memory for the session; a missing key or a failed read is not kept; `hasSecret` is never cached and never reads the key.
+- [x] SK1.2 RED+GREEN: `SecretAccount.inUse(by:)` (Deepgram when selected and on; the cloud cleaner when cleanup is on, it is selected, and it is on); `prefetch` reads them in the background; `following(_:names:)` prefetches at launch and drops and prefetches again on a change of the provider settings.
+- [x] SK1.3 TEST: Deepgram behind the cache: five dictations read the Keychain once and send the key five times.
+- [x] SK1.4 BUILD: `make build` signs with the first Apple Development identity and its team (certificate OU), detected at make time, overridable with `CODE_SIGN_IDENTITY`/`DEVELOPMENT_TEAM`; ad hoc without one (CI). `make signing` prints the choice.
+- [x] SK1.5 DOC: ADR 0037 (amends ADR 0003's caching rule); `docs/running.md`.
+- [ ] SK1.6 VERIFY: Manual: after the first signed build, grant Microphone and Accessibility again and answer the Keychain prompt with "Always Allow"; with Deepgram selected, dictate several times and rebuild with `make build`: no Keychain prompt and no permission lost.

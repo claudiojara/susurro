@@ -86,6 +86,23 @@ struct DeepgramRecognizerTests {
         #expect(rig.server.requests.isEmpty)
     }
 
+    @Test("behind the session cache, N dictations read the Keychain exactly once, and every one sends the key")
+    func sessionCacheReadsOnce() async throws {
+        let rig = Rig()
+        let recognizer = DeepgramRecognizer(
+            settings: rig.settings, secrets: SessionSecretCache(rig.secrets), session: rig.server.session,
+            endpoint: rig.server.url("/v1/listen"))
+
+        for _ in 0..<5 {
+            _ = await recognizer.readiness()
+            _ = try await recognizer.transcribe(clip, options: RecognitionOptions())
+        }
+
+        #expect(rig.secrets.readCount(of: .deepgram) == 1)
+        #expect(rig.server.requests.count == 5)
+        #expect(rig.server.requests.allSatisfy { $0.headers["Authorization"] == "Token \(Self.key)" })
+    }
+
     // MARK: The request
 
     @Test("the key is in the Authorization header, never in the address, and the body is the audio as a WAV")
