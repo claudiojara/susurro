@@ -225,6 +225,7 @@ Delivered as seven stacked PRs, because the review carryover (shutdown, log sink
 
 Known limits until later PRs: no cancel and no hands-free mode (2a-2c); one dictation at a time, with presses ignored while busy (4c-4d); audio is not saved, so a failed transcription is lost (3a-3b, 4c-4d, 9a); whole-clip transcription capped at 60 s (4b); no VAD, so silence or noise can produce odd text (3c); paste is promised under clipboard markers and restored after a quiet period of 200 ms with no new read, not sooner than 1 s after the chord, with an 8 s limit and no target-app check, so an app that reads the text more than 1 s after the chord can get the old clipboard (the pasteboard hides second reads); a clipboard manager that ignores the markers can trigger a false read receipt, which is accepted until 5a (5a-5b); keyboard layouts where V is not keycode 9, such as Dvorak, paste the wrong key (5b); text is pasted as transcribed, with no cleanup, capitalization, or spacing (7); hotkey is fixed (2c, 9c); the overlay is unthemed (2e); no onboarding window (1f).
 
+
 **Deferred from the WS5 review (WS5h).** These readability and test-hygiene items were left out of the fixes on purpose:
 
 - Tests use real sleeps (`eventually` in the composition tests, `letAppKitLayOut` in the controller tests); replace them with gates or forced layout.
