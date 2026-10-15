@@ -1,8 +1,9 @@
 import CoreTestSupport
 import Domain
 import Foundation
-import Pipeline
 import Testing
+
+@testable import Pipeline
 
 /// Command mode end to end on fakes: the command hotkey records an instruction over the selection, the on-device model
 /// rewrites the selection, and the result replaces it, or goes to the clipboard when the selection changed meanwhile.
@@ -27,7 +28,8 @@ struct CommandPipelineTests {
             enabled: Bool = true,
             permissions: [Permission: PermissionStatus] = [.microphone: .granted, .accessibility: .granted],
             transcript: String = CommandPipelineTests.instruction,
-            diagnostics: RecordingDiagnostics = RecordingDiagnostics()
+            diagnostics: RecordingDiagnostics = RecordingDiagnostics(),
+            corrections: (any CorrectionWatching)? = nil
         ) async {
             self.rewriter = rewriter
             self.reader = reader
@@ -39,7 +41,8 @@ struct CommandPipelineTests {
                 settings: settings, sleeper: sleeper, diagnostics: diagnostics,
                 command: CommandStage(
                     isEnabled: { settings.value(for: CommandSettings.enabled) }, rewriter: rewriter, reader: reader,
-                    clipboard: clipboard))
+                    clipboard: clipboard),
+                corrections: corrections)
         }
 
         /// Presses the command hotkey and waits until it records.
@@ -73,6 +76,31 @@ struct CommandPipelineTests {
         #expect(f.rewriter.requests == [LocalCommandRequest(instruction: Self.instruction, selection: Self.selection)])
         #expect(f.harness.inserter.insertedTexts == [Self.result])
         #expect(f.clipboard.copiedTexts.isEmpty)
+    }
+
+    @Test("a replacement ends the correction watch, so the rewrite is not learned as the user's correction")
+    func replacementEndsCorrectionWatch() async {
+        let spy = SpyCorrectionWatch()
+        var f = await Fixture(corrections: spy)
+
+        _ = await f.command()
+
+        #expect(spy.cancels == 1)
+        #expect(spy.receipts.isEmpty)
+    }
+
+    @Test("a result left on the clipboard does not touch the field, and the correction watch goes on")
+    func clipboardKeepsCorrectionWatch() async {
+        let spy = SpyCorrectionWatch()
+        let reader = FakeFocusedContextReader([
+            FocusedContext(selectedText: Self.selection), FocusedContext(selectedText: "something else"),
+        ])
+        var f = await Fixture(reader: reader, corrections: spy)
+
+        _ = await f.command()
+
+        #expect(f.clipboard.copiedTexts == [Self.result])
+        #expect(spy.cancels == 0)
     }
 
     @Test("the record is a command that keeps the instruction and its audio, and neither the selection nor the result")

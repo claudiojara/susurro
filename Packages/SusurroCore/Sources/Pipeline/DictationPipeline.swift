@@ -320,6 +320,8 @@ public struct DictationPipeline: Sendable {
         let outcome = try await command.run(
             instruction: instruction, selection: selection, target: job.target, inserter: inserter, sleep: sleep,
             checkpoint: { try checkpoint(id) }, report: report)
+        // The rewrite may have replaced the watched dictation: it is not the user's correction.
+        if outcome.delivery == .inserted { await corrections?.cancel() }
         await attempt.amend {
             $0.status = outcome.status
             $0.delivery = outcome.delivery

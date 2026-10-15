@@ -8,19 +8,22 @@ import TextShaping
 @testable import Pipeline
 
 /// Records what the pipeline hands to the correction watch.
-private final class SpyCorrectionWatch: CorrectionWatching {
-    private let state = Mutex<(receipts: [InsertionReceipt], handoffs: [DictationContext])>(([], []))
+final class SpyCorrectionWatch: CorrectionWatching {
+    private let state = Mutex<(receipts: [InsertionReceipt], handoffs: [DictationContext], cancels: Int)>(([], [], 0))
     var receipts: [InsertionReceipt] { state.withLock { $0.receipts } }
     var handoffs: [DictationContext] { state.withLock { $0.handoffs } }
+    var cancels: Int { state.withLock { $0.cancels } }
 
     func watch(_ receipt: InsertionReceipt) async { state.withLock { $0.receipts.append(receipt) } }
     func handoff(_ context: DictationContext) async { state.withLock { $0.handoffs.append(context) } }
+    func cancel() async { state.withLock { $0.cancels += 1 } }
 }
 
 @Suite("Pipeline and the correction watch", .timeLimit(.minutes(1)))
 struct CorrectionReceiptTests {
     private static let context = DictationContext(
-        app: .mail, beforeCursor: String(repeating: "b", count: 100) + "Hello team. ",
+        app: .mail, windowTitle: "New Message", url: "https://mail.example/compose",
+        beforeCursor: String(repeating: "b", count: 100) + "Hello team. ",
         afterCursor: " See you." + String(repeating: "a", count: 100))
 
     private static func harness(
@@ -47,6 +50,8 @@ struct CorrectionReceiptTests {
         #expect(receipt.anchorBefore == String(Self.context.beforeCursor.suffix(80)))
         #expect(receipt.anchorAfter == String(Self.context.afterCursor.prefix(80)))
         #expect(receipt.target == .mail)
+        #expect(receipt.windowTitle == "New Message")
+        #expect(receipt.url == "https://mail.example/compose")
         #expect(receipt.category == .email)
         #expect(!receipt.isSecureField)
         #expect(spy.handoffs == [Self.context])

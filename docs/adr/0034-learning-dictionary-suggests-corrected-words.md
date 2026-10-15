@@ -22,13 +22,17 @@ noise (rewordings, typo fixes, and common words offered as terms). How should co
 
 Suggest only, v1. After a dictation that was pasted (`InsertionOutcome.inserted`), `DictationPipeline` hands a
 `CorrectionWatch` (actor, Pipeline) an `InsertionReceipt`: the final text, 80 characters on each side of the cursor as
-anchors, the app, the category, and whether the field is secure. The watch re-reads the field once after 5 s on the
-injected clock, only while the same process is in front. A correction found there ends the watch; otherwise the next
-dictation's context, captured in the same app, is diffed as a last chance. Only the latest dictation is watched.
+anchors, the app, the window title and page address, the category, and whether the field is secure. The watch re-reads
+the field once after 5 s on the injected clock, only while the same process is in front and the window title and
+address, when both readings have them, are the same. A correction found there ends the watch, unless the cursor is still
+in one of its corrected words (it may be half typed); otherwise the next dictation's context, captured in the same app
+and window, is diffed as a last chance. A command (ADR 0033) that replaces text ends the watch, so a rewrite is never
+read as the user's correction. Only the latest dictation is watched.
 
 `CorrectionDiff` (TextShaping, pure) finds the dictation between its anchors (nearest the cursor when an anchor
-repeats; gives up on a missing anchor or a field over 50,000 UTF-16 units), aligns the words with an LCS on a
-case-folded key that keeps accents, and keeps only replacements of 1 to 3 words on each side. `SuggestionFilter`
+repeats; gives up on a missing anchor or a field over 50,000 UTF-16 units; with both anchors empty, gives up when more
+than max(3, half) of the dictation's words are gone, since another field of the app reads the same), aligns the words
+with an LCS on a case-folded key that keeps accents, and keeps only replacements of 1 to 3 words on each side. `SuggestionFilter`
 accepts a corrected side of 5 to 40 characters, made of words of letters, digits, hyphens and apostrophes, not all
 digits, not a stopword (the list is shared with `AnswerDetector` in `Stopwords`), not in the dictionary or the dismissed
 list, within a normalized edit distance of 0.5 of what was heard, and that looks like a name: a capital letter, or the

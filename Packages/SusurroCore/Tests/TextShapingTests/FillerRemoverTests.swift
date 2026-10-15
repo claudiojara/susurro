@@ -42,13 +42,12 @@ struct FillerRemoverTests {
         Case("Nos vemos a las 2, no, a las 3.", "Nos vemos a las 3."),
         Case("Quedamos a las 2, no, a las 3 en la oficina.", "Quedamos a las 3 en la oficina."),
         Case("Let's meet at 2, no, at 3.", "Let's meet at 3."),
-        Case("I went to the park, I mean, to the beach.", "I went to the beach."),
         Case("Es verdad, no, es mentira.", "Es mentira."),
-        Case(
-            "Envíalo el martes por la tarde, perdón, el miércoles por la mañana.", "Envíalo el miércoles por la mañana."
-        ),
+        Case("Envíalo el martes por la tarde, no, el miércoles por la mañana.", "Envíalo el miércoles por la mañana."),
+        Case("Envíalo el martes, digo, el miércoles.", "Envíalo el miércoles."),
+        Case("Llámame el lunes, mejor dicho, el martes.", "Llámame el martes."),
         Case("Llego a las 2, eh, no, a las 3.", "Llego a las 3."),
-        Case("The meeting is at 10, sorry, at 11.", "The meeting is at 11."),
+        Case("The meeting is at 10, no, at 11.", "The meeting is at 11."),
     ]
 
     @Test("a filler or a self-correction is removed", arguments: removals)
@@ -88,6 +87,25 @@ struct FillerRemoverTests {
         "Fine, no problem.",
         "We need milk, eggs, no sugar.",
         "No lo sé, no, no lo sé.",
+        // Apologies and asides are not markers, and a clause that starts with a pronoun is not a correction.
+        "I can't come, sorry, I have a meeting.",
+        "I was wrong, I mean, I admit it.",
+        "I went to the park, I mean, to the beach.",
+        "The meeting is at 10, sorry, at 11.",
+        "I can't come, no, I have a meeting.",
+        "We tried hard, no, we really did.",
+        "It works fine, no, it really does.",
+        "They called me, no, they wrote to me.",
+        "No puedo ir, perdón, tengo una reunión.",
+        "Envíalo el martes, perdón, el miércoles.",
+        "Yo no fui, no, yo estaba en casa.",
+        "Ella no viene, digo, ella está enferma.",
+        "Nosotros lo sabíamos, no, nosotros lo dijimos.",
+        // Uppercase acronyms are not hesitations.
+        "The ERM framework is ready.",
+        "HM Treasury published it.",
+        "EM radiation is invisible.",
+        "We use the EHM model.",
         "",
         "   ",
         "Línea uno\nlínea dos",

@@ -4,9 +4,11 @@
 ///
 /// - Hesitations: "eh", "em", "mmm", "hmm", "erm", "umm", "uhh", "uhm" and their stretched spellings, and "este" right
 ///   before an ellipsis with more words after it. A tag question ("¿eh?") and a word glued to an apostrophe or a hyphen
-///   ("'em", "ehm-test") stay. The commas the hesitation brought go with it, and a sentence it began starts with a capital.
-/// - Self-corrections: "X, no, Y" (also "digo", "perdón", "mejor dicho", "I mean", "sorry") where Y starts with the same
-///   word as X, X is two to six words of the same clause, and Y is not a "no" or a "yes". X and the marker go; Y stays.
+///   ("'em", "ehm-test") stay, and so does an acronym written in capitals ("ERM", "HM Treasury"). The commas the
+///   hesitation brought go with it, and a sentence it began starts with a capital.
+/// - Self-corrections: "X, no, Y" (also "digo", "mejor dicho") where Y starts with the same word as X, X is two to six
+///   words of the same clause, and Y starts with neither a "no" or a "yes" nor a personal pronoun. X and the marker go;
+///   Y stays.
 public enum FillerRemover {
     public static func clean(_ text: String) -> String {
         var pieces = WordLexer.pieces(of: text)
@@ -78,7 +80,12 @@ public enum FillerRemover {
             guard let next, next.isPunctuation, isEllipsis(next.text) else { return false }
             return pieces[(index + 2)...].contains(where: \.isWord)
         }
-        return isHesitationWord(key)
+        return !isAcronym(pieces[index].text) && isHesitationWord(key)
+    }
+
+    /// A word with a capital after its first letter, as an acronym is written ("ERM", "HM"): never a hesitation.
+    private static func isAcronym(_ word: String) -> Bool {
+        word.dropFirst().contains(where: \.isUppercase)
     }
 
     /// Removes the hesitation at `index`, the comma or ellipsis after it, and the space after that. At the start of a
