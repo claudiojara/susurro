@@ -911,3 +911,11 @@ Slices 2–9 were delivered together in #68 (fast track, strict TDD, no per-PR r
 - [x] SK1.4 BUILD: `make build` signs with the first Apple Development identity and its team (certificate OU), detected at make time, overridable with `CODE_SIGN_IDENTITY`/`DEVELOPMENT_TEAM`; ad hoc without one (CI). `make signing` prints the choice.
 - [x] SK1.5 DOC: ADR 0037 (amends ADR 0003's caching rule); `docs/running.md`.
 - [ ] SK1.6 VERIFY: Manual: after the first signed build, grant Microphone and Accessibility again and answer the Keychain prompt with "Always Allow"; with Deepgram selected, dictate several times and rebuild with `make build`: no Keychain prompt and no permission lost.
+
+### PR MP1: Pause media accurately: ask the players, never send the media key
+
+- [x] MP1.1 RED+GREEN: `MediaPauser` takes `MediaPlayerControlling` players, asks each for its state past the hold threshold, pauses only those that play, and sends `play` to exactly those when the recording ends. Tests: a paused player gets nothing, a player that is not open gets nothing, a player that cannot be asked (Automation denied) is skipped while the others pause, only the paused players are played again.
+- [x] MP1.2 RED+GREEN: `ScriptedMediaPlayer` (Music, Spotify) reads `player state` and sends `pause`/`play` as Apple Events addressed by PID through `AppleEventSending` (`LiveAppleEvents` asks for the Automation permission first); an app that is not open gets no event, a failed event reads as `unavailable`. `SystemMediaPlayback` (CoreAudio process output plus the media key) is removed, so Background Music, BlackHole or a call can no longer start playback.
+- [x] MP1.3 RED+GREEN: `NSAppleEventsUsageDescription` in Info.plist, the `com.apple.security.automation.apple-events` entitlement, and the setting's description (en/es) names Music and Spotify and the Automation prompt.
+- [x] MP1.4 DOC: ADR 0038, "Pause only scriptable players, by their own state", supersedes ADR 0031.
+- [ ] MP1.5 VERIFY: Manual: with the setting on, pause Music (or Spotify), dictate, and see it stay paused; play it, dictate, accept the Automation prompt the first time, and see it pause and play again; with Background Music running and Music paused see nothing start; quit Music, dictate, and see it not launch; deny the prompt for one app and see dictation work and that app left alone.

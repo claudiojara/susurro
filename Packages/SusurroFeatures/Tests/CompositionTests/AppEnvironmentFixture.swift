@@ -104,7 +104,7 @@ final class AppEnvironmentFixture {
     let window = SpyOnboardingWindow()
     /// Presses of the paste last dictation shortcut.
     let pasteLast = FakeShortcutPresses()
-    let media = FakeMediaPlayback()
+    let media = FakeMediaPlayer()
     let themes: ThemeStore
     /// How many times the environment asked for the themes folder to be prepared and watched.
     let themePreparations = Counter()
@@ -166,7 +166,7 @@ final class AppEnvironmentFixture {
                 settingsScreen: settingsScreen,
                 interfaceLanguage: { [unowned self] in appliedLanguages.append($0) },
                 pasteLastPresses: pasteLast,
-                mediaPlayback: media
+                mediaPlayers: [media]
             )
         )
     }

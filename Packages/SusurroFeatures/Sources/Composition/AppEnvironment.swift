@@ -147,8 +147,8 @@ public final class AppEnvironment {
         public var interfaceLanguage: @MainActor (InterfaceLanguage) -> Void
         /// The presses of the shortcut that pastes the last dictation. Nil has no such shortcut.
         public var pasteLastPresses: (any ShortcutPressSource)?
-        /// Pauses the media that plays while the user dictates, when the setting is on. Nil leaves the media alone.
-        public var mediaPlayback: (any MediaPlaybackControlling)?
+        /// The media players paused while the user dictates, when the setting is on. None leaves the media alone.
+        public var mediaPlayers: [any MediaPlayerControlling]
         /// The microphones the settings offer. The capture reads the choice on its own.
         public var microphones: any AudioInputDeviceListing
         /// What the watch for the user's corrections reads. Nil learns nothing (`AppEnvironment+Learning.swift`).
@@ -182,12 +182,12 @@ public final class AppEnvironment {
             settingsScreen: SettingsScreen? = nil,
             interfaceLanguage: @escaping @MainActor (InterfaceLanguage) -> Void = { _ in },
             pasteLastPresses: (any ShortcutPressSource)? = nil,
-            mediaPlayback: (any MediaPlaybackControlling)? = nil,
+            mediaPlayers: [any MediaPlayerControlling] = [],
             microphones: any AudioInputDeviceListing = NoAudioInputDevices(),
             command: CommandStage? = nil
         ) {
             self.pasteLastPresses = pasteLastPresses
-            self.mediaPlayback = mediaPlayback
+            self.mediaPlayers = mediaPlayers
             self.microphones = microphones
             self.command = command
             self.interfaceLanguage = interfaceLanguage
@@ -389,10 +389,12 @@ public final class AppEnvironment {
         let lastDictation = LastDictation(
             repository: history.repository, inserter: dependencies.inserter, clipboard: history.clipboard)
         self.lastDictation = lastDictation
-        mediaPauser = dependencies.mediaPlayback.map {
-            MediaPauser(
-                playback: $0, settings: dependencies.settings, diagnostics: dependencies.diagnostics, sleep: sleep)
-        }
+        mediaPauser =
+            dependencies.mediaPlayers.isEmpty
+            ? nil
+            : MediaPauser(
+                players: dependencies.mediaPlayers, settings: dependencies.settings,
+                diagnostics: dependencies.diagnostics, sleep: sleep)
         let historyWindow = history.window(historyModel, themeModel)
         preferences = MenuPreferences(
             settings: dependencies.settings,

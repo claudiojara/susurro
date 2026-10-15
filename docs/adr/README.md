@@ -21,10 +21,11 @@ number, and add a row below. An accepted ADR is not edited; a later ADR supersed
 | [0016](0016-dictionary-terms-bias-parakeet-through-ctc-rescoring.md) | Dictionary terms bias Parakeet through CTC rescoring | accepted |
 | [0018](0018-deterministic-text-passes-before-cleanup.md) | Snippets, filler removal, and replacements are deterministic passes before cleanup | accepted |
 | [0030](0030-busy-presses-use-a-fifo-processing-queue.md) | Busy presses use a FIFO ProcessingQueue | accepted |
-| [0031](0031-pause-media-with-the-media-key-and-coreaudio-process-output.md) | Pause media with the media key, detected through CoreAudio process output | accepted |
+| [0031](0031-pause-media-with-the-media-key-and-coreaudio-process-output.md) | Pause media with the media key, detected through CoreAudio process output | superseded by 0038 |
 | [0032](0032-live-text-partials-are-throttled-and-yield-to-the-dictation.md) | Live text partials are throttled, run only on an idle engine, and are dropped at key-up | accepted |
 | [0033](0033-command-mode-rewrites-the-selection-on-device.md) | Command mode rewrites the selection on device, through the same reducer and paste | accepted |
 | [0034](0034-learning-dictionary-suggests-corrected-words.md) | The learning dictionary suggests corrected words, and never stores field text | accepted |
 | [0035](0035-command-key-records-at-once-and-hotkeys-never-nest.md) | The command key records at once, and modifier-only hotkeys never nest with another | accepted |
 | [0036](0036-capture-rides-through-engine-configuration-changes.md) | The capture rides through engine configuration changes | accepted |
 | [0037](0037-cloud-keys-are-kept-for-the-session-and-builds-sign-with-a-stable-identity.md) | Cloud keys are kept for the session, and local builds sign with a stable identity | accepted |
+| [0038](0038-pause-only-scriptable-players-by-their-own-state.md) | Pause only scriptable players, by their own state | accepted |

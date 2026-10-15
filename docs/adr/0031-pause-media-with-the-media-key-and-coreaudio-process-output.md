@@ -1,6 +1,6 @@
 # 0031. Pause media with the media key, detected through CoreAudio process output
 
-- Status: accepted
+- Status: superseded by [0038](0038-pause-only-scriptable-players-by-their-own-state.md)
 - Date: 2026-10-14
 
 ## Context and Problem Statement

@@ -18,6 +18,8 @@
     <string>$(MACOSX_DEPLOYMENT_TARGET)</string>
     <key>LSUIElement</key>
     <true/>
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Susurro pauses Music or Spotify while you dictate, when you turn that on, and plays them again when you finish. It only asks whether they are playing and tells them to pause or play.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Susurro records your voice while you hold the dictation key so it can turn your speech into text.</string>
     <key>NSSpeechRecognitionUsageDescription</key>

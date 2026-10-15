@@ -138,7 +138,7 @@ extension AppEnvironment.Dependencies {
                 settings: settings, recognizer: recognizer, permissions: permissions, diagnostics: diagnostics),
             interfaceLanguage: { $0.apply() },
             pasteLastPresses: ShortcutPressService(settings: settings, key: PasteLastSettings.combo),
-            mediaPlayback: SystemMediaPlayback(),
+            mediaPlayers: ScriptedMediaPlayer.App.all.map { ScriptedMediaPlayer($0) },
             microphones: microphones,
             command: commandStage(settings: settings, diagnostics: diagnostics)
         )

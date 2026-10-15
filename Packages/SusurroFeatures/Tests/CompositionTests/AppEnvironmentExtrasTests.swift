@@ -68,25 +68,25 @@ struct AppEnvironmentExtrasTests {
     func pausesMedia() async {
         let f = AppEnvironmentFixture()
         f.settings.set(true, for: MediaSettings.pauseWhileDictating)
-        f.media.playing = true
+        f.media.current = .playing
         f.environment.start()
 
         f.hotkeys.send(.down(at: Self.pressTime))
         // The media is paused once the press has lasted the hold threshold, so a tap sends nothing.
-        await f.advance(by: .milliseconds(100), until: "the media to pause") { f.media.toggles == 1 }
+        await f.advance(by: .milliseconds(100), until: "the media to pause") { f.media.pauses == 1 }
         f.capture.emit(AudioChunk(samples: [Float](repeating: 0.1, count: AudioClip.sampleRate)))
         await f.eventually("the recording indicator") { f.overlay.current == "Listening…" }
         f.hotkeys.send(.up(at: Self.pressTime + .milliseconds(1200)))
-        await f.eventually("the media to resume") { f.media.toggles == 2 }
+        await f.eventually("the media to resume") { f.media.plays == 1 }
 
-        #expect(f.media.playing)
+        #expect(f.media.current == .playing)
         await f.environment.shutdown()
     }
 
     @Test("with the setting off, the media is left alone")
     func mediaOffByDefault() async {
         let f = AppEnvironmentFixture()
-        f.media.playing = true
+        f.media.current = .playing
         f.environment.start()
 
         f.hotkeys.send(.down(at: Self.pressTime))
@@ -95,7 +95,8 @@ struct AppEnvironmentExtrasTests {
         f.hotkeys.send(.up(at: Self.pressTime + .milliseconds(1200)))
         await f.eventually("the pasted indicator") { f.overlay.current == "Pasted" }
 
-        #expect(f.media.toggles == 0)
+        #expect(f.media.pauses == 0)
+        #expect(f.media.checks == 0)
         await f.environment.shutdown()
     }
 }
