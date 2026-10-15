@@ -62,6 +62,11 @@ public struct OSLogDiagnostics: DiagnosticsLog {
         case .microphoneFallback: (.default, "the chosen microphone is not connected, using the system default")
         case .microphoneSelectionFailed(let status):
             (.error, "the chosen microphone could not be selected: status \(status), using the system default")
+        case .captureEngineFailed(let stage, let domain, let code):
+            (.error, "capture engine failed at \(stage): \(domain) \(code)")
+        case .captureReconfigured(let sampleRate, let channels):
+            (.default, "capture restarted after a configuration change: \(Int(sampleRate)) Hz, \(channels) ch")
+        case .captureLost(let reason): (.error, "capture ended, the input was lost: \(reason)")
         case .mediaPlayback(let paused):
             (.default, paused ? "media paused for a recording" : "media resumed after a recording")
         case .commandNoResult(let reason): (.info, "command replaced nothing: \(reason)")

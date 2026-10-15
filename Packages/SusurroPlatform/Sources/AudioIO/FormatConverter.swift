@@ -17,7 +17,7 @@ final class FormatConverter {
     /// Room for what the resampler holds back, which is a few dozen samples at most.
     private static let tailCapacity: AVAudioFrameCount = 1_024
 
-    private let inputFormat: AVAudioFormat
+    let inputFormat: AVAudioFormat
     private let monoFormat: AVAudioFormat
     /// Nil when the input is already at the target rate.
     private let resampler: AVAudioConverter?
@@ -94,7 +94,7 @@ final class FormatConverter {
     /// only the left channel, so a signal on any other channel would vanish.
     private func mixedToMono(_ buffer: AVAudioPCMBuffer) throws -> AVAudioPCMBuffer {
         let channels = Int(buffer.format.channelCount)
-        guard channels > 1 else { return buffer }
+        guard channels > 1 else { return try relabeled(buffer) }
         guard let mono = AVAudioPCMBuffer(pcmFormat: monoFormat, frameCapacity: buffer.frameLength),
             let source = buffer.floatChannelData, let destination = mono.floatChannelData?[0]
         else { throw FormatConversionError.conversionFailed("could not allocate the mono buffer") }
@@ -109,6 +109,17 @@ final class FormatConverter {
             destination[frame] = sum * weight
         }
         return mono
+    }
+
+    /// A mono buffer in exactly the converter's format. `AVAudioConverter` refuses a buffer whose format differs from its
+    /// own even in channel layout metadata alone, which a tap can deliver, so such a buffer is wrapped in the converter's
+    /// format over the same memory. One channel is laid out the same whether it is called interleaved or not.
+    private func relabeled(_ buffer: AVAudioPCMBuffer) throws -> AVAudioPCMBuffer {
+        guard buffer.format != monoFormat else { return buffer }
+        guard let wrapped = AVAudioPCMBuffer(pcmFormat: monoFormat, bufferListNoCopy: buffer.audioBufferList) else {
+            throw FormatConversionError.conversionFailed("could not wrap the mono buffer")
+        }
+        return wrapped
     }
 
     private func resample(_ input: AVAudioPCMBuffer, with resampler: AVAudioConverter) throws -> [Float] {

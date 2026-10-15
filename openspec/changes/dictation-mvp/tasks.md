@@ -893,3 +893,12 @@ Slices 2–9 were delivered together in #68 (fast track, strict TDD, no per-PR r
 - [x] VF1.3 RED+GREEN: `SettingsStore.commandHotkeyClashes`; the command mode card warns ("This shortcut overlaps another Susurro shortcut; choose a different one", `en`/`es`) when command mode is on and its hotkey repeats or nests with another shortcut. ADR 0035 updated.
 - [x] VF1.4 RED+GREEN: A tap of the command key with nothing to rewrite shows the notice, as a hold does.
 - [ ] VF1.5 VERIFY: Manual: with command mode off, set the dictation hotkey to ⌃⌥⇧D, turn command mode on, and see the warning on the card; record another command hotkey and see it go away; tap the command key with nothing selected and see the notice.
+
+### PR BT1: Capture survives Bluetooth headsets and engine configuration changes
+
+- [x] BT1.1 RED+GREEN: `AVAudioEngineCaptureSource` restarts the engine on `AVAudioEngineConfigurationChange` (device chosen again, format read right before the tap, new converter, same stream, captured audio delivered first); it ends as `deviceRemoved` only with no input device, a restart that fails twice, or more than four restarts.
+- [x] BT1.2 RED+GREEN: A failed engine start (new capture or restart) is retried once after 250 ms; a stop during the pause cancels the start.
+- [x] BT1.3 RED+GREEN: `DiagnosticEvent.captureEngineFailed(stage:domain:code:)`, `.captureReconfigured(sampleRate:channels:)`, `.captureLost(reason:)` with their log lines (error level for failures).
+- [x] BT1.4 RED+GREEN: `FormatConverter` streams 8/16/24/44.1/48 kHz mono and stereo to 16 kHz mono, and accepts a mono buffer that differs only in channel layout.
+- [x] BT1.5 DOC: ADR 0036, "The capture rides through engine configuration changes".
+- [ ] BT1.6 VERIFY: Manual: with AirPods as the system input (and as the chosen microphone), hold the key and dictate several times in a row, and see the text pasted each time; `/usr/bin/log show --last 10m --predicate 'subsystem == "dev.claudiojara.susurro"'` shows "capture restarted after a configuration change: 24000 Hz, 1 ch" (or 16000) and no "dictation failed: captureFailed".

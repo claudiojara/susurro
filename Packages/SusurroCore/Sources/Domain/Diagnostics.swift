@@ -82,6 +82,15 @@ public enum DiagnosticEvent: Sendable, Equatable {
     /// The microphone the user chose is connected but could not be selected, so the recording used the system default.
     /// `status` is the CoreAudio status code.
     case microphoneSelectionFailed(status: Int32)
+    /// The audio engine refused to start a capture. `stage` is "start" for a new capture, or "restart" for one that is
+    /// restarted after a configuration change. `domain` and `code` are those of the error, never its message.
+    case captureEngineFailed(stage: String, domain: String, code: Int)
+    /// The audio engine's configuration changed under a capture (a Bluetooth headset switching to its call mode, a
+    /// device plugged in), and the capture went on in the device's new format.
+    case captureReconfigured(sampleRate: Double, channels: Int)
+    /// A capture ended because its input could not be got back after a configuration change. `reason` is one of
+    /// "noInputDevice", "restartFailed", or "restartLimit".
+    case captureLost(reason: String)
     /// Media that was playing was paused as a recording started (`paused` true), or resumed as it ended.
     case mediaPlayback(paused: Bool)
     /// A command replaced nothing. `reason` is a fixed name such as "timedOut", "unchanged", or "emptyOutput": never the

@@ -89,6 +89,15 @@ struct DiagnosticDescriptionTests {
                 .microphoneSelectionFailed(status: -50), .error,
                 "the chosen microphone could not be selected: status -50, using the system default"
             ),
+            (
+                .captureEngineFailed(stage: "start", domain: "com.apple.coreaudio.avfaudio", code: -10868), .error,
+                "capture engine failed at start: com.apple.coreaudio.avfaudio -10868"
+            ),
+            (
+                .captureReconfigured(sampleRate: 24_000, channels: 1), .default,
+                "capture restarted after a configuration change: 24000 Hz, 1 ch"
+            ),
+            (.captureLost(reason: "noInputDevice"), .error, "capture ended, the input was lost: noInputDevice"),
             (.mediaPlayback(paused: true), .default, "media paused for a recording"),
             (.mediaPlayback(paused: false), .default, "media resumed after a recording"),
             (.correctionWatchEnded(reason: .suggested), .default, "correction watch ended: suggested"),

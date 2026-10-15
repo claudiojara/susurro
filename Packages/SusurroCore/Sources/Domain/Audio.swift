@@ -37,7 +37,7 @@ public struct AudioClip: Sendable, Equatable {
 
 public enum CaptureError: Error, Sendable, Equatable {
     case noInputDevice
-    /// The input device went away while recording, or its configuration changed under the capture. What was captured
+    /// The input device went away while recording, and the capture could not get an input back. What was captured
     /// before is intact.
     case deviceRemoved
 }
