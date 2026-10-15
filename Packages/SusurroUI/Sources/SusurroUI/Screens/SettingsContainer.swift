@@ -7,16 +7,25 @@ import SwiftUI
 public struct SettingsContainer<Recorder: View>: View {
     private let model: any SettingsViewModeling
     private let recorder: Recorder
+    private let pasteLastRecorder: AnyView
 
-    public init(model: any SettingsViewModeling, @ViewBuilder recorder: () -> Recorder) {
+    /// - Parameter pasteLastRecorder: The recorder of the shortcut that pastes the last dictation, built by the app like
+    ///   `recorder`.
+    public init(
+        model: any SettingsViewModeling, pasteLastRecorder: AnyView = AnyView(EmptyView()),
+        @ViewBuilder recorder: () -> Recorder
+    ) {
         self.model = model
         self.recorder = recorder()
+        self.pasteLastRecorder = pasteLastRecorder
     }
 
     public var body: some View {
         let model = model
-        SettingsScreen(state: model.state, actions: SettingsActions(model: model)) { recorder }
-            .task { await model.refresh() }
-            .task { await model.run() }
+        SettingsScreen(
+            state: model.state, actions: SettingsActions(model: model), pasteLastRecorder: pasteLastRecorder
+        ) { recorder }
+        .task { await model.refresh() }
+        .task { await model.run() }
     }
 }

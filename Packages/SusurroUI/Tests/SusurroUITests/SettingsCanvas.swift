@@ -18,6 +18,8 @@ enum SettingsCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
     case styleSeeds, styleOverrides
     case dictionaryEmpty, dictionaryPopulated
     case appearance
+    case audio, audioMissing
+    case pasteLast, pasteLastUnassigned
     case screenGeneral
 
     var testDescription: String { "\(self)" }
@@ -51,6 +53,10 @@ enum SettingsCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
         case .dictionaryEmpty: CGSize(width: Self.sectionWidth, height: 195)
         case .dictionaryPopulated: CGSize(width: Self.sectionWidth, height: 301)
         case .appearance: CGSize(width: Self.sectionWidth, height: 236)
+        case .audio: CGSize(width: Self.sectionWidth, height: 272)
+        case .audioMissing: CGSize(width: Self.sectionWidth, height: 298)
+        case .pasteLast: CGSize(width: Self.sectionWidth, height: 186)
+        case .pasteLastUnassigned: CGSize(width: Self.sectionWidth, height: 179)
         case .screenGeneral: CGSize(width: 632, height: 512)
         }
     }
@@ -89,6 +95,12 @@ enum SettingsCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
         case .dictionaryEmpty: AnyView(DictionaryEditor(SettingsFixtures.dictionaryEmpty, actions: .none))
         case .dictionaryPopulated: AnyView(DictionaryEditor(SettingsFixtures.dictionary, actions: .none))
         case .appearance: AnyView(AppearanceSection(SettingsFixtures.appearance, actions: .none))
+        case .audio: AnyView(AudioSection(SettingsFixtures.audio, actions: .none))
+        case .audioMissing: AnyView(AudioSection(SettingsFixtures.audioMissing, actions: .none))
+        case .pasteLast:
+            AnyView(PasteLastSection(SettingsFixtures.pasteLast) { recorder(SettingsFixtures.recorderPasteLast) })
+        case .pasteLastUnassigned:
+            AnyView(PasteLastSection(SettingsFixtures.pasteLastUnassigned) { recorder(SettingsFixtures.recorderIdle) })
         case .screenGeneral:
             AnyView(SettingsScreen(state: SettingsFixtures.screen, actions: .none) { EmptyView() })
         }

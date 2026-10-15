@@ -1,7 +1,7 @@
 import AVFoundation
 import Domain
 
-/// Captures the default microphone as 16 kHz mono chunks. The first chunk is the readiness signal: it arrives with the
+/// Captures the chosen microphone, or the system default one, as 16 kHz mono chunks. The first chunk is the readiness signal: it arrives with the
 /// first real buffer from the device, not when the capture is requested. The capture ends on `stop`, which delivers
 /// everything captured first, or when the stream ends some other way: a conversion error, a consumer that cancels
 /// or drops it, or a change of the engine's configuration. That change is what a device that is unplugged, or a route
@@ -18,22 +18,35 @@ public actor AVAudioEngineCaptureSource: AudioCaptureSource {
 
     private let engine: any EngineProviding
     private let diagnostics: any DiagnosticsLog
+    /// The CoreAudio id of the microphone to record from, read as each capture starts, or nil for the system default.
+    private let inputDevice: @Sendable () -> UInt32?
     private var running: Capture?
     private var captureCount = 0
 
-    /// - Parameter diagnostics: Where the size of the first tap buffer of each capture is reported.
-    public init(diagnostics: any DiagnosticsLog = NoDiagnostics()) {
-        self.init(engine: LiveAudioEngine(), diagnostics: diagnostics)
+    /// - Parameters:
+    ///   - diagnostics: Where the size of the first tap buffer of each capture is reported, and a microphone that could
+    ///     not be selected.
+    ///   - inputDevice: The microphone to record from, read as each capture starts (`PreferredInputDevice`). Nil is the
+    ///     system default.
+    public init(
+        diagnostics: any DiagnosticsLog = NoDiagnostics(), inputDevice: @escaping @Sendable () -> UInt32? = { nil }
+    ) {
+        self.init(engine: LiveAudioEngine(), diagnostics: diagnostics, inputDevice: inputDevice)
     }
 
-    init(engine: any EngineProviding, diagnostics: any DiagnosticsLog = NoDiagnostics()) {
+    init(
+        engine: any EngineProviding, diagnostics: any DiagnosticsLog = NoDiagnostics(),
+        inputDevice: @escaping @Sendable () -> UInt32? = { nil }
+    ) {
         self.engine = engine
         self.diagnostics = diagnostics
+        self.inputDevice = inputDevice
     }
 
     public func start() async throws -> AsyncThrowingStream<AudioChunk, Error> {
         // A second tap on the same bus would crash the engine, so a capture still running is ended first.
         endCapture(deliveringTail: true)
+        selectInputDevice()
         guard let format = engine.inputFormat() else { throw CaptureError.noInputDevice }
         let (stream, continuation) = AsyncThrowingStream<AudioChunk, Error>.makeStream()
         let bridge = TapBridge(converter: try FormatConverter(from: format), continuation: continuation)
@@ -66,6 +79,19 @@ public actor AVAudioEngineCaptureSource: AudioCaptureSource {
 
     public func stop() async {
         endCapture(deliveringTail: true)
+    }
+
+    /// Points the engine at the chosen microphone. One that cannot be selected is logged, and the capture goes on with
+    /// the system default rather than fail the dictation.
+    private func selectInputDevice() {
+        guard let id = inputDevice() else { return }
+        do {
+            try engine.useInputDevice(id)
+        } catch let error as InputDeviceError {
+            diagnostics.record(.microphoneSelectionFailed(status: error.status))
+        } catch {
+            diagnostics.record(.microphoneSelectionFailed(status: 0))
+        }
     }
 
     private func streamEnded(_ id: Int) {

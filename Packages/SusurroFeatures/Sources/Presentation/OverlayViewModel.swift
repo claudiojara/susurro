@@ -113,6 +113,17 @@ public final class OverlayViewModel: OverlayViewModeling {
         hold(for: timing.error)
     }
 
+    // MARK: Notices from outside the pipeline
+
+    /// Tells something that happened outside a dictation, such as a paste of the last dictation that found none. It
+    /// shows like a notice of the pipeline and holds for the notice dwell, but it never covers a dictation that is under
+    /// way or a state that is held.
+    public func showNotice(_ kind: NoticeKind) {
+        guard holding == nil, !isPipelineActive else { return }
+        update(OverlayMapping.viewState(for: .notice(kind)))
+        hold(for: timing.notice)
+    }
+
     // MARK: The settings
 
     /// Follows the overlay's settings until the store goes away: the id of the style, and the edge.

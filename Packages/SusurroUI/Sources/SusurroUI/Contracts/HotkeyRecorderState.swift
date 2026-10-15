@@ -16,11 +16,15 @@ public nonisolated struct HotkeyRecorderState: Equatable, Sendable {
     public let rejection: String?
     /// Whether the shortcut in use is not the default one, so that a button can bring the default back.
     public let canRestoreDefault: Bool
+    /// The title of the button that brings the default back, or nil for "Restore default". A shortcut that is unassigned
+    /// by default calls it something else, such as "Remove shortcut".
+    public let restoreTitle: String?
 
-    public init(phase: Phase, rejection: String?, canRestoreDefault: Bool) {
+    public init(phase: Phase, rejection: String?, canRestoreDefault: Bool, restoreTitle: String? = nil) {
         self.phase = phase
         self.rejection = rejection
         self.canRestoreDefault = canRestoreDefault
+        self.restoreTitle = restoreTitle
     }
 }
 

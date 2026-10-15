@@ -12,6 +12,10 @@ public enum HotkeyRejection: Sendable, Equatable, CaseIterable {
     /// Hotkeys of modifier keys alone must be fn, or two or more modifier keys, since one is pressed all the time by
     /// accident.
     case needsFunctionOrTwoModifiers
+    /// The shortcut that pastes the last dictation is tapped, so it needs a key, not modifier keys alone.
+    case needsKey
+    /// The dictation hotkey already uses the combo.
+    case sameAsDictation
 }
 
 /// The rules a hotkey has to follow. A pure function, so that the settings and the tests share them.

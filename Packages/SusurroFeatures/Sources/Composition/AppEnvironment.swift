@@ -62,6 +62,8 @@ public final class AppEnvironment {
             /// How a local speech provider stands, by provider id.
             public var speechReadiness: @Sendable (String) async -> RecognizerReadiness
             public var appleIntelligenceAvailable: @Sendable () async -> Bool
+            /// The keys of the paste last dictation shortcut, one cap each, or none while it is unassigned.
+            public var pasteLastHotkey: @MainActor () -> [String]
 
             public init(
                 window: @escaping @MainActor (SettingsViewModel, ThemeModel) -> any SettingsSurface,
@@ -72,8 +74,10 @@ public final class AppEnvironment {
                 style: any StylePreferencesStore,
                 dictionary: any DictionaryTermStore,
                 speechReadiness: @escaping @Sendable (String) async -> RecognizerReadiness,
-                appleIntelligenceAvailable: @escaping @Sendable () async -> Bool
+                appleIntelligenceAvailable: @escaping @Sendable () async -> Bool,
+                pasteLastHotkey: @escaping @MainActor () -> [String] = { [] }
             ) {
+                self.pasteLastHotkey = pasteLastHotkey
                 self.window = window
                 self.hasKey = hasKey
                 self.hotkey = hotkey
@@ -139,6 +143,12 @@ public final class AppEnvironment {
         /// Shows the app's words in a language: the one stored at launch, and each one picked in the settings. The live
         /// app sets `InterfaceLocale.shared`; the default does nothing, so a test never changes the language of another.
         public var interfaceLanguage: @MainActor (InterfaceLanguage) -> Void
+        /// The presses of the shortcut that pastes the last dictation. Nil has no such shortcut.
+        public var pasteLastPresses: (any ShortcutPressSource)?
+        /// Pauses the media that plays while the user dictates, when the setting is on. Nil leaves the media alone.
+        public var mediaPlayback: (any MediaPlaybackControlling)?
+        /// The microphones the settings offer. The capture reads the choice on its own.
+        public var microphones: any AudioInputDeviceListing
 
         public init(
             hotkeys: any HotkeySource,
@@ -166,8 +176,14 @@ public final class AppEnvironment {
             cleanup: CleanupStage? = nil,
             vocabulary: VocabularyPipeline? = nil,
             settingsScreen: SettingsScreen? = nil,
-            interfaceLanguage: @escaping @MainActor (InterfaceLanguage) -> Void = { _ in }
+            interfaceLanguage: @escaping @MainActor (InterfaceLanguage) -> Void = { _ in },
+            pasteLastPresses: (any ShortcutPressSource)? = nil,
+            mediaPlayback: (any MediaPlaybackControlling)? = nil,
+            microphones: any AudioInputDeviceListing = NoAudioInputDevices()
         ) {
+            self.pasteLastPresses = pasteLastPresses
+            self.mediaPlayback = mediaPlayback
+            self.microphones = microphones
             self.interfaceLanguage = interfaceLanguage
             self.hotkeys = hotkeys
             self.capture = capture
@@ -286,6 +302,9 @@ public final class AppEnvironment {
     private let watcher: ModelLoadWatcher
     private let onboardingPresenter: OnboardingPresenter
     private let retention: RetentionSweeper
+    /// Pastes or copies the last dictation, for its shortcut and its menu item.
+    private let lastDictation: LastDictation
+    private let mediaPauser: MediaPauser?
     private var tasks: [Task<Void, Never>] = []
     private var hasStarted = false
 
@@ -345,6 +364,12 @@ public final class AppEnvironment {
             dates: history.dates)
         retention = RetentionSweeper(
             repository: history.repository, deleter: history.deleter, dates: history.dates, clock: clock)
+        let lastDictation = LastDictation(
+            repository: history.repository, inserter: dependencies.inserter, clipboard: history.clipboard)
+        self.lastDictation = lastDictation
+        mediaPauser = dependencies.mediaPlayback.map {
+            MediaPauser(playback: $0, settings: dependencies.settings, diagnostics: dependencies.diagnostics)
+        }
         let historyWindow = history.window(historyModel, themeModel)
         preferences = MenuPreferences(
             settings: dependencies.settings,
@@ -359,7 +384,8 @@ public final class AppEnvironment {
                     speechReadiness: screen.speechReadiness,
                     appleIntelligenceAvailable: screen.appleIntelligenceAvailable,
                     themes: dependencies.theming.store, themeModel: themeModel,
-                    interfaceLanguage: dependencies.interfaceLanguage, clock: clock))
+                    interfaceLanguage: dependencies.interfaceLanguage, clock: clock,
+                    microphones: dependencies.microphones, pasteLastHotkey: screen.pasteLastHotkey))
             let surface = screen.window(model, themeModel)
             settingsModel = model
             showSettings = { surface.show() }
@@ -368,7 +394,10 @@ public final class AppEnvironment {
         }
         menu = MenuModel(
             monitor: monitor, showOnboarding: { onboardingPresenter.show() }, showHistory: { historyWindow.show() },
-            preferences: preferences, showSettings: showSettings)
+            preferences: preferences, showSettings: showSettings,
+            copyLastDictation: { [overlayModel] in
+                if let notice = await lastDictation.copy().notice { overlayModel.showNotice(notice) }
+            })
     }
 
     /// Starts the app's work: the overlay, the hotkey, the model, the permission monitor and the onboarding, and the
@@ -382,7 +411,11 @@ public final class AppEnvironment {
         dependencies.interfaceLanguage(dependencies.settings.value(for: GeneralSettings.interfaceLanguage))
         monitor.start()
         // The overlay listens before the coordinator can publish, and the coordinator registers the hotkey when it runs.
-        run { await $0.overlayModel.run(states: $0.coordinator.states) }
+        let (overlayStates, mediaStates) = Self.split(coordinator.states, pausing: mediaPauser != nil)
+        run { await $0.overlayModel.run(states: overlayStates) }
+        if let mediaPauser, let mediaStates {
+            run { _ in for await state in mediaStates { await mediaPauser.observe(state) } }
+        }
         run { await $0.overlayModel.run(levels: $0.coordinator.levels) }
         run { await $0.overlayModel.follow($0.dependencies.settings) }
         run { await $0.coordinator.run() }
@@ -396,6 +429,7 @@ public final class AppEnvironment {
         run { await $0.monitor.run(activations: $0.dependencies.onboarding.activations()) }
         run { await $0.preferences.ocr.start() }
         run { await $0.followHotkeyKind() }
+        run { await $0.followPasteLast() }
         run { await $0.themeModel.follow(await $0.dependencies.theming.store.updates()) }
         // The folder is read away from the main actor, so a slow disk or a link to a volume that is not there cannot hold
         // the launch up. The bundled theme shows until the files are known.
@@ -429,6 +463,37 @@ public final class AppEnvironment {
     public func willTerminate() {
         dependencies.diagnostics.record(.appTerminating)
         dependencies.restoreClipboardNow()
+    }
+
+    // MARK: Paste last dictation and media
+
+    /// Pastes the last dictation at each press of its shortcut. A press with nothing to paste, or a paste that ended on
+    /// the clipboard, is told in the overlay.
+    private func followPasteLast() async {
+        guard let presses = dependencies.pasteLastPresses?.presses() else { return }
+        for await _ in presses {
+            if let notice = await lastDictation.paste().notice { overlayModel.showNotice(notice) }
+        }
+    }
+
+    /// The pipeline's states go to the overlay and, when media is paused for dictations, to the media pauser too. The
+    /// states stream has one reader, so it is read here and copied to each.
+    private static func split(
+        _ states: AsyncStream<PipelineState>, pausing: Bool
+    ) -> (overlay: AsyncStream<PipelineState>, media: AsyncStream<PipelineState>?) {
+        guard pausing else { return (states, nil) }
+        let (overlay, toOverlay) = AsyncStream.makeStream(of: PipelineState.self)
+        let (media, toMedia) = AsyncStream.makeStream(of: PipelineState.self)
+        let copying = Task {
+            for await state in states {
+                toOverlay.yield(state)
+                toMedia.yield(state)
+            }
+            toOverlay.finish()
+            toMedia.finish()
+        }
+        toOverlay.onTermination = { _ in copying.cancel() }
+        return (overlay, media)
     }
 
     // MARK: Launch

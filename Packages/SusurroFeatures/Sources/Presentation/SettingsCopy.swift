@@ -159,7 +159,28 @@ enum SettingsCopy {
             L10n.string(
                 "settings.hotkey.rejection.twoModifiers",
                 "One modifier key alone is pressed by accident too often. Press fn, or hold two or more modifier keys.")
+        case .needsKey:
+            L10n.string(
+                "settings.hotkey.rejection.needsKey",
+                "This shortcut is tapped, so it needs a key. Hold modifier keys and press a key.")
+        case .sameAsDictation:
+            L10n.string(
+                "settings.hotkey.rejection.sameAsDictation",
+                "The dictation hotkey already uses this shortcut. Press another one.")
         }
+    }
+
+    /// The button that takes the paste last dictation shortcut away.
+    static var removeShortcut: String { L10n.string("settings.hotkey.removeShortcut", "Remove shortcut") }
+
+    // MARK: Audio
+
+    static var systemDefaultMicrophone: String { L10n.string("settings.microphone.systemDefault", "System default") }
+    static var microphoneNotConnected: String { L10n.string("settings.microphone.notConnected", "Not connected") }
+    static var microphoneMissing: String {
+        L10n.string(
+            "settings.microphone.missing",
+            "The microphone you chose is not connected. The system default is used until it is back.")
     }
 
     // MARK: Style

@@ -23,6 +23,7 @@ struct SettingsSnapshotTests {
     nonisolated private static let style: [SettingsCanvas] = [.styleSeeds, .styleOverrides]
     nonisolated private static let dictionary: [SettingsCanvas] = [.dictionaryEmpty, .dictionaryPopulated]
     nonisolated private static let screens: [SettingsCanvas] = [.screenGeneral]
+    nonisolated private static let extras: [SettingsCanvas] = [.audio, .audioMissing, .pasteLast, .pasteLastUnassigned]
 
     @Test("the shortcut badge for a keyed hotkey and for fn", arguments: shortcuts, Probe.schemes)
     func shortcuts(canvas: SettingsCanvas, scheme: ColorScheme) {
@@ -56,6 +57,11 @@ struct SettingsSnapshotTests {
 
     @Test("the settings screen", arguments: screens, Probe.schemes)
     func screens(canvas: SettingsCanvas, scheme: ColorScheme) {
+        assertViewSnapshot(of: canvas.view, size: canvas.size, scheme: scheme, named: "\(canvas)-\(scheme.pictureName)")
+    }
+
+    @Test("the audio cards and the paste last dictation shortcut", arguments: extras, Probe.schemes)
+    func extras(canvas: SettingsCanvas, scheme: ColorScheme) {
         assertViewSnapshot(of: canvas.view, size: canvas.size, scheme: scheme, named: "\(canvas)-\(scheme.pictureName)")
     }
 }

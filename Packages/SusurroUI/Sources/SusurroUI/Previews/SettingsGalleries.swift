@@ -118,6 +118,36 @@ import SwiftUI
         }
     }
 
+    extension AudioSection {
+        struct Gallery: View {
+            @Environment(\.theme) private var theme
+
+            var body: some View {
+                HStack(alignment: .top, spacing: theme.spacing(.lg)) {
+                    AudioSection(SettingsFixtures.audio, actions: .none)
+                    AudioSection(SettingsFixtures.audioMissing, actions: .none)
+                }
+            }
+        }
+    }
+
+    extension PasteLastSection {
+        struct Gallery: View {
+            @Environment(\.theme) private var theme
+
+            var body: some View {
+                HStack(alignment: .top, spacing: theme.spacing(.lg)) {
+                    PasteLastSection<HotkeyRecorder>(SettingsFixtures.pasteLast) {
+                        HotkeyRecorder(state: SettingsFixtures.recorderPasteLast, actions: .none)
+                    }
+                    PasteLastSection<HotkeyRecorder>(SettingsFixtures.pasteLastUnassigned) {
+                        HotkeyRecorder(state: SettingsFixtures.recorderIdle, actions: .none)
+                    }
+                }
+            }
+        }
+    }
+
     extension HotkeyRecorder {
         struct Gallery: View {
             @Environment(\.theme) private var theme
@@ -207,6 +237,8 @@ import SwiftUI
         func removeTerm(_ term: String) {}
         func selectTheme(_ id: String) {}
         func setAppearance(_ id: String) {}
+        func selectMicrophone(_ id: String) {}
+        func setPauseMedia(_ isOn: Bool) {}
         func refresh() async {}
         func run() async {}
     }

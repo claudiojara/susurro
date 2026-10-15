@@ -800,6 +800,23 @@
         }
       }
     },
+    "menu.copyLastDictation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy Last Dictation"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copiar el último dictado"
+          }
+        }
+      }
+    },
     "menu.history" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1973,6 +1990,40 @@
         }
       }
     },
+    "overlay.notice.lastDictationCopied" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Last dictation copied to the clipboard"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Último dictado copiado al portapapeles"
+          }
+        }
+      }
+    },
+    "overlay.notice.noLastDictation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No dictation to paste yet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aún no hay dictado para pegar"
+          }
+        }
+      }
+    },
     "overlay.notice.noSpeech" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2806,6 +2857,40 @@
         }
       }
     },
+    "settings.hotkey.rejection.needsKey" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This shortcut is tapped, so it needs a key. Hold modifier keys and press a key."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este atajo se pulsa una vez, así que necesita una tecla. Mantén las teclas modificadoras y pulsa una tecla."
+          }
+        }
+      }
+    },
+    "settings.hotkey.rejection.sameAsDictation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The dictation hotkey already uses this shortcut. Press another one."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El atajo de dictado ya usa esta combinación. Pulsa otra."
+          }
+        }
+      }
+    },
     "settings.hotkey.rejection.stronger" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2853,6 +2938,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Una sola tecla modificadora se pulsa por accidente con demasiada frecuencia. Pulsa fn, o mantén dos o más teclas modificadoras."
+          }
+        }
+      }
+    },
+    "settings.hotkey.removeShortcut" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove shortcut"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quitar atajo"
           }
         }
       }
@@ -2921,6 +3023,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Siempre español"
+          }
+        }
+      }
+    },
+    "settings.microphone.missing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The microphone you chose is not connected. The system default is used until it is back."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El micrófono que elegiste no está conectado. Se usa el predeterminado del sistema hasta que vuelva."
+          }
+        }
+      }
+    },
+    "settings.microphone.notConnected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not connected"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No conectado"
+          }
+        }
+      }
+    },
+    "settings.microphone.systemDefault" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "System default"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Predeterminado del sistema"
           }
         }
       }

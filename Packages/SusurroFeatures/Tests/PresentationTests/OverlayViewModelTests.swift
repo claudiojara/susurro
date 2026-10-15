@@ -283,4 +283,25 @@ struct OverlayViewModelTests {
         #expect(h.message(of: await h.nextDisplay()) == "Listening…")
         #expect(await h.nextDisplay() == .hidden)
     }
+
+    @Test("a notice from outside the pipeline shows while it is idle, and holds for the notice dwell")
+    func externalNotice() async {
+        var h = await OverlayHarness()
+        await h.model.showNotice(.noLastDictation)
+
+        #expect(h.message(of: await h.nextDisplay()) == "No dictation to paste yet")
+        h.sleeper.fire(h.timing.notice)
+        #expect(await h.nextDisplay() == .hidden)
+    }
+
+    @Test("a notice from outside the pipeline does not cover a dictation under way")
+    func externalNoticeDuringDictation() async {
+        var h = await OverlayHarness()
+        await h.model.apply(.recording(.hold))
+        #expect(h.message(of: await h.nextDisplay()) == "Listening…")
+
+        await h.model.showNotice(.noLastDictation)
+
+        #expect(await h.model.state.text == "Listening…")
+    }
 }

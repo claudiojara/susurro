@@ -12,6 +12,7 @@ struct AVAudioEngineCaptureSourceTests {
 
     private enum Call: Equatable {
         case installTap, removeTap, start, stop
+        case useDevice(UInt32)
     }
 
     /// An input device scripted by the test. It records what the source asks of it, in order, and behaves like the real
@@ -30,14 +31,21 @@ struct AVAudioEngineCaptureSourceTests {
         let stopped = Gate()
         let format: AVAudioFormat?
         private let startFailure: (any Error)?
+        private let deviceFailure: (any Error)?
         private let state = Mutex(State())
 
         init(
             format: AVAudioFormat? = AVAudioFormat(standardFormatWithSampleRate: 48_000, channels: 2),
-            startFailure: (any Error)? = nil
+            startFailure: (any Error)? = nil, deviceFailure: (any Error)? = nil
         ) {
             self.format = format
             self.startFailure = startFailure
+            self.deviceFailure = deviceFailure
+        }
+
+        func useInputDevice(_ id: UInt32) throws {
+            state.withLock { $0.calls.append(.useDevice(id)) }
+            if let deviceFailure { throw deviceFailure }
         }
 
         var calls: [Call] { state.withLock { $0.calls } }
@@ -352,5 +360,37 @@ struct AVAudioEngineCaptureSourceTests {
                 .captureFirstBuffer(frames: 512, sampleRate: 48_000),
                 .captureFirstBuffer(frames: 1_024, sampleRate: 48_000),
             ])
+    }
+
+    @Test("the chosen microphone is selected on the engine before its format is read and the tap installed")
+    func chosenDevice() async throws {
+        let engine = FakeEngine()
+        let sut = AVAudioEngineCaptureSource(engine: engine, inputDevice: { 42 })
+
+        _ = try await sut.start()
+
+        #expect(engine.calls.prefix(2) == [.useDevice(42), .installTap])
+    }
+
+    @Test("with no chosen microphone the engine keeps the system default")
+    func systemDefaultDevice() async throws {
+        let engine = FakeEngine()
+        let sut = AVAudioEngineCaptureSource(engine: engine)
+
+        _ = try await sut.start()
+
+        #expect(!engine.calls.contains { if case .useDevice = $0 { true } else { false } })
+    }
+
+    @Test("a microphone that cannot be selected is logged, and the capture goes on with the system default")
+    func deviceSelectionFails() async throws {
+        let log = RecordingDiagnostics()
+        let engine = FakeEngine(deviceFailure: InputDeviceError(status: -50))
+        let sut = AVAudioEngineCaptureSource(engine: engine, diagnostics: log, inputDevice: { 7 })
+
+        _ = try await sut.start()
+
+        #expect(engine.calls.contains(.start))
+        #expect(log.events == [.microphoneSelectionFailed(status: -50)])
     }
 }

@@ -59,6 +59,11 @@ public struct OSLogDiagnostics: DiagnosticsLog {
         case .secretUnreadable(let account, let status):
             (.error, "key store unreadable for \(account.rawValue): status \(status)")
         case .cloudRequestFailed(let provider, let reason): (.error, "cloud request to \(provider) failed: \(reason)")
+        case .microphoneFallback: (.default, "the chosen microphone is not connected, using the system default")
+        case .microphoneSelectionFailed(let status):
+            (.error, "the chosen microphone could not be selected: status \(status), using the system default")
+        case .mediaPlayback(let paused):
+            (.default, paused ? "media paused for a recording" : "media resumed after a recording")
         }
     }
 

@@ -69,6 +69,91 @@
         }
       }
     },
+    "audio.media" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Media"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Multimedia"
+          }
+        }
+      }
+    },
+    "audio.microphone" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Microphone"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Micrófono"
+          }
+        }
+      }
+    },
+    "audio.microphoneFooter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The microphone Susurro records from. If the one you chose is not connected, the system default is used."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El micrófono con el que graba Susurro. Si el que elegiste no está conectado, se usa el predeterminado del sistema."
+          }
+        }
+      }
+    },
+    "audio.pauseMedia" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause media while dictating"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pausar la reproducción al dictar"
+          }
+        }
+      }
+    },
+    "audio.pauseMediaDetail" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pauses music or video that is playing when you start, and resumes it when you finish. It sends the play/pause key, so it may reach a different app than the one you hear."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pausa la música o el video que suena al empezar y lo reanuda al terminar. Envía la tecla de reproducir/pausar, así que puede llegar a una app distinta de la que escuchas."
+          }
+        }
+      }
+    },
     "dictionary.add" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -541,6 +626,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Permisos"
+          }
+        }
+      }
+    },
+    "pasteLast.footer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pastes the text of your most recent dictation where the cursor is. The menu can also copy it."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pega el texto de tu dictado más reciente donde está el cursor. El menú también puede copiarlo."
+          }
+        }
+      }
+    },
+    "pasteLast.press" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press to paste it again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Púlsalo para pegarlo de nuevo."
+          }
+        }
+      }
+    },
+    "pasteLast.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paste last dictation"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pegar el último dictado"
+          }
+        }
+      }
+    },
+    "pasteLast.unassigned" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No shortcut"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin atajo"
           }
         }
       }

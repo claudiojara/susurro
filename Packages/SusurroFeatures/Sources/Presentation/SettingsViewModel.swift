@@ -7,7 +7,8 @@ import SusurroUI
 /// live: every intent writes there and every read of `state` reads from there, so what the screen shows cannot drift from
 /// what the rest of the app uses. A key is only ever asked about (`hasKey`); its value never gets here.
 ///
-/// The extensions in the files next to this one hold the tabs: `+Providers`, `+Hotkey`, `+Style`, `+Appearance`.
+/// The extensions in the files next to this one hold the tabs: `+Providers`, `+Hotkey`, `+Style`, `+Appearance`,
+/// `+Audio`.
 @MainActor
 @Observable
 public final class SettingsViewModel: SettingsViewModeling {
@@ -25,6 +26,8 @@ public final class SettingsViewModel: SettingsViewModeling {
     var themeIDs: [String] = [ThemeStore.defaultID]
     var overrideError: String?
     var dictionaryError: String?
+    /// The microphones that are connected, as the last read found them (`+Audio`).
+    var microphones: [AudioInputDevice] = []
     /// The last change of theme, which a test waits for.
     @ObservationIgnored var themeSelection: Task<Void, Never>?
 
@@ -40,7 +43,9 @@ public final class SettingsViewModel: SettingsViewModeling {
             hotkey: hotkeyState,
             style: styleState,
             dictionary: dictionaryState,
-            appearance: appearanceState
+            appearance: appearanceState,
+            audio: audioState,
+            pasteLast: pasteLastState
         )
     }
 
@@ -49,7 +54,8 @@ public final class SettingsViewModel: SettingsViewModeling {
     public func run() async {
         async let following: Void = followSettings()
         async let polling: Void = pollSystem()
-        _ = await (following, polling)
+        async let devices: Void = followMicrophones()
+        _ = await (following, polling, devices)
     }
 
     private func followSettings() async {
@@ -73,6 +79,7 @@ public final class SettingsViewModel: SettingsViewModeling {
     public func refresh() async {
         await readSystem()
         themeIDs = await dependencies.themes.themeIDs()
+        microphones = dependencies.microphones.inputDevices()
         appleIntelligenceAvailable = await dependencies.appleIntelligenceAvailable()
         for id in [ProviderID.parakeetV3, ProviderID.localWhisper] {
             readiness[id] = await dependencies.speechReadiness(id)

@@ -297,3 +297,78 @@ struct HotkeyRecorderViewModelTests {
         #expect(sentences.allSatisfy { !$0.isEmpty })
     }
 }
+
+@MainActor
+@Suite("Hotkey recorder view model: paste last dictation", .timeLimit(.minutes(1)))
+struct PasteLastRecorderTests {
+    private let settings = RemovalSpy()
+    private let source = FakeCaptureSource()
+
+    private func model() -> HotkeyRecorderViewModel {
+        HotkeyRecorderViewModel(binding: .pasteLast(settings), source: source, isTakenBySystem: { _ in false })
+    }
+
+    private func until(_ condition: @MainActor () -> Bool) async {
+        while !condition() { await Task.yield() }
+    }
+
+    @Test("unassigned, there is nothing to remove; the button that removes it is named so")
+    func resting() {
+        let state = model().state
+        #expect(state.canRestoreDefault == false)
+        #expect(state.restoreTitle == "Remove shortcut")
+    }
+
+    @Test("an allowed shortcut is stored as the paste last dictation shortcut, not as the dictation hotkey")
+    func stores() async {
+        let model = model()
+        model.begin()
+        await until { source.isListening }
+
+        source.send(.key(code: 9, modifiers: [.control, .option]))
+        await until { model.state.phase == .idle }
+
+        #expect(
+            settings.value(for: PasteLastSettings.combo) == HotkeyCombo(keyCode: 9, modifiers: [.control, .option]))
+        #expect(settings.hotkeyConfiguration() == .standard)
+        #expect(model.state.canRestoreDefault)
+    }
+
+    @Test("the dictation hotkey is refused with the reason, and the recorder goes on listening")
+    func refusesDictationHotkey() async {
+        let model = model()
+        model.begin()
+        await until { source.isListening }
+
+        source.send(.key(code: 2, modifiers: [.control, .option]))
+        await until { model.state.rejection != nil }
+
+        #expect(model.state.rejection == SettingsCopy.rejection(.sameAsDictation))
+        #expect(model.state.phase != .idle)
+        #expect(settings.value(for: PasteLastSettings.combo) == nil)
+    }
+
+    @Test("modifier keys alone are refused")
+    func refusesModifierOnly() async {
+        let model = model()
+        model.begin()
+        await until { source.isListening }
+
+        source.send(.modifiers(.function))
+        source.send(.modifiers([]))
+        await until { model.state.rejection != nil }
+
+        #expect(model.state.rejection == SettingsCopy.rejection(.needsKey))
+    }
+
+    @Test("remove takes the shortcut away")
+    func removes() {
+        settings.set(HotkeyCombo(keyCode: 9, modifiers: [.control, .option]), for: PasteLastSettings.combo)
+        let model = model()
+
+        model.restoreDefault()
+
+        #expect(settings.removed == [PasteLastSettings.combo.storageName])
+        #expect(model.state.canRestoreDefault == false)
+    }
+}
