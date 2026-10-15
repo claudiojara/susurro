@@ -93,6 +93,7 @@ public struct DictationPipeline: Sendable {
     private let cleanup: CleanupStage?
     private let dates: any DateSource
     private let diagnostics: any DiagnosticsLog
+    private let corrections: (any CorrectionWatching)?
     private let sleep: @Sendable (Duration) async throws -> Void
     private let cancelRequests = CancelRequests()
     /// Command mode. Without it a command is never started.
@@ -100,6 +101,7 @@ public struct DictationPipeline: Sendable {
 
     /// - Parameters:
     ///   - cleanup: The stage that cleans the transcript. Without one the raw transcript is inserted.
+    ///   - corrections: Watches each pasted dictation for the user's corrections, and gets each dictation's context.
     ///   - command: Command mode over the selection. Without it the command hotkey does nothing.
     public init(
         recordings: any AudioRecordingStore,
@@ -110,6 +112,7 @@ public struct DictationPipeline: Sendable {
         cleanup: CleanupStage? = nil,
         dates: any DateSource = SystemDateSource(),
         diagnostics: any DiagnosticsLog = NoDiagnostics(),
+        corrections: (any CorrectionWatching)? = nil,
         sleep: @escaping @Sendable (Duration) async throws -> Void,
         command: CommandStage? = nil
     ) {
@@ -122,6 +125,7 @@ public struct DictationPipeline: Sendable {
         self.cleanup = cleanup
         self.dates = dates
         self.diagnostics = diagnostics
+        self.corrections = corrections
         self.sleep = sleep
     }
 
@@ -234,6 +238,8 @@ public struct DictationPipeline: Sendable {
         if let resolved {
             diagnostics.record(ContextJob.event(for: resolved))
             await attempt.amend { $0 = resolved.stamped($0) }
+            // The field as this dictation begins is a last look at the one before it.
+            await corrections?.handoff(resolved.context)
         }
         if recognition.isBlank {
             await attempt.amend { $0.status = .noSpeech }
@@ -264,7 +270,9 @@ public struct DictationPipeline: Sendable {
             $0.delivery = DictationDelivery(outcome)
         }
         switch outcome {
-        case .inserted: return .inserted
+        case .inserted:
+            await watchForCorrections(of: text, id: id, context: resolved, target: target)
+            return .inserted
         case .copiedToClipboard(let reason): return .notice(.copiedToClipboard(reason))
         case .notInserted(let reason): return .error(.notInserted(reason))
         }
@@ -321,6 +329,15 @@ public struct DictationPipeline: Sendable {
             }
         }
         return outcome.state
+    }
+
+    /// Hands a pasted dictation to the correction watch. A dictation without a context is not watched: nothing says its
+    /// field is not a secure one.
+    private func watchForCorrections(
+        of text: String, id: UUID, context: ResolvedContext?, target: AppIdentity?
+    ) async {
+        guard let corrections, let context, let app = target ?? context.context.app else { return }
+        await corrections.watch(InsertionReceipt(id: id, finalText: text, context: context, target: app))
     }
 
     /// The style of a dictation whose context did not arrive: an unknown app, which the neutral tone suits.

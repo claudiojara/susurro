@@ -87,6 +87,8 @@ public enum DiagnosticEvent: Sendable, Equatable {
     /// A command replaced nothing. `reason` is a fixed name such as "timedOut", "unchanged", or "emptyOutput": never the
     /// instruction, the selection, or the reply.
     case commandNoResult(reason: String)
+    /// The watch for the user's corrections after a dictation ended, and why. No text of the field or the dictation.
+    case correctionWatchEnded(reason: CorrectionWatchEnd)
 }
 
 /// Where the pipeline reports what it would otherwise swallow. The live log lives in the platform package.

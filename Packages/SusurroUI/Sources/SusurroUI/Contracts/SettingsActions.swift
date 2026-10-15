@@ -50,6 +50,9 @@ public struct DictionaryActions {
     public var editSnippet: (_ old: String, _ trigger: String, _ text: String) -> Void
     public var removeSnippet: (_ trigger: String) -> Void
     public var removeFillers: (Bool) -> Void
+    public var acceptSuggestion: (_ id: String) -> Void
+    public var dismissSuggestion: (_ id: String) -> Void
+    public var learnFromCorrections: (Bool) -> Void
 
     public init(
         add: @escaping (String) -> Void, edit: @escaping (_ old: String, _ new: String) -> Void,
@@ -60,8 +63,14 @@ public struct DictionaryActions {
         addSnippet: @escaping (_ trigger: String, _ text: String) -> Void = { _, _ in },
         editSnippet: @escaping (_ old: String, _ trigger: String, _ text: String) -> Void = { _, _, _ in },
         removeSnippet: @escaping (_ trigger: String) -> Void = { _ in },
-        removeFillers: @escaping (Bool) -> Void = { _ in }
+        removeFillers: @escaping (Bool) -> Void = { _ in },
+        acceptSuggestion: @escaping (_ id: String) -> Void = { _ in },
+        dismissSuggestion: @escaping (_ id: String) -> Void = { _ in },
+        learnFromCorrections: @escaping (Bool) -> Void = { _ in }
     ) {
+        self.acceptSuggestion = acceptSuggestion
+        self.dismissSuggestion = dismissSuggestion
+        self.learnFromCorrections = learnFromCorrections
         self.add = add
         self.edit = edit
         self.remove = remove
@@ -120,7 +129,10 @@ public struct SettingsActions {
             addSnippet: { model.addSnippet(trigger: $0, text: $1) },
             editSnippet: { model.editSnippet($0, trigger: $1, text: $2) },
             removeSnippet: { model.removeSnippet($0) },
-            removeFillers: { model.setRemoveFillers($0) })
+            removeFillers: { model.setRemoveFillers($0) },
+            acceptSuggestion: { model.acceptSuggestion($0) },
+            dismissSuggestion: { model.dismissSuggestion($0) },
+            learnFromCorrections: { model.setLearnFromCorrections($0) })
         appearance = AppearanceActions(theme: { model.selectTheme($0) }, mode: { model.setAppearance($0) })
         audio = AudioActions(microphone: { model.selectMicrophone($0) }, pauseMedia: { model.setPauseMedia($0) })
     }

@@ -257,6 +257,9 @@ import SwiftUI
         func editSnippet(_ old: String, trigger: String, text: String) {}
         func removeSnippet(_ trigger: String) {}
         func setRemoveFillers(_ isOn: Bool) {}
+        func acceptSuggestion(_ id: String) {}
+        func dismissSuggestion(_ id: String) {}
+        func setLearnFromCorrections(_ isOn: Bool) {}
         func selectTheme(_ id: String) {}
         func setAppearance(_ id: String) {}
         func selectMicrophone(_ id: String) {}

@@ -30,4 +30,16 @@ public final class InMemorySettingsStore: SettingsStore {
     }
 
     public func changes() -> AsyncStream<SettingChange> { broadcaster.stream() }
+
+    /// Everything the store holds, as text: each key's name and a description of its stored form (JSON data is read as
+    /// UTF-8). A test that must show some text was never stored searches it.
+    public var dump: String {
+        stored.withLock { stored in
+            stored.map { name, form in
+                let text = (form as? Data).flatMap { String(data: $0, encoding: .utf8) } ?? String(describing: form)
+                return "\(name)=\(text)"
+            }
+            .sorted().joined(separator: "\n")
+        }
+    }
 }
