@@ -184,6 +184,27 @@
                 "Press the key together with Control, or with Option and Command. Other combinations clash with typing or with the shortcuts of other apps.",
             canRestoreDefault: true)
 
+        /// The paste last dictation shortcut is set, so the recorder can remove it.
+        static let recorderPasteLast = HotkeyRecorderState(
+            phase: .idle, rejection: nil, canRestoreDefault: true, restoreTitle: "Remove shortcut")
+
+        // MARK: Audio and paste last dictation
+
+        private static let microphones = [
+            SettingsChoice(id: "", title: "System default"),
+            SettingsChoice(id: "builtin", title: "MacBook Pro Microphone"),
+            SettingsChoice(id: "yeti", title: "Yeti"),
+        ]
+        static let audio = AudioSettingsState(
+            microphones: microphones, selectedMicrophone: "yeti", microphoneNote: nil, pauseMediaEnabled: true)
+        static let audioMissing = AudioSettingsState(
+            microphones: microphones + [SettingsChoice(id: "headset", title: "Not connected")],
+            selectedMicrophone: "headset",
+            microphoneNote: "The microphone you chose is not connected. The system default is used meanwhile.",
+            pauseMediaEnabled: false)
+        static let pasteLast = PasteLastSettingsState(shortcut: ["⌃", "⌥", "V"])
+        static let pasteLastUnassigned = PasteLastSettingsState.unassigned
+
         // MARK: Style
 
         static let style = StyleSettingsState(
@@ -233,7 +254,7 @@
 
         static let screen = SettingsViewState(
             general: general, providers: providers, hotkey: hotkey, style: style, dictionary: dictionary,
-            appearance: appearance)
+            appearance: appearance, audio: audio, pasteLast: pasteLast)
     }
 
 #endif

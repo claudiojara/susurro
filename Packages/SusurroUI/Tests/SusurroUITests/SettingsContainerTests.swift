@@ -38,6 +38,8 @@ private final class SpySettingsModel: SettingsViewModeling {
     func setAppearance(_ id: String) { calls.append("appearance \(id)") }
     func refresh() async { calls.append("refresh") }
     func run() async { calls.append("run") }
+    func selectMicrophone(_ id: String) { calls.append("microphone \(id)") }
+    func setPauseMedia(_ isOn: Bool) { calls.append("pauseMedia \(isOn)") }
 }
 
 @MainActor
@@ -69,6 +71,17 @@ struct SettingsContainerTests {
             appearance: SettingsFixtures.appearance)
 
         #expect(png(of: SettingsContainer(model: model) { EmptyView() }) != before)
+    }
+
+    @Test("the audio actions reach the intents of the model")
+    func audioActionsReachTheModel() {
+        let model = SpySettingsModel(SettingsFixtures.screen)
+        let actions = SettingsActions(model: model)
+
+        actions.audio.microphone("yeti")
+        actions.audio.pauseMedia(true)
+
+        #expect(model.calls == ["microphone yeti", "pauseMedia true"])
     }
 
     @Test("every action of the screen reaches the intent of the model that it names")

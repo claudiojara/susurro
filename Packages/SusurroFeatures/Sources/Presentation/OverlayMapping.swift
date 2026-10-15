@@ -87,6 +87,13 @@ enum OverlayMapping {
                     L10n.string(
                         "overlay.notice.silent", "The microphone seems to be silent. Check that it is not muted.")
                 )
+            case .noLastDictation:
+                ("text.badge.xmark", L10n.string("overlay.notice.noLastDictation", "No dictation to paste yet"))
+            case .lastDictationCopied:
+                (
+                    "doc.on.clipboard",
+                    L10n.string("overlay.notice.lastDictationCopied", "Last dictation copied to the clipboard")
+                )
             }
         return .notice(symbol: symbol, text: text)
     }

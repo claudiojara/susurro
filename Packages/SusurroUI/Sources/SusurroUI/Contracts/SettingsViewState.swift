@@ -293,10 +293,14 @@ public nonisolated struct SettingsViewState: Equatable, Sendable {
     public let style: StyleSettingsState
     public let dictionary: DictionarySettingsState
     public let appearance: AppearanceSettingsState
+    /// The microphone and the media cards (`AudioSettingsState.swift`).
+    public let audio: AudioSettingsState
+    public let pasteLast: PasteLastSettingsState
 
     public init(
         general: GeneralSettingsState, providers: ProvidersSettingsState, hotkey: HotkeySettingsState,
-        style: StyleSettingsState, dictionary: DictionarySettingsState, appearance: AppearanceSettingsState
+        style: StyleSettingsState, dictionary: DictionarySettingsState, appearance: AppearanceSettingsState,
+        audio: AudioSettingsState = .empty, pasteLast: PasteLastSettingsState = .unassigned
     ) {
         self.general = general
         self.providers = providers
@@ -304,6 +308,8 @@ public nonisolated struct SettingsViewState: Equatable, Sendable {
         self.style = style
         self.dictionary = dictionary
         self.appearance = appearance
+        self.audio = audio
+        self.pasteLast = pasteLast
     }
 }
 
@@ -345,6 +351,11 @@ public protocol SettingsViewModeling: AnyObject {
     // Appearance
     func selectTheme(_ id: String)
     func setAppearance(_ id: String)
+
+    // Audio
+    /// Chooses the microphone: empty for the system default, or a device's UID.
+    func selectMicrophone(_ id: String)
+    func setPauseMedia(_ isOn: Bool)
 
     /// Reads everything that can change without the screen's help: the permission, Secure Event Input, how the providers
     /// stand, the keys, and the themes. The screen calls it when it opens.

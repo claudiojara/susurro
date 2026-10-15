@@ -60,6 +60,10 @@ public struct SettingsDependencies {
     public var interfaceLanguage: @MainActor (InterfaceLanguage) -> Void
     /// Paces the reads of the permission and of Secure Event Input. Tests pass a `ManualClock`.
     public var clock: any Clock<Duration>
+    /// The microphones the user can choose from, and their changes.
+    public var microphones: any AudioInputDeviceListing
+    /// The keys of the paste last dictation shortcut, one cap each, or none while it is unassigned.
+    public var pasteLastHotkey: @MainActor () -> [String]
 
     public init(
         settings: any SettingsStore,
@@ -76,8 +80,12 @@ public struct SettingsDependencies {
         themes: any ThemeSelecting,
         themeModel: ThemeModel,
         interfaceLanguage: @escaping @MainActor (InterfaceLanguage) -> Void = { $0.apply() },
-        clock: any Clock<Duration> = ContinuousClock()
+        clock: any Clock<Duration> = ContinuousClock(),
+        microphones: any AudioInputDeviceListing = NoAudioInputDevices(),
+        pasteLastHotkey: @escaping @MainActor () -> [String] = { [] }
     ) {
+        self.microphones = microphones
+        self.pasteLastHotkey = pasteLastHotkey
         self.interfaceLanguage = interfaceLanguage
         self.clock = clock
         self.settings = settings

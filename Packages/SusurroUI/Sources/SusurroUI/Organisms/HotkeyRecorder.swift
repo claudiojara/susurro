@@ -30,7 +30,7 @@ struct HotkeyRecorder: View {
         HStack(spacing: theme.spacing(.md)) {
             ActionButton(Copy.change, action: actions.begin)
             if state.canRestoreDefault {
-                ActionButton(Copy.restore, action: actions.restoreDefault)
+                ActionButton(state.restoreTitle ?? Copy.restore, action: actions.restoreDefault)
             }
             Spacer(minLength: 0)
         }

@@ -27,4 +27,16 @@ struct MenuHistoryTests {
     func noHistoryWindow() {
         MenuModel(monitor: Rig([:]).monitor).openHistory()
     }
+
+    @Test("the Copy Last Dictation item runs the copy it was given, and a menu without one has no such item")
+    func copyLastDictation() async {
+        let copied = Opened()
+        let model = MenuModel(monitor: Rig([:]).monitor, copyLastDictation: { copied.count += 1 })
+
+        #expect(model.canCopyLastDictation)
+        await model.copyLastDictation()
+
+        #expect(copied.count == 1)
+        #expect(MenuModel(monitor: Rig([:]).monitor).canCopyLastDictation == false)
+    }
 }

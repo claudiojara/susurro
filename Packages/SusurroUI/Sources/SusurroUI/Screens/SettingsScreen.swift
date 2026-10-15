@@ -11,14 +11,17 @@ struct SettingsScreen<Recorder: View>: View {
     private let state: SettingsViewState
     private let actions: SettingsActions
     private let recorder: Recorder
+    /// The recorder of the shortcut that pastes the last dictation, a slot the app fills like `recorder`.
+    private let pasteLastRecorder: AnyView
 
     init(
         state: SettingsViewState, actions: SettingsActions, tab: SettingsTab = .general,
-        @ViewBuilder recorder: () -> Recorder
+        pasteLastRecorder: AnyView = AnyView(EmptyView()), @ViewBuilder recorder: () -> Recorder
     ) {
         self.state = state
         self.actions = actions
         self.recorder = recorder()
+        self.pasteLastRecorder = pasteLastRecorder
         _tab = State(initialValue: tab)
     }
 
@@ -50,9 +53,17 @@ struct SettingsScreen<Recorder: View>: View {
     @ViewBuilder
     private var content: some View {
         switch tab {
-        case .general: GeneralSection(state.general, actions: actions.general)
+        case .general:
+            VStack(spacing: theme.spacing(.md)) {
+                GeneralSection(state.general, actions: actions.general)
+                AudioSection(state.audio, actions: actions.audio)
+            }
         case .providers: ProvidersSection(state.providers, actions: actions.providers)
-        case .hotkey: HotkeySection(state.hotkey, actions: actions.hotkey) { recorder }
+        case .hotkey:
+            VStack(spacing: theme.spacing(.md)) {
+                HotkeySection(state.hotkey, actions: actions.hotkey) { recorder }
+                PasteLastSection(state.pasteLast) { pasteLastRecorder }
+            }
         case .style: StyleTableEditor(state.style, actions: actions.style)
         case .dictionary: DictionaryEditor(state.dictionary, actions: actions.dictionary)
         case .appearance: AppearanceSection(state.appearance, actions: actions.appearance)

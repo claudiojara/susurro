@@ -84,6 +84,13 @@ struct DiagnosticDescriptionTests {
                 .cloudRequestFailed(provider: "deepgram", reason: "http-401"), .error,
                 "cloud request to deepgram failed: http-401"
             ),
+            (.microphoneFallback, .default, "the chosen microphone is not connected, using the system default"),
+            (
+                .microphoneSelectionFailed(status: -50), .error,
+                "the chosen microphone could not be selected: status -50, using the system default"
+            ),
+            (.mediaPlayback(paused: true), .default, "media paused for a recording"),
+            (.mediaPlayback(paused: false), .default, "media resumed after a recording"),
         ])
     func descriptions(event: DiagnosticEvent, level: OSLogType, line: String) {
         let description = OSLogDiagnostics.describe(event)

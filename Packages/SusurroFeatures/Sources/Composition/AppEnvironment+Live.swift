@@ -56,6 +56,10 @@ extension AppEnvironment.Dependencies {
         let languageDetector = NLLanguageDetector()
         let languageRecognizer = AppleSpeechRecognizer()
         let sleep: @Sendable (Duration) async throws -> Void = { try await clock.sleep(for: $0) }
+        let microphones = CoreAudioInputDevices()
+        let preferredMicrophone = PreferredInputDevice(
+            settings: settings, devices: microphones, deviceID: { microphones.deviceID(forUID: $0) },
+            diagnostics: diagnostics)
         // The keys of the cloud providers are only looked up, in the external Keychain service (ADR 0003).
         let keys = KeychainSecretStore(diagnostics: diagnostics)
         // Deepgram and local Whisper can be selected; a failure of either falls back to Parakeet.
@@ -97,7 +101,8 @@ extension AppEnvironment.Dependencies {
                 frontmost: { await MainActor.run { frontmost.current().map { ScreenTarget(app: $0) } } }))
         return AppEnvironment.Dependencies(
             hotkeys: HotkeyService(settings: settings, permissions: permissions),
-            capture: AVAudioEngineCaptureSource(diagnostics: diagnostics),
+            capture: AVAudioEngineCaptureSource(
+                diagnostics: diagnostics, inputDevice: { preferredMicrophone.resolve() }),
             recordings: CAFRecordingStore(directory: { Self.recordingsFolder }, diagnostics: diagnostics),
             recognizer: recognizer,
             readinessChanges: { await recognizer.readinessChanges() },
@@ -125,7 +130,10 @@ extension AppEnvironment.Dependencies {
             cleanup: cleanup,
             vocabulary: vocabulary,
             settingsScreen: settingsScreen(settings: settings, recognizer: recognizer, diagnostics: diagnostics),
-            interfaceLanguage: { $0.apply() }
+            interfaceLanguage: { $0.apply() },
+            pasteLastPresses: ShortcutPressService(settings: settings, key: PasteLastSettings.combo),
+            mediaPlayback: SystemMediaPlayback(),
+            microphones: microphones
         )
     }
 
@@ -162,8 +170,12 @@ extension AppEnvironment.Dependencies {
                 let recorder = HotkeyRecorderViewModel(
                     settings: settings, source: NSEventHotkeyCaptureSource(),
                     isTakenBySystem: { SystemShortcuts.isTaken($0) })
+                let pasteLastRecorder = HotkeyRecorderViewModel(
+                    binding: .pasteLast(settings), source: NSEventHotkeyCaptureSource(),
+                    isTakenBySystem: { SystemShortcuts.isTaken($0) })
                 return SettingsWindowController(
-                    model: model, themes: themes, recorder: AnyView(HotkeyRecorderContainer(model: recorder)))
+                    model: model, themes: themes, recorder: AnyView(HotkeyRecorderContainer(model: recorder)),
+                    pasteLastRecorder: AnyView(HotkeyRecorderContainer(model: pasteLastRecorder)))
             },
             hasKey: { keys.hasSecret(for: $0) },
             hotkey: { Self.describe(settings.hotkeyConfiguration()) },
@@ -178,7 +190,12 @@ extension AppEnvironment.Dependencies {
                 default: .notInstalled
                 }
             },
-            appleIntelligenceAvailable: { Self.appleIntelligenceIsAvailable }
+            appleIntelligenceAvailable: { Self.appleIntelligenceIsAvailable },
+            pasteLastHotkey: {
+                settings.value(for: PasteLastSettings.combo).map {
+                    HotkeyKeyCaps.caps(for: HotkeyConfiguration(kind: .keyed, combo: $0))
+                } ?? []
+            }
         )
     }
 

@@ -1,4 +1,5 @@
 import AVFoundation
+import AudioToolbox
 import Synchronization
 
 /// `AVAudioEngine` behind the `EngineProviding` seam. It needs a microphone and its permission, so it is covered by the
@@ -24,6 +25,19 @@ final class LiveAudioEngine: EngineProviding {
             engine.inputNode.installTap(onBus: 0, bufferSize: Self.tapBufferSize, format: format) { buffer, _ in
                 handler(buffer)
             }
+        }
+    }
+
+    func useInputDevice(_ id: UInt32) throws {
+        try engine.withLock { engine in
+            guard let unit = engine.inputNode.audioUnit else {
+                throw InputDeviceError(status: kAudioUnitErr_Uninitialized)
+            }
+            var device = AudioDeviceID(id)
+            let status = AudioUnitSetProperty(
+                unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0, &device,
+                UInt32(MemoryLayout<AudioDeviceID>.size))
+            guard status == noErr else { throw InputDeviceError(status: status) }
         }
     }
 

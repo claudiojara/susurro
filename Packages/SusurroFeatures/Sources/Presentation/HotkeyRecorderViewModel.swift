@@ -7,10 +7,12 @@ import SusurroUI
 /// `HotkeyValidation` whether it is allowed: an allowed one is stored in the settings, where the hotkey service reads it and
 /// starts to listen to it at once, and one that is refused is told with the reason and the recorder goes on listening. Esc,
 /// the Cancel button, or the end of the keys (the window lost them) stop it with the hotkey as it was.
+///
+/// The same recorder changes the shortcut that pastes the last dictation, through another `HotkeyBinding`.
 @MainActor
 @Observable
 public final class HotkeyRecorderViewModel: HotkeyRecorderModeling {
-    @ObservationIgnored private let settings: any SettingsStore
+    @ObservationIgnored private let binding: HotkeyBinding
     @ObservationIgnored private let source: any HotkeyCaptureSource
     @ObservationIgnored private let isTakenBySystem: @MainActor (HotkeyCombo) -> Bool
     @ObservationIgnored private var listening: Task<Void, Never>?
@@ -27,11 +29,19 @@ public final class HotkeyRecorderViewModel: HotkeyRecorderModeling {
     /// - Parameters:
     ///   - source: Where the keys come from while the recorder listens.
     ///   - isTakenBySystem: Whether an enabled shortcut of System Settings already uses the combo.
-    public init(
+    public convenience init(
         settings: any SettingsStore, source: any HotkeyCaptureSource,
         isTakenBySystem: @escaping @MainActor (HotkeyCombo) -> Bool
     ) {
-        self.settings = settings
+        self.init(binding: .dictation(settings), source: source, isTakenBySystem: isTakenBySystem)
+    }
+
+    /// - Parameter binding: Which shortcut the recorder changes, and its rules.
+    public init(
+        binding: HotkeyBinding, source: any HotkeyCaptureSource,
+        isTakenBySystem: @escaping @MainActor (HotkeyCombo) -> Bool
+    ) {
+        self.binding = binding
         self.source = source
         self.isTakenBySystem = isTakenBySystem
     }
@@ -41,7 +51,8 @@ public final class HotkeyRecorderViewModel: HotkeyRecorderModeling {
         return HotkeyRecorderState(
             phase: isListening ? .listening(held: capture.held.caps) : .idle,
             rejection: rejection,
-            canRestoreDefault: settings.hotkeyConfiguration() != .standard)
+            canRestoreDefault: !binding.isDefault(),
+            restoreTitle: binding.restoreTitle())
     }
 
     public func begin() {
@@ -68,7 +79,7 @@ public final class HotkeyRecorderViewModel: HotkeyRecorderModeling {
 
     public func restoreDefault() {
         stop()
-        settings.resetHotkey()
+        binding.reset()
         revision &+= 1
     }
 
@@ -86,11 +97,11 @@ public final class HotkeyRecorderViewModel: HotkeyRecorderModeling {
     }
 
     private func choose(_ configuration: HotkeyConfiguration) {
-        if let reason = HotkeyValidation.rejection(of: configuration, isTakenBySystem: isTakenBySystem) {
+        if let reason = binding.rejection(configuration, isTakenBySystem) {
             rejection = SettingsCopy.rejection(reason)
             return
         }
-        settings.setHotkey(configuration)
+        binding.store(configuration)
         stop()
     }
 
@@ -102,5 +113,42 @@ public final class HotkeyRecorderViewModel: HotkeyRecorderModeling {
         capture = HotkeyCapture()
         rejection = nil
         revision &+= 1
+    }
+}
+
+/// A shortcut the recorder can change: how it is read, stored, and reset, and the rules it follows.
+public struct HotkeyBinding {
+    /// Whether the shortcut is its default, so there is nothing to restore.
+    var isDefault: @MainActor () -> Bool
+    var store: @MainActor (HotkeyConfiguration) -> Void
+    var reset: @MainActor () -> Void
+    /// Why a shortcut is refused, or nil, given whether a system shortcut takes the combo.
+    var rejection: @MainActor (HotkeyConfiguration, (HotkeyCombo) -> Bool) -> HotkeyRejection?
+    /// The title of the button that resets it, or nil for the recorder's own. It is read each time, so it follows the
+    /// interface language.
+    var restoreTitle: @MainActor () -> String?
+
+    /// The dictation hotkey (`HotkeySettings`).
+    public static func dictation(_ settings: any SettingsStore) -> HotkeyBinding {
+        HotkeyBinding(
+            isDefault: { settings.hotkeyConfiguration() == .standard },
+            store: { settings.setHotkey($0) },
+            reset: { settings.resetHotkey() },
+            rejection: { HotkeyValidation.rejection(of: $0, isTakenBySystem: $1) },
+            restoreTitle: { nil })
+    }
+
+    /// The shortcut that pastes the last dictation (`PasteLastSettings`). It is unassigned by default, so resetting it
+    /// removes it.
+    public static func pasteLast(_ settings: any SettingsStore) -> HotkeyBinding {
+        HotkeyBinding(
+            isDefault: { settings.value(for: PasteLastSettings.combo) == nil },
+            store: { settings.set($0.combo, for: PasteLastSettings.combo) },
+            reset: { settings.remove(PasteLastSettings.combo) },
+            rejection: {
+                PasteLastValidation.rejection(
+                    of: $0, dictation: settings.hotkeyConfiguration(), isTakenBySystem: $1)
+            },
+            restoreTitle: { SettingsCopy.removeShortcut })
     }
 }

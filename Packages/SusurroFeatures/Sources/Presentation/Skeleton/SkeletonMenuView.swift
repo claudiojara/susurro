@@ -18,7 +18,8 @@ public struct SkeletonMenuView: View {
             onPreference: { kind, value in Task { await model.setPreference(kind, to: value) } },
             onQuit: { NSApplication.shared.terminate(nil) },
             onShowHistory: { model.openHistory() },
-            onSettings: model.hasSettings ? { model.openSettingsWindow() } : nil
+            onSettings: model.hasSettings ? { model.openSettingsWindow() } : nil,
+            onCopyLastDictation: model.canCopyLastDictation ? { Task { await model.copyLastDictation() } } : nil
         )
     }
 }

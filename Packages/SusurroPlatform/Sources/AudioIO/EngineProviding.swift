@@ -16,6 +16,9 @@ protocol EngineProviding: Sendable {
     /// or the route switched. The engine has stopped delivering buffers by then. Call it before `start()`, and read the
     /// stream until the capture ends.
     func configurationChanges() -> AsyncStream<Void>
+    /// Makes the CoreAudio device `id` the input of the engine. Call it before `inputFormat()`, since the format is the
+    /// device's. Without a call the engine uses the system default input.
+    func useInputDevice(_ id: UInt32) throws
 }
 
 extension EngineProviding {
@@ -23,4 +26,12 @@ extension EngineProviding {
     func configurationChanges() -> AsyncStream<Void> {
         AsyncStream { $0.finish() }
     }
+
+    /// An engine that always uses the system default input.
+    func useInputDevice(_ id: UInt32) throws {}
+}
+
+/// CoreAudio refused to make a device the input of the engine. `status` is its `OSStatus`.
+struct InputDeviceError: Error, Equatable {
+    let status: Int32
 }

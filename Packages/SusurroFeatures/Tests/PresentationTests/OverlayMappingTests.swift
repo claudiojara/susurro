@@ -101,6 +101,8 @@ struct OverlayMappingTests {
             (.copiedToClipboard(.pasteFailed), "Copied to the clipboard. Paste it with Command-V."),
             (.deviceDisconnected, "The microphone was disconnected. Transcribing what was recorded…"),
             (.silentMicrophone, "The microphone seems to be silent. Check that it is not muted."),
+            (.noLastDictation, "No dictation to paste yet"),
+            (.lastDictationCopied, "Last dictation copied to the clipboard"),
         ]
     )
     func notices(kind: NoticeKind, message: String) {

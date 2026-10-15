@@ -13,6 +13,10 @@ public enum NoticeKind: Sendable, Equatable {
     case deviceDisconnected
     /// The recording is digital silence, so the microphone looks muted or disconnected, and nothing is transcribed.
     case silentMicrophone
+    /// The paste last dictation shortcut or menu item found no dictation with text in the history.
+    case noLastDictation
+    /// The last dictation was put on the clipboard from the menu.
+    case lastDictationCopied
 }
 
 /// Where the user goes to recover from an error.

@@ -62,6 +62,7 @@ public struct SettingsActions {
     public var style: StyleActions
     public var dictionary: DictionaryActions
     public var appearance: AppearanceActions
+    public var audio: AudioActions
 
     public static let none = SettingsActions(
         general: .none, providers: .none, hotkey: .none, style: .none, dictionary: .none, appearance: .none)
@@ -84,11 +85,12 @@ public struct SettingsActions {
         dictionary = DictionaryActions(
             add: { model.addTerm($0) }, edit: { model.editTerm($0, to: $1) }, remove: { model.removeTerm($0) })
         appearance = AppearanceActions(theme: { model.selectTheme($0) }, mode: { model.setAppearance($0) })
+        audio = AudioActions(microphone: { model.selectMicrophone($0) }, pauseMedia: { model.setPauseMedia($0) })
     }
 
     public init(
         general: GeneralActions, providers: ProvidersActions, hotkey: HotkeyActions, style: StyleActions,
-        dictionary: DictionaryActions, appearance: AppearanceActions
+        dictionary: DictionaryActions, appearance: AppearanceActions, audio: AudioActions = .none
     ) {
         self.general = general
         self.providers = providers
@@ -96,5 +98,6 @@ public struct SettingsActions {
         self.style = style
         self.dictionary = dictionary
         self.appearance = appearance
+        self.audio = audio
     }
 }

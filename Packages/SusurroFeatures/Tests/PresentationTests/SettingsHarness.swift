@@ -64,6 +64,7 @@ struct SettingsRig {
     let themes = FakeThemes()
     let themeModel = ThemeModel()
     let appliedLanguages = AppliedLanguages()
+    let microphones = FakeAudioInputDevices()
     let variants = [
         OverlayVariantOption(id: OverlayVariantOption.defaultID, title: "Default"),
         OverlayVariantOption(id: "compact", title: "Compact"),
@@ -87,7 +88,9 @@ struct SettingsRig {
                 executableProblem: { _ in knobs.problem },
                 themes: themes,
                 themeModel: themeModel,
-                interfaceLanguage: { [appliedLanguages] in appliedLanguages.values.append($0) }))
+                interfaceLanguage: { [appliedLanguages] in appliedLanguages.values.append($0) },
+                microphones: microphones,
+                pasteLastHotkey: { settings.value(for: PasteLastSettings.combo) == nil ? [] : ["⌃", "⌥", "V"] }))
     }
 }
 

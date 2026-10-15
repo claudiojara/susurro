@@ -15,6 +15,8 @@ struct MenuView: View {
     var onShowHistory: () -> Void = {}
     /// Opens the settings. With none, the menu has no Settings item.
     var onSettings: (() -> Void)?
+    /// Copies the last dictation. With none, the menu has no such item.
+    var onCopyLastDictation: (() -> Void)?
 
     var body: some View {
         if let message = content.restrictionMessage {
@@ -25,6 +27,9 @@ struct MenuView: View {
         Text(content.hotkeyHint)
         Divider()
         Button(L10n.string("menu.history", "History…"), action: onShowHistory)
+        if let onCopyLastDictation {
+            Button(L10n.string("menu.copyLastDictation", "Copy Last Dictation"), action: onCopyLastDictation)
+        }
         Divider()
         permissionRows(content.microphone)
         permissionRows(content.accessibility)

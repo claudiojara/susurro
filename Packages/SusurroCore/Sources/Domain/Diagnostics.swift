@@ -76,6 +76,14 @@ public enum DiagnosticEvent: Sendable, Equatable {
     /// A request to a cloud provider failed. `reason` is a fixed word such as "http-401", "timeout", "network", or
     /// "response": never the body of the response and never anything that was sent.
     case cloudRequestFailed(provider: String, reason: String)
+    /// The microphone the user chose is not connected, so the recording used the system default. The device is not
+    /// named.
+    case microphoneFallback
+    /// The microphone the user chose is connected but could not be selected, so the recording used the system default.
+    /// `status` is the CoreAudio status code.
+    case microphoneSelectionFailed(status: Int32)
+    /// Media that was playing was paused as a recording started (`paused` true), or resumed as it ended.
+    case mediaPlayback(paused: Bool)
 }
 
 /// Where the pipeline reports what it would otherwise swallow. The live log lives in the platform package.

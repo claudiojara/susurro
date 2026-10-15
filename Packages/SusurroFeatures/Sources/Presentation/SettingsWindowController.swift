@@ -9,9 +9,10 @@ struct SettingsWindowContent: View {
     let model: SettingsViewModel
     let themes: ThemeModel
     let recorder: AnyView
+    var pasteLastRecorder = AnyView(EmptyView())
 
     var body: some View {
-        SettingsContainer(model: model) { recorder }
+        SettingsContainer(model: model, pasteLastRecorder: pasteLastRecorder) { recorder }
             .themed(themes.theme, override: themes.appearance)
     }
 }
@@ -25,18 +26,28 @@ public final class SettingsWindowController: SettingsSurface {
     private let activate: @MainActor () -> Void
     private var hasBeenPlaced = false
 
-    /// - Parameter recorder: The control that changes the hotkey, which the app builds over the keys of the platform, a
-    ///   package the UI package cannot import.
-    public convenience init(model: SettingsViewModel, themes: ThemeModel, recorder: AnyView = AnyView(EmptyView())) {
-        self.init(model: model, themes: themes, recorder: recorder, activate: { NSApplication.shared.activate() })
+    /// - Parameters:
+    ///   - recorder: The control that changes the hotkey, which the app builds over the keys of the platform, a package
+    ///     the UI package cannot import.
+    ///   - pasteLastRecorder: The control that changes the paste last dictation shortcut, built the same way.
+    public convenience init(
+        model: SettingsViewModel, themes: ThemeModel, recorder: AnyView = AnyView(EmptyView()),
+        pasteLastRecorder: AnyView = AnyView(EmptyView())
+    ) {
+        self.init(
+            model: model, themes: themes, recorder: recorder, pasteLastRecorder: pasteLastRecorder,
+            activate: { NSApplication.shared.activate() })
     }
 
     /// - Parameter activate: Brings the app forward. Tests pass a recorder, since a test process is no app to bring.
     init(
-        model: SettingsViewModel, themes: ThemeModel, recorder: AnyView, activate: @escaping @MainActor () -> Void
+        model: SettingsViewModel, themes: ThemeModel, recorder: AnyView,
+        pasteLastRecorder: AnyView = AnyView(EmptyView()), activate: @escaping @MainActor () -> Void
     ) {
         self.activate = activate
-        host = NSHostingController(rootView: SettingsWindowContent(model: model, themes: themes, recorder: recorder))
+        host = NSHostingController(
+            rootView: SettingsWindowContent(
+                model: model, themes: themes, recorder: recorder, pasteLastRecorder: pasteLastRecorder))
         host.sizingOptions = [.preferredContentSize]
         window = NSWindow(contentViewController: host)
         let window = window

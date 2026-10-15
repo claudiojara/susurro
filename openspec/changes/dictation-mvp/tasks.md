@@ -788,3 +788,20 @@ Slices 2–9 were delivered together in #68 (fast track, strict TDD, no per-PR r
 - [x] IL1.4 RED+GREEN: An "Interface language" card (System, English, Español) in the General tab. The pick is stored, applied at once, and applied at launch; window titles follow it.
 - [x] IL1.5 DOC: ADR 0017, "The interface language switches live through one observable locale".
 - [x] IL1.6 VERIFY: Manual: pick Español in Settings and see the menu, the Settings window and its title, the history, and the overlay switch without a relaunch; pick System and see macOS's language used. (verified by hand 2026-10-14)
+
+## Paste last dictation, microphone choice, and media pause
+
+### PR X1: Paste last dictation, microphone selection, pause media while dictating (~1500)
+
+- [x] X1.1 RED+GREEN: `LastDictation` (Pipeline) finds the final text of the newest succeeded record with text, paging through the history, and pastes it through the shared `TextInserter` (`PasteTransaction`, so the pasteboard is restored as for a dictation) or copies it through `ClipboardWriting`. Its outcome maps to a notice: `noLastDictation`, `lastDictationCopied`, or the inserter's clipboard notice.
+- [x] X1.2 RED+GREEN: `PasteLastSettings.combo` (`pasteLast.combo`) is unassigned by default, so no global shortcut is taken from other apps until the user picks one. `PasteLastValidation` applies the hotkey rules, refuses modifier keys alone (`needsKey`) and the dictation hotkey (`sameAsDictation`).
+- [x] X1.3 RED+GREEN: `ShortcutPressService` (Platform/Hotkeys) listens to the stored combo through KeyboardShortcuts, follows changes, and yields one press per key down.
+- [x] X1.4 RED+GREEN: `HotkeyRecorderViewModel` takes a `HotkeyBinding` (`.dictation`, `.pasteLast`); a "Paste last dictation" card in the Hotkey tab with its own recorder, whose reset button reads "Remove shortcut". The overlay shows outside notices (`showNotice`) without covering a dictation, and the menu has "Copy Last Dictation".
+- [x] X1.5 RED+GREEN: `MicrophoneSettings.deviceUID` (empty = system default) and `MicrophoneChoice`; `PreferredInputDevice` resolves the UID to a CoreAudio id at each capture start and logs `microphoneFallback` when the device is missing; `AVAudioEngineCaptureSource` sets `kAudioOutputUnitProperty_CurrentDevice` on the input unit before reading the format, and logs and keeps the default when that fails.
+- [x] X1.6 RED+GREEN: A Microphone card at the foot of the General tab lists System default and every input device (`CoreAudioInputDevices`), live-updated on connect and disconnect, and keeps a missing choice listed as "Not connected" with a note.
+- [x] X1.7 RED+GREEN: `MediaPauser` follows the pipeline states (a copy of the coordinator's stream), pauses on recording start only when another process outputs sound and the setting is on, and resumes only what it paused. `SystemMediaPlayback` reads CoreAudio process output and posts `NX_KEYTYPE_PLAY`. Media card toggle, off by default.
+- [x] X1.8 DOC: ADR 0031, "Pause media with the media key, detected through CoreAudio process output".
+- [ ] X1.9 VERIFY: Manual: assign ⌃⌥V in Settings, dictate, then press it in another app and see the text pasted and the clipboard restored; with an empty history see "No dictation to paste yet"; use the menu's Copy Last Dictation.
+- [ ] X1.10 VERIFY: Manual: pick a USB or Bluetooth microphone, dictate and check it was used (Console: no fallback line); unplug it, dictate again and see the system default used and `the chosen microphone is not connected` in the log; plug and unplug while Settings is open and see the list follow.
+- [ ] X1.11 VERIFY: Manual: turn on "Pause media while dictating", play music in Music or Spotify, dictate and see it pause and resume; with nothing playing see nothing start.
+

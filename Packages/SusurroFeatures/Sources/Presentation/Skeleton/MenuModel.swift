@@ -12,6 +12,7 @@ public final class MenuModel {
     @ObservationIgnored private let preferences: MenuPreferences?
     @ObservationIgnored private let showHistory: @MainActor () -> Void
     @ObservationIgnored private let showSettings: (@MainActor () -> Void)?
+    @ObservationIgnored private let copyLast: (@MainActor () async -> Void)?
     private var readiness = RecognizerReadiness.loading(progress: 0)
 
     /// - Parameters:
@@ -19,11 +20,14 @@ public final class MenuModel {
     ///   - showHistory: Opens the history window, for the item that shows the past dictations.
     ///   - preferences: The switches the menu shows. Without them the menu has none.
     ///   - showSettings: Opens the settings window, for the Settings item. With none, the menu has no such item.
+    ///   - copyLastDictation: Puts the last dictation on the clipboard, for the Copy Last Dictation item. With none, the
+    ///     menu has no such item.
     public init(
         monitor: PermissionsMonitor, showOnboarding: @escaping @MainActor () -> Void = {},
         showHistory: @escaping @MainActor () -> Void = {}, preferences: MenuPreferences? = nil,
-        showSettings: (@MainActor () -> Void)? = nil
+        showSettings: (@MainActor () -> Void)? = nil, copyLastDictation: (@MainActor () async -> Void)? = nil
     ) {
+        self.copyLast = copyLastDictation
         self.monitor = monitor
         self.showOnboarding = showOnboarding
         self.preferences = preferences
@@ -72,6 +76,14 @@ public final class MenuModel {
     /// Opens the history of the dictations.
     public func openHistory() {
         showHistory()
+    }
+
+    /// Whether the menu has a Copy Last Dictation item.
+    public var canCopyLastDictation: Bool { copyLast != nil }
+
+    /// Puts the text of the last dictation on the clipboard.
+    public func copyLastDictation() async {
+        await copyLast?()
     }
 
     /// Whether the menu has a Settings item.
