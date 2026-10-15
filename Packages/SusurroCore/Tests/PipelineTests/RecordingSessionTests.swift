@@ -1,6 +1,7 @@
 import CoreTestSupport
 import Domain
 import Pipeline
+import Synchronization
 import Testing
 
 @Suite("Recording session", .timeLimit(.minutes(1)))
@@ -265,6 +266,23 @@ struct RecordingSessionTests {
         guard let (recording, notice) = Self.kept(result) else { return }
         #expect(notice == nil)
         #expect(recording.duration == .seconds(1))
+    }
+
+    @Test("the audio that is kept reaches the samples handler as it arrives, and the audio past the limit does not")
+    func samplesHandler() async throws {
+        let heard = Mutex<[Float]>([])
+        let capture = FakeAudioCaptureSource()
+        let session = RecordingSession(
+            capture: capture, store: FakeRecordingStore(), maximumDuration: .seconds(1),
+            samples: { samples in heard.withLock { $0 += samples } })
+        var events = session.events.makeAsyncIterator()
+        try await session.start()
+        capture.emit(Self.chunk(seconds: 0.6, value: 0.1))
+        capture.emit(Self.chunk(seconds: 0.6, value: 0.2))
+        while let event = await events.next(), event != .limitReached {}
+
+        #expect(heard.withLock { $0 } == Self.chunk(seconds: 0.6).samples + Self.chunk(seconds: 0.4, value: 0.2).samples)
+        _ = await session.finish()
     }
 
     // MARK: Abort and the end of the events

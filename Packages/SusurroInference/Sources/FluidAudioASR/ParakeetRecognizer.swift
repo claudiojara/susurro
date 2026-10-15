@@ -10,7 +10,7 @@ import OSLog
 ///
 /// Inference is serialized: an actor lets a second call start while the first awaits the engine, so calls wait their
 /// turn in a queue of their own.
-public actor ParakeetRecognizer: SpeechRecognizer {
+public actor ParakeetRecognizer: SpeechRecognizer, PartialSpeechRecognizing {
     private struct Waiter {
         let id: Int
         let continuation: CheckedContinuation<Void, any Error>
@@ -53,6 +53,9 @@ public actor ParakeetRecognizer: SpeechRecognizer {
 
     /// How many transcriptions wait behind the one running.
     var queuedTranscriptions: Int { waiters.count }
+
+    /// Whether a transcription, partial or not, holds the engine.
+    var isTranscribing: Bool { inferenceBusy }
 
     public func readiness() async -> RecognizerReadiness {
         modelState.readiness
@@ -103,6 +106,26 @@ public actor ParakeetRecognizer: SpeechRecognizer {
         } catch let error as CancellationError {
             throw error
         } catch let error as RecognitionError {
+            throw error
+        } catch {
+            throw RecognitionError.engineFailed(String(describing: error))
+        }
+    }
+
+    // MARK: Partial transcripts
+
+    /// Runs only when no transcription runs or waits: it takes the turn without queueing, so a dictation that is
+    /// submitted meanwhile waits for one partial at most, and never for a queue of them. It boosts no terms, which keeps
+    /// it as cheap as a transcription gets.
+    public func transcribePartial(_ clip: AudioClip, language: String?) async throws -> String? {
+        guard modelState == .ready, !inferenceBusy else { return nil }
+        guard clip.samples.count >= engine.minimumSampleCount else { return "" }
+        inferenceBusy = true
+        defer { endTurn() }
+        try Task.checkCancellation()
+        do {
+            return try await engine.transcribe(clip.samples, language: language, boost: [])
+        } catch let error as CancellationError {
             throw error
         } catch {
             throw RecognitionError.engineFailed(String(describing: error))

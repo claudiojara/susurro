@@ -79,3 +79,12 @@ public protocol SpeechRecognizer: Sendable {
     func prepare() async
     func transcribe(_ clip: AudioClip, options: RecognitionOptions) async throws -> RawTranscript
 }
+
+/// A recognizer that can show what it hears while the user is still speaking. A partial transcript is for display only:
+/// the text that is pasted always comes from `SpeechRecognizer.transcribe` on the finished recording.
+public protocol PartialSpeechRecognizing: Sendable {
+    /// Transcribes `clip` for display, if the engine is free right now. It returns nil at once, without waiting, when the
+    /// model is not ready or another transcription runs or waits, so a partial never makes a transcript that will be
+    /// pasted queue behind it. A clip too short for the engine is blank. `language` is pinned, or nil to detect it.
+    func transcribePartial(_ clip: AudioClip, language: String?) async throws -> String?
+}

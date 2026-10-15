@@ -40,6 +40,7 @@ public actor RecordingSession {
     private let store: any AudioRecordingStore
     private let maximumSamples: Int?
     private let diagnostics: any DiagnosticsLog
+    private let samplesHandler: (@Sendable ([Float]) -> Void)?
     private let eventContinuation: AsyncStream<Event>.Continuation
 
     private var sink: (any AudioRecordingSink)?
@@ -56,14 +57,17 @@ public actor RecordingSession {
 
     /// - Parameters:
     ///   - maximumDuration: Audio past it is dropped and `limitReached` is sent. Nil for no limit.
+    ///   - samples: Gets the audio that is kept, chunk by chunk as it arrives. It must not block.
     public init(
         id: SessionID = SessionID(),
         capture: any AudioCaptureSource,
         store: any AudioRecordingStore,
         maximumDuration: Duration? = nil,
-        diagnostics: any DiagnosticsLog = NoDiagnostics()
+        diagnostics: any DiagnosticsLog = NoDiagnostics(),
+        samples: (@Sendable ([Float]) -> Void)? = nil
     ) {
         self.id = id
+        samplesHandler = samples
         self.capture = capture
         self.store = store
         self.diagnostics = diagnostics
@@ -185,6 +189,8 @@ public actor RecordingSession {
             samples = Array(samples.prefix(max(0, maximumSamples - received)))
             limitReported = true
         }
+        // The handler hears the audio before anyone hears that it arrived.
+        if !samples.isEmpty { samplesHandler?(samples) }
         if !ready {
             ready = true
             eventContinuation.yield(.ready)

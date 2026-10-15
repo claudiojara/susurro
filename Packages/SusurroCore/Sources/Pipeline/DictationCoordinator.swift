@@ -52,6 +52,8 @@ public actor DictationCoordinator {
     private let context: ContextPipeline?
     /// Builds the vocabulary of each dictation. Nil gives the recognizer and the cleaner none.
     private let vocabulary: VocabularyPipeline?
+    /// Shows what the user says while the recording runs, for the overlay styles that ask for it. Nil shows nothing.
+    private let preview: LiveTranscriptPreview?
     private let recordingCap: Duration
     private let diagnostics: any DiagnosticsLog
     private let sleep: @Sendable (Duration) async throws -> Void
@@ -127,6 +129,8 @@ public actor DictationCoordinator {
     ///     `ManualClock`.
     ///   - vocabulary: Builds the vocabulary from the user's dictionary, the context, and the screen, starting at
     ///     key-down. Without it the recognizer and the cleaner get none.
+    ///   - preview: Gets the audio of each recording while it runs, and is ended the moment the recording ends, before
+    ///     its transcript is asked for. Nil for none.
     public init(
         hotkeys: any HotkeySource,
         capture: any AudioCaptureSource,
@@ -140,9 +144,11 @@ public actor DictationCoordinator {
         diagnostics: any DiagnosticsLog = NoDiagnostics(),
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
         clock: any Clock<Duration> = ContinuousClock(),
-        vocabulary: VocabularyPipeline? = nil
+        vocabulary: VocabularyPipeline? = nil,
+        preview: LiveTranscriptPreview? = nil
     ) {
         self.vocabulary = vocabulary
+        self.preview = preview
         self.hotkeys = hotkeys
         self.capture = capture
         self.recordings = recordings
@@ -181,6 +187,7 @@ public actor DictationCoordinator {
         if shutdownTask == nil {
             let wasRecording = phase == .capturing || phase == .finishing
             phase = .stopped
+            preview?.end()
             timers.cancelAll()
             sessionEvents?.cancel()
             dropContextJob()
@@ -406,6 +413,7 @@ public actor DictationCoordinator {
         recordingMode = mode
         phase = .starting
         show(recording: .starting)
+        preview?.begin()
         do {
             let started = try await startSession()
             guard phase == .starting else { return await abandon(started) }  // shut down meanwhile
@@ -424,8 +432,11 @@ public actor DictationCoordinator {
     /// Starts the recording within its limit. One that has not started in time is told to stop, in case it starts late
     /// and would otherwise keep the microphone open for nobody.
     private func startSession() async throws -> RecordingSession {
+        var feed: (@Sendable ([Float]) -> Void)?
+        if let preview { feed = { preview.append($0) } }
         let started = RecordingSession(
-            capture: capture, store: recordings, maximumDuration: recordingCap, diagnostics: diagnostics)
+            capture: capture, store: recordings, maximumDuration: recordingCap, diagnostics: diagnostics,
+            samples: feed)
         do {
             try await withDeadline(DictationLimits.captureStartTimeout, stage: .capture, sleep: sleep) {
                 try await started.start()
@@ -443,6 +454,7 @@ public actor DictationCoordinator {
     private func captureCouldNotStart(_ error: any Error) async {
         let dropped = pendingEnd
         pendingEnd = nil
+        preview?.end()
         await dispatch(.captureFailed)
         await settle(
             .error(Self.pipelineError(from: error, otherwise: PipelineError.captureFailed)),
@@ -494,6 +506,8 @@ public actor DictationCoordinator {
     /// still starting the end waits for it. The task that finishes the recording is returned.
     @discardableResult
     private func beginEnding(_ end: RecordingEnd) -> Task<Void, Never>? {
+        // The partial in flight must not hold the engine any longer than it already does.
+        preview?.end()
         switch phase {
         case .starting:
             pendingEnd = end
