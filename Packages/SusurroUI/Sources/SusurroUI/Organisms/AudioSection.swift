@@ -44,7 +44,7 @@ struct AudioSection: View {
         static var pauseMediaDetail: String {
             L10n.string(
                 "audio.pauseMediaDetail",
-                "Pauses music or video that is playing when you start, and resumes it when you finish. It sends the play/pause key, so it may reach a different app than the one you hear."
+                "Pauses Music or Spotify if they are playing when you start, and plays them again when you finish. Other players, such as videos in a browser, are not paused. The first time, macOS asks you to let Susurro control each app."
             )
         }
     }

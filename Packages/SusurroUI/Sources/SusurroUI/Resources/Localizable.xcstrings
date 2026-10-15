@@ -143,13 +143,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pauses music or video that is playing when you start, and resumes it when you finish. It sends the play/pause key, so it may reach a different app than the one you hear."
+            "value" : "Pauses Music or Spotify if they are playing when you start, and plays them again when you finish. Other players, such as videos in a browser, are not paused. The first time, macOS asks you to let Susurro control each app."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pausa la música o el video que suena al empezar y lo reanuda al terminar. Envía la tecla de reproducir/pausar, así que puede llegar a una app distinta de la que escuchas."
+            "value" : "Pausa Música o Spotify si están sonando al empezar y los vuelve a reproducir al terminar. Otros reproductores, como los videos del navegador, no se pausan. La primera vez, macOS te pide permitir que Susurro controle cada app."
           }
         }
       }

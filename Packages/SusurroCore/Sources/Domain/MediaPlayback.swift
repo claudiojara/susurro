@@ -1,9 +1,22 @@
-/// The media that plays on this Mac, as far as the app can tell and steer it without private frameworks. See ADR 0031.
-public protocol MediaPlaybackControlling: Sendable {
-    /// Whether another app is playing sound now.
-    func isPlaying() async -> Bool
-    /// Sends the play/pause media key, which the system hands to the app that plays media now.
-    func togglePlayPause() async
+/// What a media player answers when it is asked whether it plays. See ADR 0038.
+public enum MediaPlayerState: Sendable, Equatable {
+    /// The app is not open. Nothing is sent to it, so nothing launches it.
+    case notRunning
+    case playing
+    /// Open, and paused or stopped.
+    case notPlaying
+    /// Open, but it could not be asked: the user denied the Automation permission, or the app did not answer in time.
+    case unavailable
+}
+
+/// One media player that the app asks for its state and steers with its own pause and play commands, never with the
+/// play/pause key, so media the user had paused is never started. See ADR 0038.
+public protocol MediaPlayerControlling: Sendable {
+    func state() async -> MediaPlayerState
+    /// Pauses the player. It does nothing when the player is not open.
+    func pause() async
+    /// Plays the player. It does nothing when the player is not open: it never launches it.
+    func play() async
 }
 
 /// Whether media that plays is paused while the user dictates, stored as `media.pauseWhileDictating`. Off by default, so
