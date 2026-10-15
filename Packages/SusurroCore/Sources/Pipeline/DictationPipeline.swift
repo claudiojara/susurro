@@ -2,6 +2,23 @@ import Domain
 import Foundation
 import Synchronization
 
+/// What a recording is for.
+public enum DictationIntent: Sendable, Equatable {
+    /// Text to insert at the cursor.
+    case dictate
+    /// An instruction that rewrites `selection`, the text that was selected as the command key went down. The selection
+    /// lives in memory for its command only.
+    case command(selection: String)
+
+    /// The kind of record the attempt makes.
+    var kind: DictationKind {
+        switch self {
+        case .dictate: .dictation
+        case .command: .command
+        }
+    }
+}
+
 /// One finished recording on its way to the user's text.
 public struct DictationJob: Sendable {
     public let recording: VerifiedRecording
@@ -16,24 +33,28 @@ public struct DictationJob: Sendable {
     let context: ContextJob?
     /// The vocabulary work that began with the context. Nil gives the recognizer and the cleaner no vocabulary.
     let vocabulary: VocabularyJob?
+    /// A dictation, or a command over a selection.
+    public let intent: DictationIntent
 
     public init(
         recording: VerifiedRecording, waitForKeyRelease: (@Sendable () async throws -> Void)? = nil,
-        target: AppIdentity? = nil
+        target: AppIdentity? = nil, intent: DictationIntent = .dictate
     ) {
         self.init(
-            recording: recording, waitForKeyRelease: waitForKeyRelease, target: target, context: nil, vocabulary: nil)
+            recording: recording, waitForKeyRelease: waitForKeyRelease, target: target, context: nil, vocabulary: nil,
+            intent: intent)
     }
 
     init(
         recording: VerifiedRecording, waitForKeyRelease: (@Sendable () async throws -> Void)?, target: AppIdentity?,
-        context: ContextJob?, vocabulary: VocabularyJob?
+        context: ContextJob?, vocabulary: VocabularyJob?, intent: DictationIntent = .dictate
     ) {
         self.recording = recording
         self.waitForKeyRelease = waitForKeyRelease
         self.target = target
         self.context = context
         self.vocabulary = vocabulary
+        self.intent = intent
     }
 }
 
@@ -47,6 +68,10 @@ public struct DictationJob: Sendable {
 /// 4. the cleanup stage polishes the transcript for that style, or falls back to the raw text with a reason;
 /// 5. the text goes to the inserter, once the key of a capped hold is up;
 /// 6. the record is updated with the outcome: the raw, cleaned and final text, the providers and any fallback.
+///
+/// A command (`DictationIntent.command`) leaves this path after step 3: the transcript is its instruction, which the
+/// `CommandStage` applies to the selection, and the record, of kind `command`, keeps the instruction and never the
+/// selection or the result.
 ///
 /// The recording stays on disk whatever happens, and the record says how the attempt ended, so a failure can be retried
 /// from the history. The pipeline never leaves a stage open: each is bounded, the whole is bounded, and the cancel
@@ -70,8 +95,12 @@ public struct DictationPipeline: Sendable {
     private let diagnostics: any DiagnosticsLog
     private let sleep: @Sendable (Duration) async throws -> Void
     private let cancelRequests = CancelRequests()
+    /// Command mode. Without it a command is never started.
+    let command: CommandStage?
 
-    /// - Parameter cleanup: The stage that cleans the transcript. Without one the raw transcript is inserted.
+    /// - Parameters:
+    ///   - cleanup: The stage that cleans the transcript. Without one the raw transcript is inserted.
+    ///   - command: Command mode over the selection. Without it the command hotkey does nothing.
     public init(
         recordings: any AudioRecordingStore,
         history: any HistoryRepository,
@@ -81,8 +110,10 @@ public struct DictationPipeline: Sendable {
         cleanup: CleanupStage? = nil,
         dates: any DateSource = SystemDateSource(),
         diagnostics: any DiagnosticsLog = NoDiagnostics(),
-        sleep: @escaping @Sendable (Duration) async throws -> Void
+        sleep: @escaping @Sendable (Duration) async throws -> Void,
+        command: CommandStage? = nil
     ) {
+        self.command = command
         self.recordings = recordings
         self.history = history
         self.detector = detector
@@ -102,9 +133,9 @@ public struct DictationPipeline: Sendable {
 
     /// Keeps a recording that the user cancelled while it was still recording: a cancelled record with its audio, and
     /// nothing is transcribed or inserted.
-    public func keepCancelled(_ recording: VerifiedRecording) async {
+    public func keepCancelled(_ recording: VerifiedRecording, kind: DictationKind = .dictation) async {
         _ = await Attempt.begin(
-            for: recording, status: .cancelled, history: history, dates: dates, diagnostics: diagnostics)
+            for: recording, status: .cancelled, kind: kind, history: history, dates: dates, diagnostics: diagnostics)
     }
 
     /// Returns once the inserter has finished what it has in hand, such as putting the clipboard back.
@@ -125,7 +156,8 @@ public struct DictationPipeline: Sendable {
         }
         let tracker = StageTracker()
         let attempt = await Attempt.begin(
-            for: job.recording, status: .processing, history: history, dates: dates, diagnostics: diagnostics)
+            for: job.recording, status: .processing, kind: job.intent.kind, history: history, dates: dates,
+            diagnostics: diagnostics)
         do {
             let state = try await withDeadline(
                 DictationLimits.processingCap, stageAtExpiry: { tracker.stageAtCapExpiry() }, sleep: sleep
@@ -207,6 +239,11 @@ public struct DictationPipeline: Sendable {
             await attempt.amend { $0.status = .noSpeech }
             return .notice(.noSpeech)
         }
+        if case .command(let selection) = job.intent {
+            return try await runCommand(
+                instruction: recognition.text, selection: selection, job: job, attempt: attempt, tracker: tracker,
+                report: report)
+        }
 
         try checkpoint(id)
         let text = try await polished(
@@ -253,6 +290,37 @@ public struct DictationPipeline: Sendable {
             if let reason = result.fallbackReason { $0.fallbackReason = reason.rawValue }
         }
         return result.finalText
+    }
+
+    /// Applies the instruction to the selection. The record keeps what happened, and nothing of the selection or the
+    /// result.
+    private func runCommand(
+        instruction: String, selection: String, job: DictationJob, attempt: Attempt, tracker: StageTracker,
+        report: @escaping @Sendable (PipelineState) async -> Void
+    ) async throws -> PipelineState {
+        let id = job.recording.id.rawValue
+        try checkpoint(id)
+        guard let command else {
+            await attempt.amend {
+                $0.status = .failed
+                $0.failure = CommandStage.noResultFailure
+            }
+            return .notice(.command(.noResult))
+        }
+        tracker.enter(.cleanup)
+        try await job.waitForKeyRelease?()
+        let outcome = try await command.run(
+            instruction: instruction, selection: selection, target: job.target, inserter: inserter, sleep: sleep,
+            checkpoint: { try checkpoint(id) }, report: report)
+        await attempt.amend {
+            $0.status = outcome.status
+            $0.delivery = outcome.delivery
+            if let reason = outcome.reason {
+                $0.fallbackReason = reason
+                $0.failure = CommandStage.noResultFailure
+            }
+        }
+        return outcome.state
     }
 
     /// The style of a dictation whose context did not arrive: an unknown app, which the neutral tone suits.
@@ -337,12 +405,12 @@ private actor Attempt {
 
     /// Creates the record, before anything reads the audio.
     static func begin(
-        for recording: VerifiedRecording, status: DictationStatus, history: any HistoryRepository,
+        for recording: VerifiedRecording, status: DictationStatus, kind: DictationKind, history: any HistoryRepository,
         dates: any DateSource, diagnostics: any DiagnosticsLog
     ) async -> Attempt {
         let record = DictationRecord(
             id: recording.id.rawValue, createdAt: dates.now(), duration: recording.duration, status: status,
-            audioURL: recording.url)
+            audioURL: recording.url, kind: kind)
         var stored = true
         do {
             try await history.insert(record)

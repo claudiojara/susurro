@@ -109,3 +109,44 @@ struct HotkeyValidationTests {
         #expect(rejection(of: modifierOnly([.control, .option]), taken: true) == nil)
     }
 }
+
+@Suite("Hotkey validation across roles")
+struct HotkeyDuplicateValidationTests {
+    private func rejection(of configuration: HotkeyConfiguration, inUse: [HotkeyConfiguration]) -> HotkeyRejection? {
+        HotkeyValidation.rejection(of: configuration, isTakenBySystem: { _ in false }, inUse: inUse)
+    }
+
+    @Test("a hotkey that another role already uses is refused")
+    func duplicateIsRefused() {
+        #expect(rejection(of: .standard, inUse: [.command, .standard]) == .alreadyInUse)
+        #expect(rejection(of: .command, inUse: [.standard]) == nil)
+    }
+
+    @Test("a modifier-only chord equal to another role's is refused, and the same keys of another kind are not equal")
+    func modifierOnlyDuplicate() {
+        let chord = HotkeyConfiguration(
+            kind: .modifierOnly, combo: HotkeyCombo(keyCode: nil, modifiers: [.control, .option]))
+
+        #expect(rejection(of: chord, inUse: [chord]) == .alreadyInUse)
+        #expect(rejection(of: chord, inUse: [.standard]) == nil)
+    }
+
+    @Test("the paste last shortcut cannot take the command hotkey either")
+    func pasteLastAgainstCommand() {
+        #expect(
+            PasteLastValidation.rejection(
+                of: .command, dictation: .standard, isTakenBySystem: { _ in false }, inUse: [.command])
+                == .alreadyInUse)
+        #expect(
+            PasteLastValidation.rejection(
+                of: .standard, dictation: .standard, isTakenBySystem: { _ in false }, inUse: [.command])
+                == .sameAsDictation)
+    }
+
+    @Test("a hotkey that breaks a rule says so before it is compared with the others")
+    func rulesComeFirst() {
+        let bare = HotkeyConfiguration(kind: .keyed, combo: HotkeyCombo(keyCode: 2, modifiers: []))
+
+        #expect(rejection(of: bare, inUse: [bare]) == .needsStrongerModifiers)
+    }
+}

@@ -140,6 +140,8 @@ public final class AppEnvironment {
         public var vocabulary: VocabularyPipeline?
         /// The settings window, or nil for a graph that has none.
         public var settingsScreen: SettingsScreen?
+        /// Command mode over the selection. Nil leaves the command hotkey without effect.
+        public var command: CommandStage?
         /// Shows the app's words in a language: the one stored at launch, and each one picked in the settings. The live
         /// app sets `InterfaceLocale.shared`; the default does nothing, so a test never changes the language of another.
         public var interfaceLanguage: @MainActor (InterfaceLanguage) -> Void
@@ -179,11 +181,13 @@ public final class AppEnvironment {
             interfaceLanguage: @escaping @MainActor (InterfaceLanguage) -> Void = { _ in },
             pasteLastPresses: (any ShortcutPressSource)? = nil,
             mediaPlayback: (any MediaPlaybackControlling)? = nil,
-            microphones: any AudioInputDeviceListing = NoAudioInputDevices()
+            microphones: any AudioInputDeviceListing = NoAudioInputDevices(),
+            command: CommandStage? = nil
         ) {
             self.pasteLastPresses = pasteLastPresses
             self.mediaPlayback = mediaPlayback
             self.microphones = microphones
+            self.command = command
             self.interfaceLanguage = interfaceLanguage
             self.hotkeys = hotkeys
             self.capture = capture
@@ -323,7 +327,8 @@ public final class AppEnvironment {
             cleanup: dependencies.cleanup,
             dates: dependencies.history.dates,
             diagnostics: dependencies.diagnostics,
-            sleep: sleep
+            sleep: sleep,
+            command: dependencies.command
         )
         let settings = dependencies.settings
         // The styles are the app's own, so which of them show the words is known here, once.

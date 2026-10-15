@@ -84,6 +84,7 @@ struct HistoryRowMapper: Sendable {
 
     private func note(of record: DictationRecord) -> String? {
         var notes: [String] = []
+        if record.kind == .command { notes.append(HistoryCopy.command) }
         switch record.status {
         case .failed:
             notes.append(HistoryCopy.failure(record.failure))

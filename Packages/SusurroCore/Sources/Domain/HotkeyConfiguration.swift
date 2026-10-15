@@ -37,6 +37,9 @@ public struct HotkeyCombo: Codable, Sendable, Equatable {
     /// Control+Option+D (`kVK_ANSI_D` is 2), the combination of the first usable build. See ADR 0005 for the check that it
     /// collides with no enabled macOS shortcut.
     public static let holdToTalk = HotkeyCombo(keyCode: 2, modifiers: [.control, .option])
+
+    /// Control+Option+Shift+D: the dictation combination plus Shift, the default of command mode.
+    public static let holdToCommand = HotkeyCombo(keyCode: 2, modifiers: [.control, .option, .shift])
 }
 
 /// The hotkey as the user configured it.
@@ -51,6 +54,9 @@ public struct HotkeyConfiguration: Sendable, Equatable {
 
     /// The default: a keyed combination that needs no permission.
     public static let standard = HotkeyConfiguration(kind: .keyed, combo: .holdToTalk)
+
+    /// The default hotkey of command mode: keyed as well, so it needs no permission either.
+    public static let command = HotkeyConfiguration(kind: .keyed, combo: .holdToCommand)
 
     /// Whether the hotkey can only be heard with Input Monitoring.
     public var needsInputMonitoring: Bool { kind == .modifierOnly }

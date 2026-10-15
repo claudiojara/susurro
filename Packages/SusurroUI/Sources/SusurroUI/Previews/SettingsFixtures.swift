@@ -159,6 +159,13 @@
         static let hotkey = HotkeySettingsState(
             shortcut: ["⌃", "⌥", "D"], isModifierOnly: false, permissionWarning: nil, secureInputWarning: nil)
 
+        static let commandMode = CommandModeSettingsState(
+            isEnabled: true, shortcut: ["⌃", "⌥", "⇧", "D"], warning: nil)
+
+        static let commandModeUnavailable = CommandModeSettingsState(
+            isEnabled: false, shortcut: ["⌃", "⌥", "⇧", "D"],
+            warning: "Apple Intelligence is turned off in System Settings, so command mode cannot work.")
+
         static let hotkeyWarnings = HotkeySettingsState(
             shortcut: ["fn"], isModifierOnly: true,
             permissionWarning: HotkeyWarning(

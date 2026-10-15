@@ -19,12 +19,13 @@ public struct MenuContent: Equatable, Sendable {
         public let action: Action?
     }
 
-    /// A switch in the menu: clean up the text, use the app's context, use screen text.
+    /// A switch in the menu: clean up the text, use the app's context, use screen text, command mode.
     public struct Preference: Equatable, Sendable {
         public enum Kind: Hashable, Sendable {
             case cleanup
             case appContext
             case screenText
+            case commandMode
         }
 
         public let kind: Kind

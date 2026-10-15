@@ -154,6 +154,91 @@
         }
       }
     },
+    "command.detail" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence rewrites it on this Mac. It takes a few seconds."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence la reescribe en este Mac. Tarda unos segundos."
+          }
+        }
+      }
+    },
+    "command.footer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The result replaces the selection, and Command-Z brings it back. Esc cancels. The selection is never stored."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El resultado reemplaza la selección, y Comando-Z la recupera. Esc cancela. La selección nunca se guarda."
+          }
+        }
+      }
+    },
+    "command.hold" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select text, hold, and say what to do, such as “make it formal”."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selecciona texto, mantén pulsado y di qué hacer, por ejemplo «hazlo más formal»."
+          }
+        }
+      }
+    },
+    "command.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Command mode"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modo comando"
+          }
+        }
+      }
+    },
+    "command.toggle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rewrite the selection by voice"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reescribir la selección con la voz"
+          }
+        }
+      }
+    },
     "dictionary.add" : {
       "extractionState" : "manual",
       "localizations" : {

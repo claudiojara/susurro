@@ -49,6 +49,13 @@ final class FakeTransitions: KeyTransitionSource {
         state.withLock { $0.continuations.last }?.yield(transition)
     }
 
+    /// Sends to the newest subscription for `configuration`, when the service listens to several hotkeys.
+    func send(_ transition: KeyTransition, to configuration: HotkeyConfiguration) {
+        state.withLock { state in
+            state.configurations.lastIndex(of: configuration).map { state.continuations[$0] }
+        }?.yield(transition)
+    }
+
     func finish() {
         state.withLock { $0.continuations.last }?.finish()
     }

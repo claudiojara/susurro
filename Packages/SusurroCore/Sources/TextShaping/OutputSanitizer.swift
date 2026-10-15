@@ -27,7 +27,7 @@ public enum OutputSanitizer {
         #/<TRANSCRIPT>(.*?)</TRANSCRIPT>/#.dotMatchesNewlines()
     }
     private static var strayTag: Regex<Substring> {
-        #/</?(?:TRANSCRIPT|VOCABULARY|CONTEXT|BEFORE_CURSOR)>/#
+        #/</?(?:TRANSCRIPT|VOCABULARY|CONTEXT|BEFORE_CURSOR|INSTRUCTION|SELECTION)>/#
     }
 
     /// A fence that opens a block: three backticks, an optional language, and the end of the line.

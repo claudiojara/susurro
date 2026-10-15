@@ -8,22 +8,27 @@ public struct SettingsContainer<Recorder: View>: View {
     private let model: any SettingsViewModeling
     private let recorder: Recorder
     private let pasteLastRecorder: AnyView
+    private let hotkeyCards: AnyView
 
-    /// - Parameter pasteLastRecorder: The recorder of the shortcut that pastes the last dictation, built by the app like
-    ///   `recorder`.
+    /// - Parameters:
+    ///   - pasteLastRecorder: The recorder of the shortcut that pastes the last dictation, built by the app like
+    ///     `recorder`.
+    ///   - hotkeyCards: More cards of the Hotkey tab, such as command mode (`CommandModeContainer`).
     public init(
         model: any SettingsViewModeling, pasteLastRecorder: AnyView = AnyView(EmptyView()),
-        @ViewBuilder recorder: () -> Recorder
+        hotkeyCards: AnyView = AnyView(EmptyView()), @ViewBuilder recorder: () -> Recorder
     ) {
         self.model = model
         self.recorder = recorder()
         self.pasteLastRecorder = pasteLastRecorder
+        self.hotkeyCards = hotkeyCards
     }
 
     public var body: some View {
         let model = model
         SettingsScreen(
-            state: model.state, actions: SettingsActions(model: model), pasteLastRecorder: pasteLastRecorder
+            state: model.state, actions: SettingsActions(model: model), pasteLastRecorder: pasteLastRecorder,
+            hotkeyCards: hotkeyCards
         ) { recorder }
         .task { await model.refresh() }
         .task { await model.run() }

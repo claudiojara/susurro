@@ -8,7 +8,8 @@ import SusurroUI
 /// starts to listen to it at once, and one that is refused is told with the reason and the recorder goes on listening. Esc,
 /// the Cancel button, or the end of the keys (the window lost them) stop it with the hotkey as it was.
 ///
-/// The same recorder changes the shortcut that pastes the last dictation, through another `HotkeyBinding`.
+/// The same recorder changes the command mode hotkey and the shortcut that pastes the last dictation, through other
+/// `HotkeyBinding`s. No shortcut of the app may take the keys of another.
 @MainActor
 @Observable
 public final class HotkeyRecorderViewModel: HotkeyRecorderModeling {
@@ -130,11 +131,24 @@ public struct HotkeyBinding {
 
     /// The dictation hotkey (`HotkeySettings`).
     public static func dictation(_ settings: any SettingsStore) -> HotkeyBinding {
+        hold(.dictate, settings)
+    }
+
+    /// The command mode hotkey (`HotkeySettings.commandKind` and `commandCombo`).
+    public static func command(_ settings: any SettingsStore) -> HotkeyBinding {
+        hold(.command, settings)
+    }
+
+    /// A hotkey that is held: the rules of every hotkey, and none of the app's other shortcuts.
+    private static func hold(_ role: HotkeyRole, _ settings: any SettingsStore) -> HotkeyBinding {
         HotkeyBinding(
-            isDefault: { settings.hotkeyConfiguration() == .standard },
-            store: { settings.setHotkey($0) },
-            reset: { settings.resetHotkey() },
-            rejection: { HotkeyValidation.rejection(of: $0, isTakenBySystem: $1) },
+            isDefault: { settings.hotkeyConfiguration(for: role) == .defaultHotkey(for: role) },
+            store: { settings.setHotkey($0, for: role) },
+            reset: { settings.resetHotkey(for: role) },
+            rejection: {
+                HotkeyValidation.rejection(
+                    of: $0, isTakenBySystem: $1, inUse: settings.shortcutsInUse(except: role))
+            },
             restoreTitle: { nil })
     }
 
@@ -147,7 +161,8 @@ public struct HotkeyBinding {
             reset: { settings.remove(PasteLastSettings.combo) },
             rejection: {
                 PasteLastValidation.rejection(
-                    of: $0, dictation: settings.hotkeyConfiguration(), isTakenBySystem: $1)
+                    of: $0, dictation: settings.hotkeyConfiguration(), isTakenBySystem: $1,
+                    inUse: [settings.hotkeyConfiguration(for: .command)])
             },
             restoreTitle: { SettingsCopy.removeShortcut })
     }

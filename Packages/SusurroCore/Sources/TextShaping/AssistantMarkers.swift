@@ -19,10 +19,23 @@ enum AssistantMarkers {
     /// Every marker, folded.
     static let all: [String] = (english + spanish).map(TextCharacters.folded)
 
+    /// The markers of a rewrite (command mode), which is a request by design: a model refusing it, or describing it.
+    /// Apologies and a plain "can't" are left out, since a rewritten text may well say them ("lamento informarles", "no
+    /// puedo ir"), and measured on the real model a formal rewrite and a summary did.
+    static let command: [String] = [
+        "i can't help", "i cannot help", "i can't assist", "i cannot assist", "i'm unable to help",
+        "i am unable to help", "i can't fulfill", "i cannot fulfill", "i can't do that", "i cannot do that",
+        "as an ai", "as a language model", "as an assistant", "the user is asking", "the user asked", "the user asks",
+        "the user wants", "the user is requesting", "no puedo ayudar", "no puedo cumplir", "no puedo hacer eso",
+        "no me es posible ayudar", "como modelo de lenguaje", "como una ia", "como asistente",
+        "el usuario esta preguntando", "el usuario pregunta", "el usuario pide", "el usuario quiere",
+        "el usuario solicita",
+    ].map(TextCharacters.folded)
+
     /// The first marker `output` contains and `raw` does not, or nil.
-    static func firstMarker(in output: String, notIn raw: String) -> String? {
+    static func firstMarker(in output: String, notIn raw: String, markers: [String] = all) -> String? {
         let foldedOutput = TextCharacters.folded(output)
         let foldedRaw = TextCharacters.folded(raw)
-        return all.first { foldedOutput.contains($0) && !foldedRaw.contains($0) }
+        return markers.first { foldedOutput.contains($0) && !foldedRaw.contains($0) }
     }
 }

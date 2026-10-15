@@ -67,10 +67,16 @@ enum HistoryCopy {
         case "recognizerUnavailable", "recognizerNotInstalled":
             L10n.string("history.failure.recognizer", "The speech model was not available.")
         case "captureFailed": L10n.string("history.failure.capture", "The recording failed.")
+        case "commandNoResult":
+            L10n.string(
+                "history.failure.commandNoResult", "The model gave no usable result, so the text was left as is.")
         default: L10n.string("history.failure.other", "It did not finish.")
         }
     }
 
+    static var command: String {
+        L10n.string("history.note.command", "A command over a selection. The selection and the result are not kept.")
+    }
     static var retryHint: String { L10n.string("history.note.retry", "Retry to run it again.") }
     static var cancelled: String { L10n.string("history.note.cancelled", "You cancelled this dictation.") }
     static var cancelledAudioKept: String {

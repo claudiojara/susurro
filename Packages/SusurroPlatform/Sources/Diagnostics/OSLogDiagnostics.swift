@@ -64,6 +64,7 @@ public struct OSLogDiagnostics: DiagnosticsLog {
             (.error, "the chosen microphone could not be selected: status \(status), using the system default")
         case .mediaPlayback(let paused):
             (.default, paused ? "media paused for a recording" : "media resumed after a recording")
+        case .commandNoResult(let reason): (.info, "command replaced nothing: \(reason)")
         }
     }
 

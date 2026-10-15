@@ -61,7 +61,7 @@ struct HistoryRepositoryContractTests {
             finalText: "Final", asrProvider: ASRProviderID("parakeet-v3"), cleanerProvider: "foundation-models",
             fallbackReason: "cleanup timed out", appName: "Notes", bundleID: "com.apple.Notes", urlHost: "example.com",
             category: "notes", tone: "casual", styleSource: "seed", delivery: .copiedToClipboard,
-            audioURL: URL(filePath: "/audio/x.caf"), audioExpired: false, failure: "recognitionFailed")
+            audioURL: URL(filePath: "/audio/x.caf"), audioExpired: false, failure: "recognitionFailed", kind: .command)
         try await repository.insert(record)
 
         #expect(try await repository.record(id: record.id) == record)
@@ -210,21 +210,41 @@ struct GRDBHistoryRepositoryTests {
     private static let specColumns: Set<String> = [
         "id", "createdAt", "durationMs", "status", "rawText", "cleanedText", "finalText", "asrProvider",
         "cleanerProvider", "fallbackReason", "appName", "bundleID", "urlHost", "category", "tone", "styleSource",
-        "delivery", "audioPath", "audioExpired", "failure",
+        "delivery", "audioPath", "audioExpired", "failure", "kind",
     ]
 
     private static func columns(of queue: DatabaseQueue) throws -> [String] {
         try queue.read { db in try db.columns(in: "dictations").map(\.name) }
     }
 
-    @Test("migration v1 creates the table with every field of the spec")
+    @Test("migrations v1 and v2 create the table with every field of the spec")
     func migrationCreatesTable() throws {
         let queue = try DatabaseQueue()
         _ = try GRDBHistoryRepository(queue)
 
         #expect(Set(try Self.columns(of: queue)) == Self.specColumns)
         let applied = try queue.read { db in try String.fetchAll(db, sql: "SELECT identifier FROM grdb_migrations") }
-        #expect(applied == ["v1"])
+        #expect(applied == ["v1", "v2"])
+    }
+
+    @Test("a history written before v2 keeps its records, which read as dictations")
+    func v2KeepsOldRecords() async throws {
+        let queue = try DatabaseQueue()
+        var v1Only = DatabaseMigrator()
+        v1Only.registerMigration("v1") { db in
+            try HistoryMigrations.createV1(db)
+        }
+        try v1Only.migrate(queue)
+        let id = UUID()
+        try await queue.write { db in
+            try db.execute(
+                sql: "INSERT INTO dictations (id, createdAt, durationMs, status) VALUES (?, 0, 1000, 'succeeded')",
+                arguments: [id.uuidString])
+        }
+
+        let repository = try GRDBHistoryRepository(queue)
+
+        #expect(try await repository.record(id: id)?.kind == .dictation)
     }
 
     @Test("running the migrations again changes nothing")
@@ -234,7 +254,7 @@ struct GRDBHistoryRepositoryTests {
         _ = try GRDBHistoryRepository(queue)
 
         let applied = try queue.read { db in try String.fetchAll(db, sql: "SELECT identifier FROM grdb_migrations") }
-        #expect(applied == ["v1"])
+        #expect(applied == ["v1", "v2"])
     }
 
     @Test("no column can hold context text: no text around the cursor, no selection, no screen text")

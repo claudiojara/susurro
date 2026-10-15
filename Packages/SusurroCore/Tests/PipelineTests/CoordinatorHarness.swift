@@ -37,7 +37,8 @@ struct CoordinatorHarness {
         clock: ManualClock = ManualClock(),
         cleanup: CleanupStage? = nil,
         vocabulary: VocabularyPipeline? = nil,
-        preview: LiveTranscriptPreview? = nil
+        preview: LiveTranscriptPreview? = nil,
+        command: CommandStage? = nil
     ) async {
         self.capture = capture
         self.recordings = recordings
@@ -61,7 +62,8 @@ struct CoordinatorHarness {
             inserter: inserter,
             cleanup: cleanup,
             diagnostics: diagnostics,
-            sleep: sleep
+            sleep: sleep,
+            command: command
         )
         self.pipeline = pipeline
         let coordinator = DictationCoordinator(

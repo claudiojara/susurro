@@ -84,6 +84,9 @@ public enum DiagnosticEvent: Sendable, Equatable {
     case microphoneSelectionFailed(status: Int32)
     /// Media that was playing was paused as a recording started (`paused` true), or resumed as it ended.
     case mediaPlayback(paused: Bool)
+    /// A command replaced nothing. `reason` is a fixed name such as "timedOut", "unchanged", or "emptyOutput": never the
+    /// instruction, the selection, or the reply.
+    case commandNoResult(reason: String)
 }
 
 /// Where the pipeline reports what it would otherwise swallow. The live log lives in the platform package.

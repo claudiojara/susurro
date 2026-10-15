@@ -26,8 +26,12 @@ enum OverlayMapping {
             .transcribing(text: L10n.string("overlay.transcribing", "Transcribing…"), progress: nil)
         case .polishing:
             .polishing(text: L10n.string("overlay.polishing", "Polishing…"))
+        case .rewriting:
+            .polishing(text: L10n.string("overlay.rewriting", "Rewriting… Esc cancels"))
         case .inserted:
             .inserted(text: L10n.string("overlay.inserted", "Pasted"))
+        case .replaced:
+            .inserted(text: L10n.string("overlay.replaced", "Replaced · ⌘Z undoes"))
         case .notice(let kind):
             notice(kind)
         case .error(let error):
@@ -94,8 +98,35 @@ enum OverlayMapping {
                     "doc.on.clipboard",
                     L10n.string("overlay.notice.lastDictationCopied", "Last dictation copied to the clipboard")
                 )
+            case .command(let notice):
+                command(notice)
             }
         return .notice(symbol: symbol, text: text)
+    }
+
+    private static func command(_ notice: CommandNotice) -> (symbol: String, text: String) {
+        switch notice {
+        case .noSelection:
+            ("text.cursor", L10n.string("overlay.command.noSelection", "Select text, then hold the command key"))
+        case .selectionTooLong:
+            ("text.cursor", L10n.string("overlay.command.tooLong", "The selection is too long for a command"))
+        case .secureField:
+            ("lock", L10n.string("overlay.command.secure", "Password fields are never read"))
+        case .selectionUnreadable:
+            (
+                "text.cursor",
+                L10n.string(
+                    "overlay.command.unreadable",
+                    "Could not read the selection. Check Accessibility in the Susurro menu.")
+            )
+        case .noResult:
+            ("sparkles", L10n.string("overlay.command.noResult", "No result; the text was left as is"))
+        case .selectionChanged:
+            (
+                "doc.on.clipboard",
+                L10n.string("overlay.command.selectionChanged", "Selection changed; result on clipboard")
+            )
+        }
     }
 
     /// What failed, then the way out. The reason the system gave is left out: it can quote what was said.
@@ -126,6 +157,12 @@ enum OverlayMapping {
                 L10n.string("overlay.error.clipboardChanged", "Not pasted: the clipboard changed meanwhile.")
             case .notInserted(.clipboardWriteFailed):
                 L10n.string("overlay.error.clipboardWrite", "The text could not be pasted or copied.")
+            case .commandUnavailable(.turnedOff):
+                L10n.string("overlay.error.commandOff", "Command mode is off.")
+            case .commandUnavailable(.modelUnavailable):
+                L10n.string("overlay.error.commandModel", "Apple Intelligence is not available.")
+            case .commandUnavailable(.accessibilityMissing):
+                L10n.string("overlay.error.commandAccessibility", "Command mode needs Accessibility.")
             }
         let wayOut =
             switch error.remedy {

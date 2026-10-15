@@ -19,6 +19,8 @@ enum PromptTags {
     static let context = "CONTEXT"
     static let beforeCursor = "BEFORE_CURSOR"
     static let transcript = "TRANSCRIPT"
+    static let instruction = "INSTRUCTION"
+    static let selection = "SELECTION"
 
     static func open(_ tag: String) -> String { "<\(tag)>" }
     static func close(_ tag: String) -> String { "</\(tag)>" }

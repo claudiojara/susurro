@@ -14,6 +14,7 @@ enum SettingsCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
     case general, generalPinned
     case providers
     case hotkey, hotkeyWarnings, hotkeyRecording
+    case commandMode, commandModeUnavailable
     case recorderIdle, recorderCustom, recorderListening, recorderHolding, recorderRefused
     case styleSeeds, styleOverrides
     case dictionaryEmpty, dictionaryPopulated
@@ -44,6 +45,8 @@ enum SettingsCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
         case .hotkey: CGSize(width: Self.sectionWidth, height: 158)
         case .hotkeyWarnings: CGSize(width: Self.sectionWidth, height: 334)
         case .hotkeyRecording: CGSize(width: Self.sectionWidth, height: 209)
+        case .commandMode: CGSize(width: Self.sectionWidth, height: 244)
+        case .commandModeUnavailable: CGSize(width: Self.sectionWidth, height: 268)
         case .recorderIdle: CGSize(width: Self.sectionWidth, height: 64)
         case .recorderCustom: CGSize(width: Self.sectionWidth, height: 64)
         case .recorderListening: CGSize(width: Self.sectionWidth, height: 79)
@@ -91,6 +94,13 @@ enum SettingsCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
                 HotkeySection(SettingsFixtures.hotkey, actions: .none) {
                     HotkeyRecorder(state: SettingsFixtures.recorderHolding, actions: .none)
                 })
+        case .commandMode:
+            AnyView(
+                CommandModeSection(SettingsFixtures.commandMode, actions: .none) {
+                    HotkeyRecorder(state: SettingsFixtures.recorderIdle, actions: .none)
+                })
+        case .commandModeUnavailable:
+            AnyView(CommandModeSection(SettingsFixtures.commandModeUnavailable, actions: .none) { EmptyView() })
         case .recorderIdle: recorder(SettingsFixtures.recorderIdle)
         case .recorderCustom: recorder(SettingsFixtures.recorderCustom)
         case .recorderListening: recorder(SettingsFixtures.recorderListening)

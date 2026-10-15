@@ -133,7 +133,8 @@ extension AppEnvironment.Dependencies {
             interfaceLanguage: { $0.apply() },
             pasteLastPresses: ShortcutPressService(settings: settings, key: PasteLastSettings.combo),
             mediaPlayback: SystemMediaPlayback(),
-            microphones: microphones
+            microphones: microphones,
+            command: commandStage(settings: settings, diagnostics: diagnostics)
         )
     }
 
@@ -149,6 +150,16 @@ extension AppEnvironment.Dependencies {
             styleSettings: { bundleID, url in
                 styles.settings(for: resolver.candidateTargets(bundleID: bundleID, url: url))
             })
+    }
+
+    /// Command mode: the selection is read through Accessibility, Apple's on-device model rewrites it, and a result whose
+    /// selection changed meanwhile goes to the clipboard. The switch is `command.enabled`, off by default.
+    private static func commandStage(settings: UserDefaultsSettingsStore, diagnostics: any DiagnosticsLog)
+        -> CommandStage
+    {
+        CommandStage(
+            isEnabled: { settings.value(for: CommandSettings.enabled) }, rewriter: AppleIntelligenceRewriter(),
+            reader: AXContextReader(), clipboard: SystemClipboardWriter(), diagnostics: diagnostics)
     }
 
     /// Where the recordings are kept: `Audio` in the app's folder of Application Support.
@@ -175,7 +186,8 @@ extension AppEnvironment.Dependencies {
                     isTakenBySystem: { SystemShortcuts.isTaken($0) })
                 return SettingsWindowController(
                     model: model, themes: themes, recorder: AnyView(HotkeyRecorderContainer(model: recorder)),
-                    pasteLastRecorder: AnyView(HotkeyRecorderContainer(model: pasteLastRecorder)))
+                    pasteLastRecorder: AnyView(HotkeyRecorderContainer(model: pasteLastRecorder)),
+                    hotkeyCards: commandModeCard(settings: settings))
             },
             hasKey: { keys.hasSecret(for: $0) },
             hotkey: { Self.describe(settings.hotkeyConfiguration()) },
@@ -200,6 +212,18 @@ extension AppEnvironment.Dependencies {
                 } ?? []
             }
         )
+    }
+
+    /// The command mode card of the Hotkey tab, with the recorder of the command hotkey in its slot.
+    @MainActor
+    private static func commandModeCard(settings: any SettingsStore) -> AnyView {
+        let model = CommandModeSettingsViewModel(
+            settings: settings, shortcut: { HotkeyKeyCaps.caps(for: $0) },
+            modelAvailable: { Self.appleIntelligenceIsAvailable })
+        let recorder = HotkeyRecorderViewModel(
+            binding: .command(settings), source: NSEventHotkeyCaptureSource(),
+            isTakenBySystem: { SystemShortcuts.isTaken($0) })
+        return AnyView(CommandModeContainer(model: model) { HotkeyRecorderContainer(model: recorder) })
     }
 
     /// The configured hotkey as key caps, from the setting the hotkey service reads.
