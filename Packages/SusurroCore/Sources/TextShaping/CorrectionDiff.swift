@@ -24,8 +24,8 @@ public enum CorrectionDiff {
     /// The most words compared on either side, which keeps the alignment small.
     static let maxWords = 600
 
-    /// The corrections in `fieldText`, or nil when the dictation could not be found in it (an anchor is gone, or the
-    /// field is too big).
+    /// The corrections in `fieldText`, or nil when the dictation could not be found in it (an anchor is gone, the field
+    /// is too big, or, with both anchors empty, too many of the dictation's words are gone).
     ///
     /// - Parameters:
     ///   - inserted: The text the dictation inserted.
@@ -44,7 +44,14 @@ public enum CorrectionDiff {
         let original = words(of: inserted)
         let edited = words(of: String(region))
         guard original.count <= maxWords, edited.count <= maxWords else { return nil }
-        return replacements(original: original, edited: edited)
+        let alignment = replacements(original: original, edited: edited)
+        // With no text around it nothing says the region is the dictation's: another field of the app reads the same.
+        // It is taken for the dictation only when few of its words are gone, as a correction leaves it.
+        if anchorBefore.isEmpty && anchorAfter.isEmpty {
+            let missing = original.count - alignment.matched
+            guard missing <= max(maxCorrectionWords, original.count / 2) else { return nil }
+        }
+        return alignment.corrections
     }
 
     // MARK: Region
@@ -107,8 +114,10 @@ public enum CorrectionDiff {
 
     // MARK: Alignment
 
-    /// The runs of words that replace one another between the matched words of a longest common subsequence.
-    private static func replacements(original: [Word], edited: [Word]) -> [WordCorrection] {
+    /// The runs of words that replace one another between the matched words of a longest common subsequence, and how
+    /// many words matched.
+    private static func replacements(original: [Word], edited: [Word]) -> (corrections: [WordCorrection], matched: Int)
+    {
         let n = original.count
         let m = edited.count
         // lengths[i][j]: the longest common subsequence of original[i...] and edited[j...].
@@ -149,6 +158,6 @@ public enum CorrectionDiff {
             }
         }
         flush()
-        return result
+        return (result, lengths[0][0])
     }
 }

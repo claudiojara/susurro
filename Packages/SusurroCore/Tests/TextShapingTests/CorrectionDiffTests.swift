@@ -46,6 +46,21 @@ struct CorrectionDiffTests {
         #expect(Self.diff(field, hint: 0) == [])
     }
 
+    @Test("with no text around it, the dictation is found when most of its words are still there")
+    func noAnchors() {
+        let corrected = [WordCorrection(heard: "Kyle Thorn", corrected: "Kaelthorn")]
+        #expect(Self.diff("I spoke with Kaelthorn about the launch.", before: "", after: "") == corrected)
+        #expect(
+            Self.diff("I spoke with Kaelthorn about the launch. And more words.", before: "", after: "") == corrected)
+        #expect(Self.diff("Kaelthorn", before: "", after: "", inserted: "Kyle Thorn") == corrected)
+    }
+
+    @Test("with no text around it, a field that shares only a few of the dictation's words is another field")
+    func noAnchorsOtherField() {
+        #expect(Self.diff("We spoke with Kaelthorn about it.", before: "", after: "") == nil)
+        #expect(Self.diff("Search", before: "", after: "") == nil)
+    }
+
     @Test("a missing anchor gives up")
     func missingAnchor() {
         #expect(Self.diff("Something else entirely.") == nil)

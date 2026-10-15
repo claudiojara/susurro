@@ -1,12 +1,19 @@
 /// "a las 2, no, a las 3" said as "a las 3": the part the speaker took back goes, with the marker. See `FillerRemover`
 /// for the rule and why it is narrow.
 enum SelfCorrection {
-    /// The words that take back what came before, between commas, as folded keys.
-    private static let markers: [[String]] = [
-        ["no"], ["digo"], ["perdon"], ["mejor", "dicho"], ["i", "mean"], ["sorry"],
-    ]
+    /// The words that take back what came before, between commas, as folded keys. Apologies and asides ("sorry",
+    /// "perdón", "I mean") are not here: they more often join two clauses than take one back.
+    private static let markers: [[String]] = [["no"], ["digo"], ["mejor", "dicho"]]
     /// Words a correction never starts with: after them the commas are an answer, not a correction ("Sí, no, no sé").
     private static let answers: Set<String> = ["no", "si", "yes", "not"]
+    /// Personal pronouns, as folded keys. Two clauses that start with the same one are two statements by the same
+    /// person ("I can't come, no, I have a meeting"), not a correction. "él" folds to "el", the article, so it is not
+    /// here; nor is "tú", which folds to the possessive "tu".
+    private static let pronouns: Set<String> = [
+        "i", "i'm", "i've", "i'll", "i'd", "you", "you're", "he", "he's", "she", "she's", "it", "it's", "we",
+        "we're", "they", "they're", "yo", "ella", "ellos", "ellas", "nosotros", "nosotras", "vosotros", "vosotras",
+        "usted", "ustedes",
+    ]
     private static let wordRange = 2...6
 
     /// Applies every correction in the text, left to right. Returns whether it changed anything.
@@ -33,7 +40,7 @@ enum SelfCorrection {
         guard let replacementStart = afterMarker(from: comma + 1, in: pieces) else { return nil }
         let replacement = words(from: replacementStart, in: pieces)
         guard replacement.count >= wordRange.lowerBound, let first = replacement.first,
-            !answers.contains(pieces[first].key)
+            !answers.contains(pieces[first].key), !pronouns.contains(pieces[first].key.replacing("’", with: "'"))
         else { return nil }
         let clause = clauseWords(before: comma, in: pieces)
         // The latest word of the clause that the correction starts with, leaving two to six words to take back.

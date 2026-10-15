@@ -36,15 +36,20 @@ struct CorrectionWatchTests {
 
         static func receipt(
             app: AppIdentity = .mail, category: AppCategory = .email, isSecureField: Bool = false,
-            inserted: String = CorrectionWatchTests.inserted
+            inserted: String = CorrectionWatchTests.inserted, anchorBefore: String = "Hello team. ",
+            anchorAfter: String = " See you.", windowTitle: String? = nil, url: String? = nil
         ) -> InsertionReceipt {
             InsertionReceipt(
-                id: UUID(), finalText: inserted, anchorBefore: "Hello team. ", anchorAfter: " See you.", target: app,
-                category: category, isSecureField: isSecureField)
+                id: UUID(), finalText: inserted, anchorBefore: anchorBefore, anchorAfter: anchorAfter, target: app,
+                category: category, isSecureField: isSecureField, windowTitle: windowTitle, url: url)
         }
 
-        static func field(_ text: String, isSecure: Bool = false) -> FocusedContext {
-            FocusedContext(isSecure: isSecure, fieldText: text, selection: text.utf16.count..<text.utf16.count)
+        static func field(
+            _ text: String, isSecure: Bool = false, cursor: Int? = nil, windowTitle: String? = nil, url: String? = nil
+        ) -> FocusedContext {
+            let cursor = cursor ?? text.utf16.count
+            return FocusedContext(
+                windowTitle: windowTitle, url: url, isSecure: isSecure, fieldText: text, selection: cursor..<cursor)
         }
 
         /// Watches the receipt and lets the 5 s reread run.
@@ -193,6 +198,96 @@ struct CorrectionWatchTests {
         await f.watch.handoff(DictationContext(app: .mail, beforeCursor: "a new message"))
 
         #expect(f.ends == [.anchorLost])
+    }
+
+    // MARK: Which field
+
+    @Test("a dictation into an empty field is learned from when the field still holds it")
+    func emptyFieldLearned() async {
+        let f = await Fixture()
+        f.reader.set(Fixture.field("I spoke with Kaelthorn about the launch."))
+        await f.watchAndReread(Fixture.receipt(anchorBefore: "", anchorAfter: ""))
+
+        #expect(f.terms == ["Kaelthorn"])
+    }
+
+    @Test("with no text around the dictation, another field of the same app that only shares a few words is not diffed")
+    func emptyAnchorsOtherField() async {
+        let f = await Fixture()
+        f.reader.set(Fixture.field("We spoke with Kaelthorn about it."))
+        await f.watchAndReread(Fixture.receipt(anchorBefore: "", anchorAfter: ""))
+
+        #expect(f.terms.isEmpty)
+        await f.watch.handoff(DictationContext(app: .mail, beforeCursor: "We spoke with Kaelthorn about it."))
+        #expect(f.terms.isEmpty)
+    }
+
+    @Test("a field in another window or page of the same app is not diffed, at 5 s or in the handoff")
+    func otherWindow() async {
+        let f = await Fixture()
+        f.reader.set(Fixture.field(Self.corrected, windowTitle: "Inbox"))
+        await f.watchAndReread(Fixture.receipt(windowTitle: "New Message"))
+        #expect(f.terms.isEmpty)
+        #expect(await f.watch.isWatching)
+
+        await f.watch.handoff(
+            DictationContext(app: .mail, windowTitle: "Inbox", beforeCursor: Self.corrected))
+        #expect(f.terms.isEmpty)
+        #expect(f.ends == [.anchorLost])
+    }
+
+    @Test("a field in the same window is diffed, and a title or address that could not be read does not block it")
+    func sameWindow() async {
+        let f = await Fixture()
+        f.reader.set(Fixture.field(Self.corrected, windowTitle: "New Message"))
+        await f.watchAndReread(Fixture.receipt(windowTitle: "New Message", url: "https://a.example"))
+
+        #expect(f.terms == ["Kaelthorn"])
+    }
+
+    // MARK: Typing in progress
+
+    @Test(
+        "a correction still being typed at 5 s is not suggested; the watch waits for the next dictation",
+        arguments: ["Kaelth", "Kaelth|orn"])
+    func typingInProgress(typed: String) async {
+        let f = await Fixture()
+        let word = typed.replacing("|", with: "")
+        let head = "Hello team. I spoke with " + (typed.split(separator: "|").first.map(String.init) ?? word)
+        let field = "Hello team. I spoke with \(word) about the launch. See you."
+        f.reader.set(Fixture.field(field, cursor: head.utf16.count))
+        await f.watchAndReread()
+
+        #expect(f.terms.isEmpty)
+        #expect(f.ends.isEmpty)
+        #expect(await f.watch.isWatching)
+
+        await f.watch.handoff(
+            DictationContext(
+                app: .mail, beforeCursor: "Hello team. I spoke with Kaelthorn about the launch.",
+                afterCursor: " See you."
+            ))
+        #expect(f.terms == ["Kaelthorn"])
+    }
+
+    // MARK: Command mode
+
+    @Test("a command that replaces text ends the watch: the rewrite is never read as the user's correction")
+    func commandEndsWatch() async {
+        let f = await Fixture()
+        f.reader.set(Fixture.field(Self.corrected))
+        await f.watch.watch(Fixture.receipt())
+        await f.clock.waitForSleeps(1)
+
+        await f.watch.cancel()
+        f.clock.advance(by: CorrectionWatch.rereadDelay)
+        await f.watch.settled()
+        await f.watch.handoff(DictationContext(app: .mail, beforeCursor: Self.corrected))
+
+        #expect(f.reader.reads == 0)
+        #expect(f.terms.isEmpty)
+        #expect(f.ends == [.replaced])
+        #expect(await !f.watch.isWatching)
     }
 
     // MARK: When nothing is watched

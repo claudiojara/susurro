@@ -860,3 +860,14 @@ Slices 2–9 were delivered together in #68 (fast track, strict TDD, no per-PR r
 - [x] LD1.8 DOC: ADR 0034, "The learning dictionary suggests corrected words, and never stores field text".
 - [ ] LD1.9 Later: up to three "Add “term” to dictionary" items in the menu bar menu, the +20 s re-read, and a system-lexicon check (`NSSpellChecker`) in the filter.
 - [ ] LD1.10 VERIFY: Manual: in Mail or Notes, dictate a sentence with an unusual name, fix the name by hand within 5 s, and see it under Settings › Dictionary › Suggested; Add it and see it in the terms; dismiss another and see it never come back; turn the switch off, or "use app context" off, and see nothing suggested; dictate into a password field and Terminal and see nothing suggested.
+
+## Review fixes for text shaping and learning
+
+### PR RF2: Self-correction, acronyms, and the correction watch (review of PRs 78 to 82)
+
+- [x] RF2.1 RED+GREEN: Self-correction no longer treats "sorry", "perdón" or "I mean" as markers, and never fires when the continuation starts with a personal pronoun ("I can't come, no, I have a meeting" stays).
+- [x] RF2.2 RED+GREEN: Hesitation removal leaves acronyms written in capitals ("ERM framework", "HM Treasury", "EM radiation").
+- [x] RF2.3 RED+GREEN: A command that replaces text ends the correction watch (`CorrectionWatching.cancel()`); a result left on the clipboard does not.
+- [x] RF2.4 RED+GREEN: `InsertionReceipt` keeps the window title and page address; the reread and the handoff skip a field in another window or page. With both anchors empty, `CorrectionDiff` gives up when more than max(3, half) of the dictation's words are gone.
+- [x] RF2.5 RED+GREEN: The 5 s reread records nothing while the cursor is in a corrected word (possibly half typed) and leaves the watch to the handoff.
+- [ ] RF2.6 VERIFY: Manual: dictate into an empty Slack message box, focus the search box and type a capitalized name within 5 s, and see nothing suggested; dictate, then within 5 s select the text and run a command ("ponle acentos"), and see nothing suggested.

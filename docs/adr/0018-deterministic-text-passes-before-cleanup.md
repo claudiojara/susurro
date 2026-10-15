@@ -26,10 +26,12 @@ Deterministic passes, in this order, in `CleanupStage.run`:
    snippet is not sent to the cleaner, which would rewrite the user's own text; the other passes skip the snippet text.
 3. Filler removal (setting `cleanup.removeFillers`, on by default), skipped for the verbatim tone. Only spellings that are
    not words are removed: "eh", "em", "mmm", "hmm", "erm", "umm", "uhh", "uhm" and their stretched forms, and "este"
-   before an ellipsis. "um", "uh", "like", "o sea", "bueno" stay. A self-correction is "X, marker, Y" with the marker
-   between commas ("no", "digo", "perdón", "mejor dicho", "I mean", "sorry"), where Y starts with the word X starts with,
-   X is two to six words of the same clause, and Y is not "no", "sí", "yes", or "not". A text where nothing matched is
-   returned unchanged, byte for byte.
+   before an ellipsis. "um", "uh", "like", "o sea", "bueno" stay, and so does an acronym in capitals ("ERM", "HM"). A
+   self-correction is "X, marker, Y" with the marker between commas ("no", "digo", "mejor dicho"; apologies and asides
+   such as "perdón", "sorry", "I mean" join clauses more often than they retract one, so they are not markers), where Y
+   starts with the word X starts with, X is two to six words of the same clause, and Y starts with neither "no", "sí",
+   "yes", "not" nor a personal pronoun ("I can't come, no, I have a meeting" is two statements). A text where nothing
+   matched is returned unchanged, byte for byte.
 4. Replacement rules (`dictionary.replacements`): whole words, case and accents ignored but ñ kept apart from n, longest
    rule first, one pass so a written form is never matched again.
 
