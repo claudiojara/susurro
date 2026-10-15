@@ -7,8 +7,9 @@ public enum SecretAccount: String, Sendable, Equatable, CaseIterable {
 }
 
 /// Where the keys of the cloud providers come from. The app only reads them: it never creates, changes, or deletes a
-/// key, and never keeps one beyond the call that needs it, in memory or anywhere else. A key is never logged, never put
-/// in a setting, and never shown. A caller that only needs to know whether a key exists asks `hasSecret`.
+/// key. A key is read only when a cloud provider that is on needs it, and is kept at most in memory for the session
+/// (`SessionSecretCache`, ADR 0037), never on disk. A key is never logged, never put in a setting, and never shown. A
+/// caller that only needs to know whether a key exists asks `hasSecret`, which never hands the key over.
 public protocol SecretStore: Sendable {
     /// The key of the account, or nil when there is none. Throws when the store could not be read, for example while the
     /// Keychain is locked.

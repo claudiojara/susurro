@@ -1,6 +1,7 @@
 // Shared build settings. Ad-hoc signing keeps CI and fresh clones building.
-// A stable identity keeps privacy grants across rebuilds: copy Local.xcconfig.example to
-// Local.xcconfig (gitignored) and set your team and identity there.
+// A stable identity keeps privacy grants and Keychain "Always Allow" answers across rebuilds. `make build` finds an
+// Apple Development identity by itself and passes it on the command line (see the Makefile). For builds from Xcode,
+// copy Local.xcconfig.example to Local.xcconfig (gitignored) and set your team and identity there.
 CODE_SIGN_STYLE = Manual
 CODE_SIGN_IDENTITY = -
 DEVELOPMENT_TEAM =

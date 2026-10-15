@@ -60,8 +60,13 @@ extension AppEnvironment.Dependencies {
         let preferredMicrophone = PreferredInputDevice(
             settings: settings, devices: microphones, deviceID: { microphones.deviceID(forUID: $0) },
             diagnostics: diagnostics)
-        // The keys of the cloud providers are only looked up, in the external Keychain service (ADR 0003).
-        let keys = KeychainSecretStore(diagnostics: diagnostics)
+        // The keys of the cloud providers are only looked up, in the external Keychain service (ADR 0003), and only
+        // for a cloud provider that is selected and on. They are kept in memory for the session, so the Keychain is
+        // read once and not on every dictation (ADR 0037), and read in the background at launch and when the providers
+        // change, so the first dictation does not wait on it. A change of the provider settings reads them again.
+        let keys = SessionSecretCache(KeychainSecretStore(diagnostics: diagnostics))
+        let keySettingNames = Self.cloudKeySettingNames
+        Task.detached(priority: .utility) { await keys.following(settings, names: keySettingNames) }
         // Deepgram and local Whisper can be selected; a failure of either falls back to Parakeet.
         let recognizers = AppEnvironment.RecognizerSet(
             main: recognizer, language: languageRecognizer,
@@ -240,6 +245,14 @@ extension AppEnvironment.Dependencies {
             keys: HotkeyKeyCaps.caps(for: configuration), isModifierOnly: configuration.kind == .modifierOnly)
     }
 
+    /// The settings whose change drops the cloud keys kept for the session: which recognizer and which cleaner are in
+    /// use, and whether each cloud provider is on.
+    private static var cloudKeySettingNames: Set<String> {
+        Set(
+            ([SpeechSettings.provider, SpeechSettings.deepgramEnabled] as [any AnySettingKey]
+                + CleanupSettings.all).map(\.storageName))
+    }
+
     /// Whether Apple's on-device model can clean text on this Mac.
     private static var appleIntelligenceIsAvailable: Bool {
         #if canImport(FoundationModels)
@@ -287,7 +300,7 @@ extension AppEnvironment.Dependencies {
 
 /// Whether a cloud recognizer has its key in the Keychain. The key itself is not read.
 private struct KeychainProviderCredentials: ProviderCredentials {
-    let keys: KeychainSecretStore
+    let keys: any SecretStore
 
     func hasKey(for provider: ASRProviderID) -> Bool {
         SecretAccount(rawValue: provider.rawValue).map { keys.hasSecret(for: $0) } ?? false

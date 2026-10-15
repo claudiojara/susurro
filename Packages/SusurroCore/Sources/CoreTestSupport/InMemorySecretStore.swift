@@ -1,8 +1,8 @@
 import Domain
 import Synchronization
 
-/// A key store that holds its keys in memory, for tests. It also counts how often each account was read, since the real
-/// store must be asked every time.
+/// A key store that holds its keys in memory, for tests. It also counts how often each account was read, since a read of
+/// the real store can make macOS ask the user for the login password: an account must be read only when it is needed.
 public final class InMemorySecretStore: SecretStore {
     private struct State {
         var secrets: [SecretAccount: String]
