@@ -787,4 +787,4 @@ Slices 2–9 were delivered together in #68 (fast track, strict TDD, no per-PR r
 - [x] IL1.3 RED+GREEN: Every word of the settings, menu, onboarding, overlay, and history is in the catalogs of `Presentation` and `SusurroUI`, in English and Spanish. Tests: every key has `es`, the placeholders agree, the keys match the code, and the copy resolves in both languages.
 - [x] IL1.4 RED+GREEN: An "Interface language" card (System, English, Español) in the General tab. The pick is stored, applied at once, and applied at launch; window titles follow it.
 - [x] IL1.5 DOC: ADR 0017, "The interface language switches live through one observable locale".
-- [ ] IL1.6 VERIFY: Manual: pick Español in Settings and see the menu, the Settings window and its title, the history, and the overlay switch without a relaunch; pick System and see macOS's language used.
+- [x] IL1.6 VERIFY: Manual: pick Español in Settings and see the menu, the Settings window and its title, the history, and the overlay switch without a relaunch; pick System and see macOS's language used. (verified by hand 2026-10-14)
