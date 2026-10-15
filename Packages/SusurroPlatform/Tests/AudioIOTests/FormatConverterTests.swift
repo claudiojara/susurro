@@ -46,6 +46,34 @@ struct FormatConverterTests {
         #expect(abs(samples.count - Self.targetRate) <= 1)
     }
 
+    /// Every rate a microphone reports in practice, Bluetooth headsets in their call mode (8 kHz, 16 kHz, 24 kHz)
+    /// included, in mono and in stereo.
+    private static let deviceFormats: [(sampleRate: Double, channels: AVAudioChannelCount)] =
+        [8_000.0, 16_000, 24_000, 44_100, 48_000].flatMap { rate in [1, 2].map { (rate, AVAudioChannelCount($0)) } }
+
+    @Test(
+        "tap buffers at any device rate and channel count stream to 16 kHz mono at the nominal count",
+        arguments: deviceFormats)
+    func anyDeviceFormatStreams(device: (sampleRate: Double, channels: AVAudioChannelCount)) throws {
+        // About 21 ms per buffer, the size the live tap asks for at 48 kHz, for half a second.
+        let frames = Int(device.sampleRate / 48)
+        let count = 24
+        let buffers = (0..<count).map {
+            makeBuffer(
+                sampleRate: device.sampleRate, channels: device.channels, frames: frames, startingAt: $0 * frames,
+                sample: tone(sampleRate: device.sampleRate))
+        }
+
+        let samples = try convertAll(buffers)
+
+        let nominal = Double(count * frames) * Double(Self.targetRate) / device.sampleRate
+        #expect(abs(Double(samples.count) - nominal) <= 1)
+        #expect(!samples.contains { $0.isNaN })
+        // The tone survives: its steady middle keeps about half of full scale.
+        let middle = samples.dropFirst(Self.settle).dropLast(Self.settle)
+        #expect((0.4...0.6).contains(middle.map(abs).max() ?? 0))
+    }
+
     @Test(
         "fifty tap buffers keep the sample count within one of the nominal count",
         arguments: [44_100.0, 48_000, 96_000])
@@ -185,6 +213,17 @@ struct FormatConverterTests {
         let sut = try FormatConverter(from: standard)
         // The fixture labels its channels as discrete, where the standard format labels them left and right.
         let buffer = makeBuffer(sampleRate: 48_000, channels: 2, frames: 4_800) { _, _ in 0.5 }
+
+        #expect(try sut.convert(buffer).count + sut.finish().count == 1_600)
+    }
+
+    @Test(
+        "a mono buffer that differs from the converter's format only in channel layout is resampled",
+        arguments: [8_000.0, 24_000, 44_100, 48_000])
+    func monoLayoutMetadataIsIgnored(sampleRate: Double) throws {
+        let standard = try #require(AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1))
+        let sut = try FormatConverter(from: standard)
+        let buffer = makeBuffer(sampleRate: sampleRate, channels: 1, frames: Int(sampleRate) / 10) { _, _ in 0.5 }
 
         #expect(try sut.convert(buffer).count + sut.finish().count == 1_600)
     }

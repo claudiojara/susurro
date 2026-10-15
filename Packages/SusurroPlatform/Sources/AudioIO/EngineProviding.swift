@@ -14,7 +14,7 @@ protocol EngineProviding: Sendable {
     func stop()
     /// A value each time the engine's configuration changes while it runs: the input device was unplugged or replaced,
     /// or the route switched. The engine has stopped delivering buffers by then. Call it before `start()`, and read the
-    /// stream until the capture ends.
+    /// stream until the engine is stopped; each run of the engine has its own stream.
     func configurationChanges() -> AsyncStream<Void>
     /// Makes the CoreAudio device `id` the input of the engine. Call it before `inputFormat()`, since the format is the
     /// device's. Without a call the engine uses the system default input.
