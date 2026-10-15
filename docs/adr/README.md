@@ -22,3 +22,4 @@ number, and add a row below. An accepted ADR is not edited; a later ADR supersed
 | [0018](0018-deterministic-text-passes-before-cleanup.md) | Snippets, filler removal, and replacements are deterministic passes before cleanup | accepted |
 | [0030](0030-busy-presses-use-a-fifo-processing-queue.md) | Busy presses use a FIFO ProcessingQueue | accepted |
 | [0031](0031-pause-media-with-the-media-key-and-coreaudio-process-output.md) | Pause media with the media key, detected through CoreAudio process output | accepted |
+| [0032](0032-live-text-partials-are-throttled-and-yield-to-the-dictation.md) | Live text partials are throttled, run only on an idle engine, and are dropped at key-up | accepted |

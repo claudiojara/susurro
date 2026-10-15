@@ -180,7 +180,10 @@ extension AppEnvironment.Dependencies {
             hasKey: { keys.hasSecret(for: $0) },
             hotkey: { Self.describe(settings.hotkeyConfiguration()) },
             secureInputActive: { IsSecureEventInputEnabled() },
-            overlayVariants: [OverlayVariantOption(id: OverlayVariantOption.defaultID, title: "Default")],
+            // The settings name each style in the interface language (`SettingsCopy.overlayStyle`).
+            overlayVariants: [PillOverlayStyle.id, MinimalOverlayStyle.id, LiveTextOverlayStyle.id].map {
+                OverlayVariantOption(id: $0, title: $0)
+            },
             style: StyleSettingsRepository(store: settings),
             dictionary: DictionaryStore(settings: settings),
             speechReadiness: { id in

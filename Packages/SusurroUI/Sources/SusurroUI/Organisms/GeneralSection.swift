@@ -35,7 +35,7 @@ struct GeneralSection: View {
                     Copy.ocr, detail: Copy.ocrDetail,
                     isOn: state.ocrEnabled, onChange: actions.ocr)
             }
-            SettingsCard(Copy.overlay) {
+            SettingsCard(Copy.overlay, footer: Copy.overlayFooter) {
                 labeled(Copy.position) {
                     ChoiceChips(
                         state.overlayEdges, selected: state.selectedEdge, label: Copy.overlayPosition,
@@ -90,6 +90,11 @@ struct GeneralSection: View {
                 "Reads the window to spell names right. Needs Screen Recording. The text stays on this Mac.")
         }
         static var overlay: String { L10n.string("general.overlay", "Overlay") }
+        static var overlayFooter: String {
+            L10n.string(
+                "general.overlayFooter",
+                "Live text shows your words as you speak. What is pasted is the final transcript, which can differ.")
+        }
         static var position: String { L10n.string("general.position", "Position") }
         static var overlayPosition: String { L10n.string("general.overlayPosition", "Overlay position") }
         static var style: String { L10n.string("general.style", "Style") }

@@ -19,6 +19,16 @@ enum SettingsCopy {
             "settings.variant.unavailable", "The overlay style \"\(id)\" is not available, so the default one is used.")
     }
 
+    /// The name of an overlay style of the app, or nil for one it does not know.
+    static func overlayStyle(_ id: String) -> String? {
+        switch id {
+        case OverlayVariantOption.defaultID: defaultTheme
+        case "minimal": L10n.string("settings.overlayStyle.minimal", "Minimal")
+        case "liveText": L10n.string("settings.overlayStyle.liveText", "Live text")
+        default: nil
+        }
+    }
+
     static func language(_ mode: SpeechLanguageMode) -> String {
         switch mode {
         case .fast: fastLanguage

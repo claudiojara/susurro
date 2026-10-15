@@ -815,3 +815,18 @@ Slices 2–9 were delivered together in #68 (fast track, strict TDD, no per-PR r
 - [x] DS1.4 RED+GREEN: The Dictionary tab has a search over terms, rules, and snippets, a Replacements card, a Voice snippets card (multi-line text), and a "Remove filler words" switch. View model intents, refusals with reasons, and `en`/`es` copy.
 - [x] DS1.5 DOC: ADR 0018, "Snippets, filler removal, and replacements are deterministic passes before cleanup".
 - [ ] DS1.6 VERIFY: Manual: add the rule "jira" → "Jira" and dictate "abre un ticket en jira"; add the snippet "mi firma" with two lines and dictate only "mi firma", then "gracias por todo, mi firma"; dictate "eh, quedamos a las 2, no, a las 3" with the switch on and off; search the Dictionary tab; check that Option-Return adds a line to a snippet.
+
+## Overlay styles
+
+### PR OS1: Minimal and Live text overlay styles, with a throttled live transcript (~1,000)
+
+- [x] OS1.1 RED+GREEN: `MinimalOverlayStyle` (a small pill: the symbol and the input level while recording, a word for the other states, the whole sentence for a notice or an error) and `LiveTextOverlayStyle` (a wider panel with the newest words in three reserved lines, so the panel never resizes), registered in `OverlayStyleRegistry.standard()` next to the pill. Widths come from the new layout tokens `overlayCompactWidth` and `overlayWideWidth`.
+- [x] OS1.2 RED+GREEN: `OverlayStyle.showsLiveTranscript` and `body(state:level:transcript:)`, with defaults, so the pill is unchanged; `OverlayViewModeling.transcript` reaches the style through `OverlayContainer`.
+- [x] OS1.3 RED+GREEN: Snapshot canvases for every state of both styles in light and dark (`StyledOverlaySnapshotTests`), with fit and stable-render checks.
+- [x] OS1.4 RED+GREEN: One `overlay.variant` key with the default `pill` for the settings and the overlay; the `default` id older settings stored selects the pill. The "Style" chips list Default, Minimal, and Live text, named in English and Spanish, with a footer that the pasted text is the final transcript.
+- [x] OS1.5 RED+GREEN: `PartialSpeechRecognizing`; `ParakeetRecognizer.transcribePartial` runs only on an idle engine and never queues.
+- [x] OS1.6 RED+GREEN: `LiveTranscriptPreview` throttles partials on the injected clock (one at a time, 1 s after the last, 0.5 s of new audio, newest 12 s), runs only for a style that shows them and a local recognizer that can, and is ended by the coordinator at key-up, dropping the partial in flight. `RecordingSession` hands it the kept audio.
+- [x] OS1.7 RED+GREEN: `OverlayViewModel` shows partials only while recording and clears them when the recording ends.
+- [x] OS1.8 DOC: ADR 0032 with the measured cost (`RealModelTests.partialLatency`).
+- [ ] OS1.9 VERIFY: Manual: pick each style in Settings and dictate; with Live text the words appear about every second while speaking, the pasted text is the final transcript, and the paste does not feel slower than with the default style.
+

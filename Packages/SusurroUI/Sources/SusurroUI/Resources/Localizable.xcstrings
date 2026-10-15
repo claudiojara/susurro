@@ -579,6 +579,23 @@
         }
       }
     },
+    "general.overlayFooter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Live text shows your words as you speak. What is pasted is the final transcript, which can differ."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Texto en vivo muestra tus palabras mientras hablas. Lo que se pega es la transcripción final, que puede ser distinta."
+          }
+        }
+      }
+    },
     "general.overlayPosition" : {
       "extractionState" : "manual",
       "localizations" : {

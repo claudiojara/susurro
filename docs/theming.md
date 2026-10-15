@@ -30,7 +30,7 @@ down to a single field of a token. This file changes the accent in light and dar
 | `typography` | `size` in points, `weight` (`regular`, `medium`, `semibold`, `bold`), `design` (`standard`, `rounded`, `monospaced`, `serif`). |
 | `spacing`, `radii` | Points. |
 | `sizes` | Points: the fixed dimension of a component (`statusDot` is the diameter of a status dot, `levelBar` the thickness of a level bar). |
-| `layout` | Points: the geometry of a screen or a window, as opposed to a component (`onboardingWidth` is the width of the onboarding screen). The overlay's geometry has its own group. |
+| `layout` | Points: the geometry of a screen or a window, as opposed to a component (`onboardingWidth` is the width of the onboarding screen; `overlayCompactWidth` and `overlayWideWidth` are the widths of the Minimal and Live text overlay styles). The overlay's geometry has its own group, and its `width` is the default style's. |
 | `motion` | Durations in seconds, and `springResponse` and `springDamping`. |
 | `overlay` | `width`, `cornerRadius`, `offset` (points from the screen edge), `edge` (`top` or `bottom`). The edge is the default: a user who chose an edge in the settings (`overlay.edge`) gets that one whatever the theme says. |
 

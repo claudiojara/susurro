@@ -299,6 +299,8 @@ public final class AppEnvironment {
 
     private let dependencies: Dependencies
     private let coordinator: DictationCoordinator
+    /// The words heard while recording, for the overlay styles that show them.
+    private let preview: LiveTranscriptPreview
     private let watcher: ModelLoadWatcher
     private let onboardingPresenter: OnboardingPresenter
     private let retention: RetentionSweeper
@@ -323,6 +325,17 @@ public final class AppEnvironment {
             diagnostics: dependencies.diagnostics,
             sleep: sleep
         )
+        let settings = dependencies.settings
+        // The styles are the app's own, so which of them show the words is known here, once.
+        let liveTranscriptStyles = OverlayStyleRegistry.standard().liveTranscriptStyleIDs
+        preview = LiveTranscriptPreview(
+            clock: clock,
+            isEnabled: {
+                liveTranscriptStyles.contains(
+                    OverlaySettings.variantID(stored: settings.value(for: OverlaySettings.variant)))
+            },
+            recognizers: dependencies.recognizerRegistry,
+            language: SettingsLanguagePreference(settings: settings))
         coordinator = DictationCoordinator(
             hotkeys: dependencies.hotkeys,
             capture: dependencies.capture,
@@ -335,7 +348,8 @@ public final class AppEnvironment {
             diagnostics: dependencies.diagnostics,
             sleep: sleep,
             clock: clock,
-            vocabulary: dependencies.vocabulary
+            vocabulary: dependencies.vocabulary,
+            preview: preview
         )
         themeModel = ThemeModel()
         let overlayModel = OverlayViewModel(sleep: sleep, uptime: OverlayViewModel.uptime(of: clock))
@@ -417,6 +431,7 @@ public final class AppEnvironment {
             run { _ in for await state in mediaStates { await mediaPauser.observe(state) } }
         }
         run { await $0.overlayModel.run(levels: $0.coordinator.levels) }
+        run { await $0.overlayModel.run(partials: $0.preview.partials) }
         run { await $0.overlayModel.follow($0.dependencies.settings) }
         run { await $0.coordinator.run() }
         run { await $0.watcher.run(await $0.dependencies.readinessChanges()) }

@@ -19,6 +19,8 @@ public final class OverlayViewModel: OverlayViewModeling {
     public private(set) var state = OverlayViewState.hidden
     public private(set) var level = 0.0
     public private(set) var styleID = OverlaySettings.variant.defaultValue
+    /// The words heard so far while recording, for a style that shows them. Display only.
+    public private(set) var transcript = ""
     /// The edge the user chose, or nil to follow the theme's.
     public private(set) var edgePreference: ScreenEdge?
 
@@ -75,6 +77,17 @@ public final class OverlayViewModel: OverlayViewModeling {
     /// Shows the state of each pipeline state, until the stream ends.
     public func run(states: AsyncStream<PipelineState>) async {
         for await state in states { apply(state) }
+    }
+
+    /// Shows the words of each partial transcript, until the stream ends.
+    public func run(partials: AsyncStream<String>) async {
+        for await partial in partials { setTranscript(partial) }
+    }
+
+    /// The words heard so far. They show only while recording; an empty text clears them.
+    func setTranscript(_ words: String) {
+        guard case .recording = state else { return }
+        transcript = words
     }
 
     /// Shows the input level of each chunk, until the stream ends.
@@ -134,7 +147,7 @@ public final class OverlayViewModel: OverlayViewModeling {
     }
 
     func read(_ settings: any SettingsStore) {
-        styleID = settings.value(for: OverlaySettings.variant)
+        styleID = OverlaySettings.variantID(stored: settings.value(for: OverlaySettings.variant))
         edgePreference =
             switch settings.value(for: OverlaySettings.edge) {
             case .followTheme: nil
@@ -195,6 +208,7 @@ public final class OverlayViewModel: OverlayViewModeling {
         if case .recording = new {
         } else {
             level = 0
+            transcript = ""
             throttle.reset()
         }
         state = new

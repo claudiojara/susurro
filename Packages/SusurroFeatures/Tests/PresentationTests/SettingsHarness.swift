@@ -65,7 +65,7 @@ struct SettingsRig {
     let themeModel = ThemeModel()
     let appliedLanguages = AppliedLanguages()
     let microphones = FakeAudioInputDevices()
-    let variants = [
+    var variants = [
         OverlayVariantOption(id: OverlayVariantOption.defaultID, title: "Default"),
         OverlayVariantOption(id: "compact", title: "Compact"),
     ]

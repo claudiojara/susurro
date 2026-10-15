@@ -62,7 +62,12 @@ struct DefaultThemeTests {
     @Test("the sizes are the dimensions of components, and the geometry of a screen is in the layout group")
     func sizesAndLayoutAreApart() {
         #expect(SizeToken.allCases.map(\.rawValue) == ["statusDot", "levelBar"])
-        #expect(LayoutToken.allCases.map(\.rawValue) == ["onboardingWidth", "settingsWidth", "settingsHeight"])
+        #expect(
+            LayoutToken.allCases.map(\.rawValue) == [
+                "onboardingWidth", "settingsWidth", "settingsHeight", "overlayCompactWidth", "overlayWideWidth",
+            ])
+        #expect(theme.layout["overlayCompactWidth"]! < theme.overlay.width)
+        #expect(theme.layout["overlayWideWidth"]! > theme.overlay.width)
         #expect(theme.layout["onboardingWidth"] == 440)
         #expect(theme.sizes["onboardingWidth"] == nil)
         #expect(LayoutToken.group == "layout")

@@ -28,6 +28,9 @@
 
         /// The input level shown while recording.
         static let level = 0.6
+
+        /// The words heard so far, for the style that shows them while recording.
+        static let transcript = "Tomorrow I have a meeting at half past ten with the sales team, and then"
     }
 
 #endif

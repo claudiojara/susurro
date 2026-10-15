@@ -89,7 +89,7 @@ public enum GeneralSettings {
     public static var ocrEnabled: SettingKey<Bool> { ContextSettings.ocrEnabled }
     public static let overlayEdge = SettingKey<OverlayEdge>(area: "overlay", name: "edge", default: .bottom)
     /// The id of the overlay variant. An id nobody registered falls back to the default variant.
-    public static let overlayVariant = SettingKey<String>(area: "overlay", name: "variant", default: "default")
+    public static var overlayVariant: SettingKey<String> { OverlaySettings.variant }
     /// The language of the app's own words. It is not the language of the dictation, which `languageMode` sets.
     public static let interfaceLanguage = SettingKey<InterfaceLanguage>(
         area: "interface", name: "language", default: .system)

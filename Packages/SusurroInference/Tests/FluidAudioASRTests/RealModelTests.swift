@@ -382,6 +382,50 @@ struct RealModelTests {
         #expect(added < 500)
     }
 
+    /// The numbers behind ADR 0032: what one partial over the trailing window costs, and how much later the transcript
+    /// of a dictation comes back when the key goes up while a partial is inside the engine (the worst case, since a
+    /// partial cannot be stopped once it runs).
+    @Test("a partial over the window costs a fraction of a second, and delays a dictation by one partial at most")
+    func partialLatency() async throws {
+        let (recognizer, _, _) = await Self.loadedRecognizer()
+        let speech = try Self.speak(Self.sentence + Self.sentence)
+        let window = AudioClip(samples: Array(speech.suffix(12 * AudioClip.sampleRate)))
+        let dictation = AudioClip(samples: speech)
+        for _ in 0..<2 {
+            _ = try await recognizer.transcribePartial(window, language: nil)
+            _ = try await recognizer.transcribe(dictation, options: RecognitionOptions())
+        }
+
+        var partials: [Double] = []
+        for _ in 0..<7 {
+            let started = ContinuousClock.now
+            _ = try #require(try await recognizer.transcribePartial(window, language: nil))
+            partials.append((ContinuousClock.now - started).milliseconds)
+        }
+        var alone: [Double] = []
+        var behind: [Double] = []
+        for _ in 0..<7 {
+            var started = ContinuousClock.now
+            _ = try await recognizer.transcribe(dictation, options: RecognitionOptions())
+            alone.append((ContinuousClock.now - started).milliseconds)
+            let partial = Task { try await recognizer.transcribePartial(window, language: nil) }
+            // The partial takes the turn first; the dictation then waits for it, as at a key-up during a partial.
+            while await !recognizer.isTranscribing { await Task.yield() }
+            started = ContinuousClock.now
+            _ = try await recognizer.transcribe(dictation, options: RecognitionOptions())
+            behind.append((ContinuousClock.now - started).milliseconds)
+            _ = try await partial.value
+        }
+        let median = { (values: [Double]) in values.sorted()[values.count / 2] }
+        let added = median(behind) - median(alone)
+        print(
+            "REAL-MODEL partial on \(window.duration): \(partials.map { Int($0) }) ms, median \(median(partials)) ms; dictation of \(dictation.duration) alone \(alone.map { Int($0) }) ms, behind a partial \(behind.map { Int($0) }) ms, added \(added) ms"
+        )
+
+        #expect(median(partials) < 500)
+        #expect(added < 500)
+    }
+
     @Test("Silero finds the speech between two seconds of silence, and nothing in silence alone")
     func sileroSegments() async throws {
         let speech = try Self.speak(Self.sentence)
