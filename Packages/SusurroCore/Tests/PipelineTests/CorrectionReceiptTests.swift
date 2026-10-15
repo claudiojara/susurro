@@ -65,7 +65,7 @@ struct CorrectionReceiptTests {
     @Test("the text of the field read by the watch never reaches the history")
     func historyPrivacy() async throws {
         let settings = InMemorySettingsStore()
-        let reader = FakeFocusedContextReader()
+        let reader = MutableFocusedContextReader()
         let field =
             "SENTINEL_FIELD_HEAD " + Self.context.beforeCursor + "I spoke with Kaelthorn about the launch."
             + Self.context.afterCursor + " SENTINEL_FIELD_TAIL"

@@ -17,7 +17,7 @@ struct AppEnvironmentLearningTests {
 
         dependencies.frontmost = nil
         dependencies.corrections = AppEnvironment.CorrectionSources(
-            reader: FakeFocusedContextReader(), tagger: FakeEntityTagger())
+            reader: MutableFocusedContextReader(), tagger: FakeEntityTagger())
         #expect(dependencies.correctionWatch(sleep: sleep) == nil)
     }
 
@@ -26,7 +26,7 @@ struct AppEnvironmentLearningTests {
         var dependencies = AppEnvironment.Dependencies.preview()
         dependencies.frontmost = FakeFrontmostAppProvider(.mail)
         dependencies.corrections = AppEnvironment.CorrectionSources(
-            reader: FakeFocusedContextReader(), tagger: FakeEntityTagger())
+            reader: MutableFocusedContextReader(), tagger: FakeEntityTagger())
 
         #expect(dependencies.correctionWatch(sleep: sleep) != nil)
     }

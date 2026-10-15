@@ -14,7 +14,7 @@ struct CorrectionWatchTests {
 
     struct Fixture {
         let settings = InMemorySettingsStore()
-        let reader = FakeFocusedContextReader()
+        let reader = MutableFocusedContextReader()
         let clock = ManualClock()
         let diagnostics = RecordingDiagnostics()
         let dates = FakeDateSource()

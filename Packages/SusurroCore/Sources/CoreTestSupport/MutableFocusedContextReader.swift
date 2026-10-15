@@ -1,8 +1,9 @@
 import Domain
 import Synchronization
 
-/// A reader of the focused element that gives what a test set, and counts its reads.
-public final class FakeFocusedContextReader: FocusedContextReader {
+/// A reader of the focused element whose answer a test changes while the code runs, and that counts its reads. For a
+/// scripted sequence of answers, `FakeFocusedContextReader` is simpler.
+public final class MutableFocusedContextReader: FocusedContextReader {
     private struct State {
         var snapshot: FocusedContext?
         var reads = 0
