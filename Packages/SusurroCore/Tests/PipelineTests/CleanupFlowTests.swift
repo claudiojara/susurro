@@ -11,7 +11,10 @@ import TextShaping
 struct CleanupFlowTests {
     private struct Terms: UserDictionary {
         let list: [String]
+        /// The written forms of replacement rules, which the vocabulary takes after the terms.
+        var written: [String] = []
         func terms() -> [String] { list }
+        func vocabularyTerms() -> [String] { list + written }
     }
 
     private struct Fixture {
@@ -21,7 +24,7 @@ struct CleanupFlowTests {
         init(
             transcript: String = "hola equipo", cleaner: FakeCleaner = FakeCleaner(answer: .text("Hola, equipo.")),
             enabled: Bool = true, app: AppIdentity = .mail, before: String = "Dear team,",
-            dictionary: [String] = ["Acme"], tagger: FakeEntityTagger = FakeEntityTagger(),
+            dictionary: [String] = ["Acme"], written: [String] = [], tagger: FakeEntityTagger = FakeEntityTagger(),
             enrichment: ContextEnrichment? = nil
         ) async {
             self.cleaner = cleaner
@@ -42,7 +45,7 @@ struct CleanupFlowTests {
                 recognizer: FakeRecognizer(transcript: transcript), sleeper: sleeper, frontmost: frontmost,
                 context: ContextPipeline(source: source), cleanup: stage,
                 vocabulary: VocabularyPipeline(
-                    dictionary: Terms(list: dictionary), builder: VocabularyBuilder(tagger: tagger),
+                    dictionary: Terms(list: dictionary, written: written), builder: VocabularyBuilder(tagger: tagger),
                     enrichment: enrichment))
         }
 
@@ -85,6 +88,14 @@ struct CleanupFlowTests {
         _ = await f.dictate()
         // The dictionary as the vocabulary holds it: trimmed, without repeats, within the length limit.
         #expect(f.harness.recognizer.transcribedOptions.map(\.boostTerms) == [["Zed", "Yara"]])
+    }
+
+    @Test("the written forms of the replacement rules are boosted and in the vocabulary, after the terms")
+    func replacementsFeedTheVocabulary() async {
+        var f = await Fixture(dictionary: ["Zed"], written: ["Jira"])
+        _ = await f.dictate()
+        #expect(f.harness.recognizer.transcribedOptions.map(\.boostTerms) == [["Zed", "Jira"]])
+        #expect(f.harness.recognizer.transcribedOptions.map(\.vocabulary) == [["Zed", "Jira"]])
     }
 
     @Test("a cloud cleaner gets the vocabulary and none of the context")

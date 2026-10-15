@@ -7,8 +7,9 @@ extension EnvironmentValues {
     @Entry var staticControls = false
 }
 
-/// A one-line text input in the look of the theme. It edits a copy of the value and hands the result over when the user
-/// presses Return or leaves the field, so a half-typed address is never stored.
+/// A text input in the look of the theme, one line unless it is multi-line. It edits a copy of the value and hands the
+/// result over when the user presses Return or leaves the field, so a half-typed address is never stored. A multi-line
+/// input grows with its text; Option-Return starts a new line in it.
 struct TextInput: View {
     @Environment(\.theme) private var theme
     @Environment(\.staticControls) private var isStatic
@@ -19,21 +20,24 @@ struct TextInput: View {
     private let placeholder: String
     private let hasError: Bool
     private let commitsWhileTyping: Bool
+    private let isMultiline: Bool
     private let onCommit: (String) -> Void
 
     /// - Parameters:
     ///   - label: What VoiceOver calls the field.
     ///   - commitsWhileTyping: Hands every change over at once, for the field of a form that is read when a button is
     ///     pressed, since pressing a button does not take the focus from the field.
+    ///   - isMultiline: Takes several lines, such as the text of a snippet.
     init(
         _ label: String, value: String, placeholder: String = "", hasError: Bool = false,
-        commitsWhileTyping: Bool = false, onCommit: @escaping (String) -> Void
+        commitsWhileTyping: Bool = false, isMultiline: Bool = false, onCommit: @escaping (String) -> Void
     ) {
         self.label = label
         self.value = value
         self.placeholder = placeholder
         self.hasError = hasError
         self.commitsWhileTyping = commitsWhileTyping
+        self.isMultiline = isMultiline
         self.onCommit = onCommit
         _draft = State(initialValue: value)
     }
@@ -57,10 +61,10 @@ struct TextInput: View {
             Text(value.isEmpty ? placeholder : value)
                 .font(theme.font(.body))
                 .foregroundStyle(theme.swiftUIColor(value.isEmpty ? .textSecondary : .textPrimary))
-                .lineLimit(1)
+                .lineLimit(isMultiline ? nil : 1)
                 .accessibilityLabel(label)
         } else {
-            TextField(label, text: $draft, prompt: Text(placeholder))
+            TextField(label, text: $draft, prompt: Text(placeholder), axis: isMultiline ? .vertical : .horizontal)
                 .textFieldStyle(.plain)
                 .font(theme.font(.body))
                 .foregroundStyle(theme.swiftUIColor(.textPrimary))

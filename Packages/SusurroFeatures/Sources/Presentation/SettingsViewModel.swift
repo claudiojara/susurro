@@ -28,6 +28,8 @@ public final class SettingsViewModel: SettingsViewModeling {
     var dictionaryError: String?
     /// The microphones that are connected, as the last read found them (`+Audio`).
     var microphones: [AudioInputDevice] = []
+    var replacementError: String?
+    var snippetError: String?
     /// The last change of theme, which a test waits for.
     @ObservationIgnored var themeSelection: Task<Void, Never>?
 

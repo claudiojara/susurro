@@ -65,7 +65,7 @@ struct SettingsScreen<Recorder: View>: View {
                 PasteLastSection(state.pasteLast) { pasteLastRecorder }
             }
         case .style: StyleTableEditor(state.style, actions: actions.style)
-        case .dictionary: DictionaryEditor(state.dictionary, actions: actions.dictionary)
+        case .dictionary: DictionaryTab(state.dictionary, actions: actions.dictionary)
         case .appearance: AppearanceSection(state.appearance, actions: actions.appearance)
         }
     }

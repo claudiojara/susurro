@@ -805,3 +805,13 @@ Slices 2–9 were delivered together in #68 (fast track, strict TDD, no per-PR r
 - [ ] X1.10 VERIFY: Manual: pick a USB or Bluetooth microphone, dictate and check it was used (Console: no fallback line); unplug it, dictate again and see the system default used and `the chosen microphone is not connected` in the log; plug and unplug while Settings is open and see the list follow.
 - [ ] X1.11 VERIFY: Manual: turn on "Pause media while dictating", play music in Music or Spotify, dictate and see it pause and resume; with nothing playing see nothing start.
 
+## Dictionary, snippets, and filler words
+
+### PR DS1: Replacement rules, voice snippets, and rule-based filler removal (~1,900)
+
+- [x] DS1.1 RED+GREEN: `TextShaping` passes, pure and deterministic. `ReplacementApplier`: whole words, case and accents ignored with ñ kept apart, longest rule first, one pass. `FillerRemover`: conservative hesitations ("eh", "em", "mmm", "erm", "umm", "uhh", "uhm", "este..."; never "um", "uh", "like", "o sea") and "X, no, Y" self-corrections in Spanish and English, with a list of negative sentences that must come back byte for byte. `TranscriptRules`: whole-dictation snippets, inline snippets for triggers of two words or more, then fillers, then replacements; a 200-word dictation takes under 5 ms.
+- [x] DS1.2 RED+GREEN: `CleanupStage` runs the passes on every dictation, with cleanup on or off. A whole-dictation snippet skips the cleaner and keeps its case; an inline snippet skips the cleaner; the verbatim tone keeps its fillers; a cleaner fallback keeps the passes; the history keeps the raw text. Settings `dictionary.replacements`, `snippets.items`, `cleanup.removeFillers` (default on).
+- [x] DS1.3 RED+GREEN: `DictionaryStore` keeps the rules and the snippets (validated, trimmed, unique by spoken form or trigger), and `vocabularyTerms()` adds the written forms that have a letter to the boosted and cleaner vocabulary.
+- [x] DS1.4 RED+GREEN: The Dictionary tab has a search over terms, rules, and snippets, a Replacements card, a Voice snippets card (multi-line text), and a "Remove filler words" switch. View model intents, refusals with reasons, and `en`/`es` copy.
+- [x] DS1.5 DOC: ADR 0018, "Snippets, filler removal, and replacements are deterministic passes before cleanup".
+- [ ] DS1.6 VERIFY: Manual: add the rule "jira" → "Jira" and dictate "abre un ticket en jira"; add the snippet "mi firma" with two lines and dictate only "mi firma", then "gracias por todo, mi firma"; dictate "eh, quedamos a las 2, no, a las 3" with the switch on and off; search the Dictionary tab; check that Option-Return adds a line to a snippet.

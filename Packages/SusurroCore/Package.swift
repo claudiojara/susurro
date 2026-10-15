@@ -20,7 +20,8 @@ let package = Package(
         .testTarget(name: "TextShapingTests", dependencies: ["TextShaping", "Domain", "CoreTestSupport"]),
         .testTarget(name: "ActivationTests", dependencies: ["Activation", "Domain"]),
         .testTarget(
-            name: "PipelineTests", dependencies: ["Pipeline", "Activation", "Domain", "CoreTestSupport"]),
+            name: "PipelineTests",
+            dependencies: ["Pipeline", "Activation", "Domain", "TextShaping", "CoreTestSupport"]),
     ],
     swiftLanguageModes: [.v6]
 )

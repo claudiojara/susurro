@@ -9,11 +9,14 @@ public enum InsertionShaper {
     ///   - text: The final text: the cleaned transcript or the raw one.
     ///   - cursor: The text around the cursor, or nil when it could not be read.
     ///   - vocabulary: Terms whose capitalization is kept wherever they appear.
-    public static func shape(_ text: String, around cursor: CursorContext?, vocabulary: [String]) -> String {
+    ///   - adjustsCase: Whether the first letter follows the sentence around it. A snippet keeps the case the user wrote.
+    public static func shape(
+        _ text: String, around cursor: CursorContext?, vocabulary: [String], adjustsCase: Bool = true
+    ) -> String {
         guard let cursor else { return text }
         var shaped = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !shaped.isEmpty else { return text }
-        shaped = adjustCase(of: shaped, before: cursor.before, vocabulary: vocabulary)
+        if adjustsCase { shaped = adjustCase(of: shaped, before: cursor.before, vocabulary: vocabulary) }
         shaped = dropRepeatedPeriod(from: shaped, after: cursor.after)
         let leading = needsLeadingSpace(before: cursor.before, text: shaped) ? " " : ""
         let trailing = cursor.after.first.map(TextCharacters.isWordCharacter) == true ? " " : ""

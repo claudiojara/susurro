@@ -1,17 +1,20 @@
 import DesignSystem
 import SwiftUI
 
-/// The Dictionary tab: the words and names the user wants spelled as given. A term is edited in place and removed with the
-/// button beside it. The field that adds a term keeps what the user is typing until Add is pressed.
+/// The words and names the user wants spelled as given. A term is edited in place and removed with the button beside it.
+/// The field that adds a term keeps what the user is typing until Add is pressed. The list shows the terms that match the
+/// search of the tab.
 struct DictionaryEditor: View {
     @Environment(\.theme) private var theme
     private let state: DictionarySettingsState
     private let actions: DictionaryActions
+    private let query: String
     @State private var newTerm = ""
 
-    init(_ state: DictionarySettingsState, actions: DictionaryActions) {
+    init(_ state: DictionarySettingsState, actions: DictionaryActions, query: String = "") {
         self.state = state
         self.actions = actions
+        self.query = query
     }
 
     var body: some View {
@@ -25,8 +28,10 @@ struct DictionaryEditor: View {
             if let error = state.error { TextLabel(error, style: .caption, tint: .error) }
             if state.terms.isEmpty {
                 TextLabel(Copy.empty, tint: .neutral)
+            } else if terms.isEmpty {
+                TextLabel(DictionarySearch.noMatches, tint: .neutral)
             }
-            ForEach(state.terms, id: \.self) { term in
+            ForEach(terms, id: \.self) { term in
                 HStack(spacing: theme.spacing(.sm)) {
                     TextInput(Copy.term, value: term) { actions.edit(term, $0) }
                     Button {
@@ -38,6 +43,10 @@ struct DictionaryEditor: View {
                 }
             }
         }
+    }
+
+    private var terms: [String] {
+        state.terms.filter { DictionarySearch.matches(query, $0) }
     }
 
     private func add() {
