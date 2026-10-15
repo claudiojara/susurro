@@ -2,7 +2,7 @@ import DesignSystem
 import Foundation
 import SwiftUI
 
-/// The Dictionary tab: a search over everything in it, then the user's terms, the replacement rules, the voice snippets,
+/// The Dictionary tab: a search over everything in it, then the suggested terms, the user's terms, the replacement rules, the voice snippets,
 /// and the switch that removes filler words. The search lives here and narrows every list at once.
 struct DictionaryTab: View {
     @Environment(\.theme) private var theme
@@ -24,6 +24,7 @@ struct DictionaryTab: View {
                     commitsWhileTyping: true
                 ) { query = $0 }
             }
+            SuggestedTermsCard(state, actions: actions, query: query)
             DictionaryEditor(state, actions: actions, query: query)
             ReplacementRulesEditor(state, actions: actions, query: query)
             SnippetsEditor(state, actions: actions, query: query)

@@ -38,7 +38,8 @@ struct CoordinatorHarness {
         cleanup: CleanupStage? = nil,
         vocabulary: VocabularyPipeline? = nil,
         preview: LiveTranscriptPreview? = nil,
-        command: CommandStage? = nil
+        command: CommandStage? = nil,
+        corrections: (any CorrectionWatching)? = nil
     ) async {
         self.capture = capture
         self.recordings = recordings
@@ -62,6 +63,7 @@ struct CoordinatorHarness {
             inserter: inserter,
             cleanup: cleanup,
             diagnostics: diagnostics,
+            corrections: corrections,
             sleep: sleep,
             command: command
         )

@@ -45,6 +45,9 @@ private final class SpySettingsModel: SettingsViewModeling {
     }
     func removeSnippet(_ trigger: String) { calls.append("removeSnippet \(trigger)") }
     func setRemoveFillers(_ isOn: Bool) { calls.append("removeFillers \(isOn)") }
+    func acceptSuggestion(_ id: String) { calls.append("accept \(id)") }
+    func dismissSuggestion(_ id: String) { calls.append("dismiss \(id)") }
+    func setLearnFromCorrections(_ isOn: Bool) { calls.append("learn \(isOn)") }
     func selectTheme(_ id: String) { calls.append("theme \(id)") }
     func setAppearance(_ id: String) { calls.append("appearance \(id)") }
     func refresh() async { calls.append("refresh") }
@@ -149,6 +152,18 @@ struct SettingsContainerTests {
                 "addSnippet firma Claudio", "editSnippet firma mi firma Claudio J.", "removeSnippet mi firma",
                 "removeFillers false",
             ])
+    }
+
+    @Test("the actions of the suggested terms reach the model")
+    func suggestionActionsReachTheModel() {
+        let model = SpySettingsModel(SettingsFixtures.screen)
+        let actions = SettingsActions(model: model).dictionary
+
+        actions.acceptSuggestion("kaelthorn")
+        actions.dismissSuggestion("shaun")
+        actions.learnFromCorrections(false)
+
+        #expect(model.calls == ["accept kaelthorn", "dismiss shaun", "learn false"])
     }
 
     @Test("each level of a provider's status has a tint of its own")

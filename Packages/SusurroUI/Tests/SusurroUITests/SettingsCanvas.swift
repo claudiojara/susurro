@@ -19,6 +19,7 @@ enum SettingsCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
     case styleSeeds, styleOverrides
     case dictionaryEmpty, dictionaryPopulated
     case replacementsEmpty, replacementsPopulated, snippetsEmpty, snippetsPopulated, fillers
+    case suggestedEmpty, suggestedPopulated
     case appearance
     case audio, audioMissing
     case pasteLast, pasteLastUnassigned
@@ -61,6 +62,8 @@ enum SettingsCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
         case .snippetsEmpty: CGSize(width: Self.sectionWidth, height: 222)
         case .snippetsPopulated: CGSize(width: Self.sectionWidth, height: 338)
         case .fillers: CGSize(width: Self.sectionWidth, height: 150)
+        case .suggestedEmpty: CGSize(width: Self.sectionWidth, height: 211)
+        case .suggestedPopulated: CGSize(width: Self.sectionWidth, height: 275)
         case .appearance: CGSize(width: Self.sectionWidth, height: 236)
         case .audio: CGSize(width: Self.sectionWidth, height: 272)
         case .audioMissing: CGSize(width: Self.sectionWidth, height: 298)
@@ -115,6 +118,8 @@ enum SettingsCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
         case .snippetsEmpty: AnyView(SnippetsEditor(SettingsFixtures.textRulesEmpty, actions: .none))
         case .snippetsPopulated: AnyView(SnippetsEditor(SettingsFixtures.textRules, actions: .none))
         case .fillers: AnyView(FillerRemovalCard(isOn: true) { _ in })
+        case .suggestedEmpty: AnyView(SuggestedTermsCard(SettingsFixtures.textRulesEmpty, actions: .none))
+        case .suggestedPopulated: AnyView(SuggestedTermsCard(SettingsFixtures.textRules, actions: .none))
         case .appearance: AnyView(AppearanceSection(SettingsFixtures.appearance, actions: .none))
         case .audio: AnyView(AudioSection(SettingsFixtures.audio, actions: .none))
         case .audioMissing: AnyView(AudioSection(SettingsFixtures.audioMissing, actions: .none))

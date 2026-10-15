@@ -24,3 +24,4 @@ number, and add a row below. An accepted ADR is not edited; a later ADR supersed
 | [0031](0031-pause-media-with-the-media-key-and-coreaudio-process-output.md) | Pause media with the media key, detected through CoreAudio process output | accepted |
 | [0032](0032-live-text-partials-are-throttled-and-yield-to-the-dictation.md) | Live text partials are throttled, run only on an idle engine, and are dropped at key-up | accepted |
 | [0033](0033-command-mode-rewrites-the-selection-on-device.md) | Command mode rewrites the selection on device, through the same reducer and paste | accepted |
+| [0034](0034-learning-dictionary-suggests-corrected-words.md) | The learning dictionary suggests corrected words, and never stores field text | accepted |

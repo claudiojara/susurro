@@ -263,11 +263,18 @@ public nonisolated struct DictionarySettingsState: Equatable, Sendable {
     public let snippetError: String?
     /// Whether hesitations and simple self-corrections are removed.
     public let removesFillers: Bool
+    /// The terms suggested from the user's corrections, most seen first (`SuggestedTermsCard`).
+    public let suggestions: [SuggestionRowState]
+    /// Whether corrections after a dictation are watched for suggestions.
+    public let learnsFromCorrections: Bool
 
     public init(
         terms: [String], error: String?, replacements: [ReplacementRowState] = [], replacementError: String? = nil,
-        snippets: [SnippetRowState] = [], snippetError: String? = nil, removesFillers: Bool = true
+        snippets: [SnippetRowState] = [], snippetError: String? = nil, removesFillers: Bool = true,
+        suggestions: [SuggestionRowState] = [], learnsFromCorrections: Bool = true
     ) {
+        self.suggestions = suggestions
+        self.learnsFromCorrections = learnsFromCorrections
         self.terms = terms
         self.error = error
         self.replacements = replacements
@@ -275,6 +282,22 @@ public nonisolated struct DictionarySettingsState: Equatable, Sendable {
         self.snippets = snippets
         self.snippetError = snippetError
         self.removesFillers = removesFillers
+    }
+}
+
+/// A suggested term as the Dictionary tab lists it: the spelling the user typed, what the dictation wrote, and how many
+/// times the correction was seen.
+public nonisolated struct SuggestionRowState: Equatable, Sendable, Identifiable {
+    public let term: String
+    public let heard: String
+    public let count: Int
+
+    public var id: String { term.lowercased() }
+
+    public init(term: String, heard: String, count: Int) {
+        self.term = term
+        self.heard = heard
+        self.count = count
     }
 }
 
@@ -398,6 +421,11 @@ public protocol SettingsViewModeling: AnyObject {
     func editSnippet(_ old: String, trigger: String, text: String)
     func removeSnippet(_ trigger: String)
     func setRemoveFillers(_ isOn: Bool)
+    /// Adds the suggested term to the dictionary and drops the suggestion.
+    func acceptSuggestion(_ id: String)
+    /// Drops the suggestion and never suggests the term again.
+    func dismissSuggestion(_ id: String)
+    func setLearnFromCorrections(_ isOn: Bool)
 
     // Appearance
     func selectTheme(_ id: String)

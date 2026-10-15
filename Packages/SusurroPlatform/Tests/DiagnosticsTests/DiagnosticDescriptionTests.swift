@@ -91,6 +91,8 @@ struct DiagnosticDescriptionTests {
             ),
             (.mediaPlayback(paused: true), .default, "media paused for a recording"),
             (.mediaPlayback(paused: false), .default, "media resumed after a recording"),
+            (.correctionWatchEnded(reason: .suggested), .default, "correction watch ended: suggested"),
+            (.correctionWatchEnded(reason: .anchorLost), .default, "correction watch ended: anchorLost"),
         ])
     func descriptions(event: DiagnosticEvent, level: OSLogType, line: String) {
         let description = OSLogDiagnostics.describe(event)

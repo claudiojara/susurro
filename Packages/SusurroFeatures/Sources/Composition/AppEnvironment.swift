@@ -151,6 +151,8 @@ public final class AppEnvironment {
         public var mediaPlayback: (any MediaPlaybackControlling)?
         /// The microphones the settings offer. The capture reads the choice on its own.
         public var microphones: any AudioInputDeviceListing
+        /// What the watch for the user's corrections reads. Nil learns nothing (`AppEnvironment+Learning.swift`).
+        public var corrections: CorrectionSources? = nil
 
         public init(
             hotkeys: any HotkeySource,
@@ -327,6 +329,7 @@ public final class AppEnvironment {
             cleanup: dependencies.cleanup,
             dates: dependencies.history.dates,
             diagnostics: dependencies.diagnostics,
+            corrections: dependencies.correctionWatch(sleep: sleep),
             sleep: sleep,
             command: dependencies.command
         )

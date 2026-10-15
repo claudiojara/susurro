@@ -5,7 +5,7 @@ import SusurroUI
 extension SettingsViewModel {
     // MARK: Dictionary tab
 
-    /// The terms, the replacement rules, the snippets, and the filler switch, with the reason the last change of each
+    /// The suggested terms, the terms, the replacement rules, the snippets, and the filler switch, with the reason the last change of each
     /// list was refused.
     var dictionaryState: DictionarySettingsState {
         let dictionary = dependencies.dictionary
@@ -15,7 +15,9 @@ extension SettingsViewModel {
             replacementError: replacementError,
             snippets: dictionary.snippets().map { SnippetRowState(trigger: $0.trigger, text: $0.text) },
             snippetError: snippetError,
-            removesFillers: settings.value(for: TextRuleSettings.removeFillers))
+            removesFillers: settings.value(for: TextRuleSettings.removeFillers),
+            suggestions: suggestionRows,
+            learnsFromCorrections: settings.value(for: DictionarySettings.learnFromCorrections))
     }
 
     // MARK: Replacements

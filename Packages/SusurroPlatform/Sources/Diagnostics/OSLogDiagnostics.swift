@@ -65,6 +65,8 @@ public struct OSLogDiagnostics: DiagnosticsLog {
         case .mediaPlayback(let paused):
             (.default, paused ? "media paused for a recording" : "media resumed after a recording")
         case .commandNoResult(let reason): (.info, "command replaced nothing: \(reason)")
+        case .correctionWatchEnded(let reason):
+            (.default, "correction watch ended: \(reason.rawValue)")
         }
     }
 

@@ -17,7 +17,11 @@ import SwiftUI
                 SnippetRowState(trigger: "mi firma", text: "Un saludo,\nClaudio Jara"),
                 SnippetRowState(trigger: "dirección", text: "Calle Mayor 1, Madrid"),
             ],
-            snippetError: nil, removesFillers: true)
+            snippetError: nil, removesFillers: true,
+            suggestions: [
+                SuggestionRowState(term: "Kaelthorn", heard: "Kyle Thorn", count: 3),
+                SuggestionRowState(term: "Ramón", heard: "Ramon", count: 1),
+            ])
     }
 
     extension DictionaryTab {
@@ -51,6 +55,20 @@ import SwiftUI
                 HStack(alignment: .top, spacing: theme.spacing(.lg)) {
                     SnippetsEditor(SettingsFixtures.textRulesEmpty, actions: .none)
                     SnippetsEditor(SettingsFixtures.textRules, actions: .none)
+                }
+                .environment(\.staticControls, true)
+            }
+        }
+    }
+
+    extension SuggestedTermsCard {
+        struct Gallery: View {
+            @Environment(\.theme) private var theme
+
+            var body: some View {
+                HStack(alignment: .top, spacing: theme.spacing(.lg)) {
+                    SuggestedTermsCard(SettingsFixtures.textRulesEmpty, actions: .none)
+                    SuggestedTermsCard(SettingsFixtures.textRules, actions: .none)
                 }
                 .environment(\.staticControls, true)
             }

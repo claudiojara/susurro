@@ -26,6 +26,7 @@ struct SettingsSnapshotTests {
     nonisolated private static let textRules: [SettingsCanvas] = [
         .replacementsEmpty, .replacementsPopulated, .snippetsEmpty, .snippetsPopulated, .fillers,
     ]
+    nonisolated private static let suggested: [SettingsCanvas] = [.suggestedEmpty, .suggestedPopulated]
     nonisolated private static let screens: [SettingsCanvas] = [.screenGeneral]
     nonisolated private static let extras: [SettingsCanvas] = [.audio, .audioMissing, .pasteLast, .pasteLastUnassigned]
 
@@ -66,6 +67,11 @@ struct SettingsSnapshotTests {
 
     @Test("the replacement rules, the voice snippets, and the filler switch", arguments: textRules, Probe.schemes)
     func textRules(canvas: SettingsCanvas, scheme: ColorScheme) {
+        assertViewSnapshot(of: canvas.view, size: canvas.size, scheme: scheme, named: "\(canvas)-\(scheme.pictureName)")
+    }
+
+    @Test("the suggested terms, with none and with some", arguments: suggested, Probe.schemes)
+    func suggested(canvas: SettingsCanvas, scheme: ColorScheme) {
         assertViewSnapshot(of: canvas.view, size: canvas.size, scheme: scheme, named: "\(canvas)-\(scheme.pictureName)")
     }
 

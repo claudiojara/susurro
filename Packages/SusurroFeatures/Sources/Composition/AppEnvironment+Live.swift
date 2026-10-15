@@ -99,7 +99,7 @@ extension AppEnvironment.Dependencies {
                 settings: settings, permissions: permissions,
                 recognizer: VisionScreenTextRecognizer(images: ScreenCaptureWindowImageProvider()),
                 frontmost: { await MainActor.run { frontmost.current().map { ScreenTarget(app: $0) } } }))
-        return AppEnvironment.Dependencies(
+        var dependencies = AppEnvironment.Dependencies(
             hotkeys: HotkeyService(settings: settings, permissions: permissions),
             capture: AVAudioEngineCaptureSource(
                 diagnostics: diagnostics, inputDevice: { preferredMicrophone.resolve() }),
@@ -136,6 +136,9 @@ extension AppEnvironment.Dependencies {
             microphones: microphones,
             command: commandStage(settings: settings, diagnostics: diagnostics)
         )
+        dependencies.corrections = AppEnvironment.CorrectionSources(
+            reader: AXContextReader(), tagger: NLTaggerEntityTagger())
+        return dependencies
     }
 
     /// The text around the cursor is read through Accessibility, the style is chosen from the app and the page with the
