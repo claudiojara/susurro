@@ -41,6 +41,13 @@ extension SettingsStore {
         return HotkeyConfiguration(kind: value(for: keys.kind), combo: value(for: keys.combo))
     }
 
+    /// Whether a hotkey that is listened to is made only of modifier keys, so the app needs Input Monitoring: the
+    /// dictation one always, the command one while command mode is on.
+    public var hotkeysNeedInputMonitoring: Bool {
+        hotkeyConfiguration(for: .dictate).needsInputMonitoring
+            || (value(for: CommandSettings.enabled) && hotkeyConfiguration(for: .command).needsInputMonitoring)
+    }
+
     /// The shortcuts of the app that a new hotkey for `role` must not repeat: the hotkeys of the other roles, in the order
     /// of the roles, then the paste last dictation shortcut when one is assigned.
     public func shortcutsInUse(except role: HotkeyRole) -> [HotkeyConfiguration] {

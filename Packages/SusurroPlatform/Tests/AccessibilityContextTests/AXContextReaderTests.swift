@@ -47,6 +47,54 @@ struct AXContextReaderTests {
                     selection: 6..<11, selectedText: "world"))
     }
 
+    @Test("the selection read asks for the selected text only: not the field, the window, or the page")
+    func selectionReadIsLight() async {
+        let tree = notesTree()
+
+        let context = await reader(tree).selectionSnapshot()
+
+        #expect(context == FocusedContext(selectedText: "world"))
+        let asked = Set(tree.reads.map(\.attribute))
+        #expect(!asked.contains(.value))
+        #expect(!asked.contains(.window))
+        #expect(!asked.contains(.title))
+        #expect(!asked.contains(.parent))
+    }
+
+    @Test("an app that gives no selected text has the field and the range read, for the slice")
+    func selectionReadFallsBackToTheRange() async {
+        let tree = notesTree()
+        tree.set(
+            Self.field,
+            [
+                .role: .string("AXTextArea"), .value: .string("hello world"), .selectedTextRange: .range(6..<11),
+                .selectedText: .failure(.noValue), .window: .element(Self.window),
+            ])
+
+        let context = await reader(tree).selectionSnapshot()
+
+        #expect(context == FocusedContext(fieldText: "hello world", selection: 6..<11))
+        #expect(!tree.reads.map(\.attribute).contains(.window))
+    }
+
+    @Test("the selection read of a secure field never asks for its text")
+    func selectionReadOfASecureField() async {
+        let tree = notesTree()
+        tree.set(
+            Self.field,
+            [
+                .role: .string("AXTextField"), .subrole: .string("AXSecureTextField"),
+                .value: .string("hunter2"), .selectedText: .string("hunter2"),
+            ])
+
+        let context = await reader(tree).selectionSnapshot()
+
+        #expect(context == FocusedContext(isSecure: true))
+        let asked = Set(tree.reads.map(\.attribute))
+        #expect(!asked.contains(.value))
+        #expect(!asked.contains(.selectedText))
+    }
+
     @Test("a secure field is flagged and its text, range, and selection are never asked for")
     func secureField() async {
         let tree = notesTree()

@@ -64,6 +64,7 @@ public final class FakeSelectionRewriter: SelectionRewriter {
 public final class FakeFocusedContextReader: FocusedContextReader {
     private let snapshots: [FocusedContext?]
     private let calls = Mutex(0)
+    private let selectionCalls = Mutex(0)
 
     public init(_ snapshots: [FocusedContext?]) {
         self.snapshots = snapshots.isEmpty ? [nil] : snapshots
@@ -74,12 +75,28 @@ public final class FakeFocusedContextReader: FocusedContextReader {
         self.init([FocusedContext(selectedText: selection)])
     }
 
+    /// The full snapshots read.
     public var callCount: Int { calls.withLock { $0 } }
+    /// The selection reads (`selectionSnapshot`).
+    public var selectionCallCount: Int { selectionCalls.withLock { $0 } }
 
     public func snapshot() async -> FocusedContext? {
-        let call = calls.withLock { calls in
-            defer { calls += 1 }
-            return calls
+        calls.withLock { $0 += 1 }
+        return next()
+    }
+
+    public func selectionSnapshot() async -> FocusedContext? {
+        selectionCalls.withLock { $0 += 1 }
+        return next()
+    }
+
+    /// The scripted snapshots are shared by both kinds of read, in the order they are made.
+    private let served = Mutex(0)
+
+    private func next() -> FocusedContext? {
+        let call = served.withLock { served in
+            defer { served += 1 }
+            return served
         }
         return snapshots[min(call, snapshots.count - 1)]
     }

@@ -129,7 +129,8 @@ extension AppEnvironment.Dependencies {
             credentials: recognizers.credentials,
             cleanup: cleanup,
             vocabulary: vocabulary,
-            settingsScreen: settingsScreen(settings: settings, recognizer: recognizer, diagnostics: diagnostics),
+            settingsScreen: settingsScreen(
+                settings: settings, recognizer: recognizer, permissions: permissions, diagnostics: diagnostics),
             interfaceLanguage: { $0.apply() },
             pasteLastPresses: ShortcutPressService(settings: settings, key: PasteLastSettings.combo),
             mediaPlayback: SystemMediaPlayback(),
@@ -176,7 +177,8 @@ extension AppEnvironment.Dependencies {
     /// turned on are refused (`SystemShortcuts`).
     @MainActor
     private static func settingsScreen(
-        settings: any SettingsStore, recognizer: ParakeetRecognizer, diagnostics: any DiagnosticsLog
+        settings: any SettingsStore, recognizer: ParakeetRecognizer, permissions: any PermissionsChecker,
+        diagnostics: any DiagnosticsLog
     ) -> SettingsScreen {
         let keys = KeychainSecretStore(diagnostics: diagnostics)
         return SettingsScreen(
@@ -190,7 +192,7 @@ extension AppEnvironment.Dependencies {
                 return SettingsWindowController(
                     model: model, themes: themes, recorder: AnyView(HotkeyRecorderContainer(model: recorder)),
                     pasteLastRecorder: AnyView(HotkeyRecorderContainer(model: pasteLastRecorder)),
-                    hotkeyCards: commandModeCard(settings: settings))
+                    hotkeyCards: commandModeCard(settings: settings, permissions: permissions))
             },
             hasKey: { keys.hasSecret(for: $0) },
             hotkey: { Self.describe(settings.hotkeyConfiguration()) },
@@ -219,10 +221,12 @@ extension AppEnvironment.Dependencies {
 
     /// The command mode card of the Hotkey tab, with the recorder of the command hotkey in its slot.
     @MainActor
-    private static func commandModeCard(settings: any SettingsStore) -> AnyView {
+    private static func commandModeCard(
+        settings: any SettingsStore, permissions: any PermissionsChecker
+    ) -> AnyView {
         let model = CommandModeSettingsViewModel(
             settings: settings, shortcut: { HotkeyKeyCaps.caps(for: $0) },
-            modelAvailable: { Self.appleIntelligenceIsAvailable })
+            modelAvailable: { Self.appleIntelligenceIsAvailable }, permissions: permissions)
         let recorder = HotkeyRecorderViewModel(
             binding: .command(settings), source: NSEventHotkeyCaptureSource(),
             isTakenBySystem: { SystemShortcuts.isTaken($0) })

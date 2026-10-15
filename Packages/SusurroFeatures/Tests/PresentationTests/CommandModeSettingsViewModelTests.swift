@@ -10,11 +10,22 @@ import Testing
 struct CommandModeSettingsViewModelTests {
     private let settings = InMemorySettingsStore()
 
+    private let permissions = MutablePermissionsChecker([.inputMonitoring: .denied])
+
     private func model(available: Bool = true) -> CommandModeSettingsViewModel {
         CommandModeSettingsViewModel(
             settings: settings, shortcut: { $0.combo.modifiers.caps + ($0.combo.keyCode.map { ["#\($0)"] } ?? []) },
-            modelAvailable: { available })
+            modelAvailable: { available }, permissions: permissions)
     }
+
+    private func useModifierOnlyCommandHotkey() {
+        settings.setHotkey(
+            HotkeyConfiguration(kind: .modifierOnly, combo: HotkeyCombo(keyCode: nil, modifiers: [.command, .option])),
+            for: .command)
+    }
+
+    private static let inputMonitoringWarning = HotkeyWarning(
+        message: SettingsCopy.inputMonitoringWarning, actionTitle: SettingsCopy.allowInputMonitoring)
 
     private func until(_ condition: @MainActor () -> Bool) async {
         while !condition() { await Task.yield() }
@@ -59,6 +70,39 @@ struct CommandModeSettingsViewModelTests {
             HotkeyConfiguration(kind: .keyed, combo: HotkeyCombo(keyCode: 96, modifiers: [])), for: .command)
         await until { sut.state.shortcut == ["#96"] }
 
+        following.cancel()
+    }
+
+    @Test("a modifier-only command hotkey without Input Monitoring says it is off, with the button that asks for it")
+    func inputMonitoringWarning() async {
+        settings.set(true, for: CommandSettings.enabled)
+        useModifierOnlyCommandHotkey()
+        let sut = model()
+        let following = Task { await sut.follow() }
+
+        await until { sut.state.permissionWarning != nil }
+        #expect(sut.state.permissionWarning == Self.inputMonitoringWarning)
+
+        permissions.set(.inputMonitoring, to: .granted)
+        await sut.requestInputMonitoring()
+        #expect(permissions.requested == [.inputMonitoring])
+        #expect(sut.state.permissionWarning == nil)
+        following.cancel()
+    }
+
+    @Test("no Input Monitoring warning for a keyed command hotkey, or while command mode is off")
+    func noInputMonitoringWarning() async {
+        let sut = model()
+        let following = Task { await sut.follow() }
+        await until { sut.hasReadPermissions }
+        #expect(sut.state.permissionWarning == nil)
+
+        useModifierOnlyCommandHotkey()
+        await Task.yield()
+        #expect(sut.state.permissionWarning == nil)
+
+        settings.set(true, for: CommandSettings.enabled)
+        await until { sut.state.permissionWarning != nil }
         following.cancel()
     }
 }

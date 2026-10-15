@@ -2,8 +2,9 @@ import Domain
 import Observation
 import SusurroUI
 
-/// The command mode card of the settings: the switch (`command.enabled`), the command hotkey as key caps, and a warning
-/// when Apple Intelligence cannot rewrite on this Mac. The recorder of the command hotkey is a `HotkeyRecorderViewModel`
+/// The command mode card of the settings: the switch (`command.enabled`), the command hotkey as key caps, a warning
+/// when Apple Intelligence cannot rewrite on this Mac, and one when the command hotkey is made only of modifier keys and
+/// Input Monitoring is not allowed, so it is not listened to. The recorder of the command hotkey is a `HotkeyRecorderViewModel`
 /// for the command role, in the card's slot.
 @MainActor
 @Observable
@@ -11,8 +12,13 @@ public final class CommandModeSettingsViewModel: CommandModeSettingsModeling {
     @ObservationIgnored private let settings: any SettingsStore
     @ObservationIgnored private let shortcut: @MainActor (HotkeyConfiguration) -> [String]
     @ObservationIgnored private let modelAvailable: @Sendable () async -> Bool
+    @ObservationIgnored private let permissions: (any PermissionsChecker)?
 
     private var isModelAvailable = true
+    /// Granted until it has been read, so the card does not flash a warning.
+    private var inputMonitoring: PermissionStatus = .granted
+    /// The Input Monitoring status has been read at least once.
+    private(set) var hasReadPermissions = false
     /// Counts the changes of the settings the card shows. `state` reads it, so the card is drawn again after each of
     /// them, though the settings store is not observable.
     private var revision = 0
@@ -20,21 +26,31 @@ public final class CommandModeSettingsViewModel: CommandModeSettingsModeling {
     /// - Parameters:
     ///   - shortcut: The key caps of a hotkey, which the platform knows.
     ///   - modelAvailable: Whether Apple's on-device model can take a request on this Mac.
+    ///   - permissions: Where the Input Monitoring status is read and asked for. Without it no warning is shown.
     public init(
         settings: any SettingsStore, shortcut: @escaping @MainActor (HotkeyConfiguration) -> [String],
-        modelAvailable: @escaping @Sendable () async -> Bool
+        modelAvailable: @escaping @Sendable () async -> Bool, permissions: (any PermissionsChecker)? = nil
     ) {
         self.settings = settings
         self.shortcut = shortcut
         self.modelAvailable = modelAvailable
+        self.permissions = permissions
     }
 
     public var state: CommandModeSettingsState {
         _ = revision
+        let isEnabled = settings.value(for: CommandSettings.enabled)
+        let configuration = settings.hotkeyConfiguration(for: .command)
+        // The same rule as the hotkey service: a modifier-only hotkey is not armed until Input Monitoring is granted.
+        let status = HotkeyStatus.evaluate(configuration, inputMonitoring: inputMonitoring, secureInputActive: false)
+        let permissionWarning: HotkeyWarning? =
+            isEnabled && status.arming == .needsInputMonitoring
+            ? HotkeyWarning(
+                message: SettingsCopy.inputMonitoringWarning, actionTitle: SettingsCopy.allowInputMonitoring)
+            : nil
         return CommandModeSettingsState(
-            isEnabled: settings.value(for: CommandSettings.enabled),
-            shortcut: shortcut(settings.hotkeyConfiguration(for: .command)),
-            warning: isModelAvailable ? nil : CommandModeCopy.modelUnavailable)
+            isEnabled: isEnabled, shortcut: shortcut(configuration),
+            warning: isModelAvailable ? nil : CommandModeCopy.modelUnavailable, permissionWarning: permissionWarning)
     }
 
     public func setEnabled(_ enabled: Bool) {
@@ -42,13 +58,27 @@ public final class CommandModeSettingsViewModel: CommandModeSettingsModeling {
         revision &+= 1
     }
 
+    public func requestInputMonitoring() async {
+        guard let permissions else { return }
+        await permissions.request(.inputMonitoring)
+        await readInputMonitoring()
+    }
+
     public func follow() async {
         let changes = settings.changes()
         isModelAvailable = await modelAvailable()
+        await readInputMonitoring()
         for await change in changes
         where change.name.hasPrefix("command.") || change.name.hasPrefix("hotkey.command") {
-            revision &+= 1
+            // The permission may have been granted in System Settings since it was read.
+            await readInputMonitoring()
         }
+    }
+
+    private func readInputMonitoring() async {
+        if let permissions { inputMonitoring = await permissions.status(.inputMonitoring) }
+        hasReadPermissions = true
+        revision &+= 1
     }
 }
 

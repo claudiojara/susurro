@@ -39,6 +39,36 @@ public actor AXContextReader: FocusedContextReader {
         return read(using: provider)
     }
 
+    public func selectionSnapshot() async -> FocusedContext? {
+        guard provider.isTrusted else { return nil }
+        return readSelection(using: provider)
+    }
+
+    /// The selection only: the selected text, and the whole field with its range only for an app that does not give the
+    /// selected text. Nothing above the focused element is read.
+    private func readSelection<Provider: AXElementProviding>(using provider: Provider) -> FocusedContext? {
+        let deadline = now() + budget
+        let outOfTime = { [now] in now() >= deadline }
+        let system = provider.systemWideElement()
+        provider.setMessagingTimeout(Self.messagingTimeout, on: system)
+        guard case .success(let focused) = provider.element(.focusedElement, of: system) else { return nil }
+        provider.setMessagingTimeout(Self.messagingTimeout, on: focused)
+
+        var context = FocusedContext()
+        let subrole = try? provider.string(.subrole, of: focused).get()
+        context.isSecure = subrole == AXAttributeName.secureFieldSubrole
+        // A secure field is never asked for its text, so the text is never in memory.
+        guard !context.isSecure, !outOfTime() else { return context }
+        context.selectedText = try? provider.string(.selectedText, of: focused).get()
+        if let selected = context.selectedText, !selected.allSatisfy(\.isWhitespace) { return context }
+        context.selectedText = nil
+        if !outOfTime() { context.selection = try? provider.range(.selectedTextRange, of: focused).get() }
+        if context.selection?.isEmpty == false, !outOfTime() {
+            context.fieldText = try? provider.string(.value, of: focused).get()
+        }
+        return context
+    }
+
     private func read<Provider: AXElementProviding>(using provider: Provider) -> FocusedContext? {
         let deadline = now() + budget
         let outOfTime = { [now] in now() >= deadline }

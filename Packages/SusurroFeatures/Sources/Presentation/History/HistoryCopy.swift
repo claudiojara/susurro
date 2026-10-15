@@ -37,6 +37,7 @@ enum HistoryCopy {
     static var audioExpiredDetail: String { L10n.string("history.audioExpired", "Audio expired") }
     static var retryAudioExpired: String { L10n.string("history.retry.audioExpired", "Audio expired after 7 days.") }
     static var retryNoAudio: String { L10n.string("history.retry.noAudio", "There is no audio to run again.") }
+    static var retryCommand: String { L10n.string("history.retry.command", "A command cannot be run again.") }
 
     /// "Today, 14:32" and "Yesterday, 18:02", with the time already formatted.
     static func today(_ time: String) -> String { L10n.string("history.date.today", "Today, \(time)") }
@@ -129,6 +130,7 @@ enum HistoryCopy {
         case .recordNotFound: recordGone
         case .audioExpired: retryAudioExpired
         case .noAudio: retryNoAudio
+        case .command: retryCommand
         case .stillProcessing: L10n.string("history.refusal.processing", "That dictation is still being processed.")
         case .alreadyRetrying:
             L10n.string("history.refusal.retrying", "A retry of that dictation is already running.")

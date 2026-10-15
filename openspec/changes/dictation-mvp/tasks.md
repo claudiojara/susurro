@@ -871,3 +871,15 @@ Slices 2–9 were delivered together in #68 (fast track, strict TDD, no per-PR r
 - [x] RF2.4 RED+GREEN: `InsertionReceipt` keeps the window title and page address; the reread and the handoff skip a field in another window or page. With both anchors empty, `CorrectionDiff` gives up when more than max(3, half) of the dictation's words are gone.
 - [x] RF2.5 RED+GREEN: The 5 s reread records nothing while the cursor is in a corrected word (possibly half typed) and leaves the watch to the handoff.
 - [ ] RF2.6 VERIFY: Manual: dictate into an empty Slack message box, focus the search box and type a capitalized name within 5 s, and see nothing suggested; dictate, then within 5 s select the text and run a command ("ponle acentos"), and see nothing suggested.
+
+## Review fixes: hotkeys and command mode
+
+### PR RF1: Fix the hotkey, command start, media pause, and retry defects of the review of PRs #78 to #82 (~900)
+
+- [x] RF1.1 RED+GREEN: `HotkeyConfiguration.overlaps` and `HotkeyRejection.overlapsAnotherHotkey`: a modifier-only hotkey whose modifiers nest with another hotkey of the app (either way, keyed or modifier-only) is refused, the paste last shortcut included; `HotkeyService` drops a command hotkey that overlaps the dictation one. `en`/`es` copy.
+- [x] RF1.2 RED+GREEN: `SettingsStore.hotkeysNeedInputMonitoring` (the dictation hotkey, and the command one while command mode is on) seeds and follows `PermissionNeeds.modifierOnlyHotkey`; the command mode card shows the Input Monitoring warning and its button for a modifier-only command hotkey.
+- [x] RF1.3 RED+GREEN: The command key-down starts the capture at once; its checks and the selection read (`FocusedContextReader.selectionSnapshot`, which `AXContextReader` makes light: no value unless needed, no title, no URL) run alongside it, end the recording with the notice and no audio when there is nothing to rewrite, and are waited for before the recording is queued.
+- [x] RF1.4 RED+GREEN: `MediaPauser` pauses only once a recording has lasted the hold threshold, so a tap sends no media key.
+- [x] RF1.5 RED+GREEN: Retry is unavailable for command records (`HistoryCopy.retryCommand`) and `RetryService` refuses them (`RetryRefusal.command`).
+- [x] RF1.6 DOC: ADR 0035, "The command key records at once, and modifier-only hotkeys never nest with another".
+- [ ] RF1.7 VERIFY: Manual: set the command hotkey to ⌃⌥ (modifier-only) and see it refused while dictation is ⌃⌥D; with Input Monitoring off, set a modifier-only command hotkey, turn command mode on, and see the warning in the card and Input Monitoring in the onboarding; hold the command key and start speaking at once, and see the first words in the instruction; with media playing and the pause on, tap the dictation key and hear no blip.

@@ -370,7 +370,7 @@ public final class AppEnvironment {
         monitor = PermissionsMonitor(
             checker: dependencies.permissions, openSettings: dependencies.onboarding.openSettings, clock: clock,
             needs: PermissionNeeds(
-                modifierOnlyHotkey: dependencies.settings.value(for: HotkeySettings.kind) == .modifierOnly),
+                modifierOnlyHotkey: dependencies.settings.hotkeysNeedInputMonitoring),
             diagnostics: dependencies.diagnostics)
         onboardingModel = OnboardingViewModel(monitor: monitor)
         let onboardingPresenter = OnboardingPresenter(
@@ -390,7 +390,8 @@ public final class AppEnvironment {
             repository: history.repository, inserter: dependencies.inserter, clipboard: history.clipboard)
         self.lastDictation = lastDictation
         mediaPauser = dependencies.mediaPlayback.map {
-            MediaPauser(playback: $0, settings: dependencies.settings, diagnostics: dependencies.diagnostics)
+            MediaPauser(
+                playback: $0, settings: dependencies.settings, diagnostics: dependencies.diagnostics, sleep: sleep)
         }
         let historyWindow = history.window(historyModel, themeModel)
         preferences = MenuPreferences(
@@ -521,14 +522,21 @@ public final class AppEnvironment {
 
     // MARK: Launch
 
-    /// A modifier-only or fn hotkey needs Input Monitoring, so the permissions the app asks for follow the hotkey the user
-    /// chooses.
+    /// A modifier-only or fn hotkey needs Input Monitoring, so the permissions the app asks for follow the hotkeys the
+    /// user chooses: the dictation one, and the command one while command mode is on.
     private func followHotkeyKind() async {
-        for await kind in dependencies.settings.values(for: HotkeySettings.kind) {
-            var needs = monitor.needs
-            needs.modifierOnlyHotkey = kind == .modifierOnly
-            await monitor.setNeeds(needs)
+        let settings = dependencies.settings
+        let changes = settings.changes()
+        await applyHotkeyNeeds(settings.hotkeysNeedInputMonitoring)
+        for await change in changes where change.name.hasPrefix("hotkey.") || change.name.hasPrefix("command.") {
+            await applyHotkeyNeeds(settings.hotkeysNeedInputMonitoring)
         }
+    }
+
+    private func applyHotkeyNeeds(_ modifierOnlyHotkey: Bool) async {
+        var needs = monitor.needs
+        needs.modifierOnlyHotkey = modifierOnlyHotkey
+        await monitor.setNeeds(needs)
     }
 
     /// The model starts loading before the first press. The permissions are the monitor's and the onboarding's: the

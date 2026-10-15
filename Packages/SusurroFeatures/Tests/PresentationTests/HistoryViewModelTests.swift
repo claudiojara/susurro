@@ -208,6 +208,19 @@ struct HistoryViewModelTests {
         #expect(row.detail == "Notes · 12 s · Audio expired")
     }
 
+    @Test("retry is unavailable with a reason for a command, even with its audio stored")
+    func retryUnavailableForCommands() async throws {
+        try await add { $0.kind = .command }
+        let model = makeModel()
+
+        await model.reload()
+
+        let row = try #require(model.state.rows.first)
+        let retry = try #require(row.actions.first { $0.kind == .retry })
+        #expect(!retry.isAvailable)
+        #expect(retry.unavailableReason == HistoryCopy.retryCommand)
+    }
+
     @Test("retry runs the dictation again and the row shows the new text, with nothing pasted")
     func retryUpdatesTheRow() async throws {
         let failed = try await add(.failed) { $0.failure = "recognitionFailed" }

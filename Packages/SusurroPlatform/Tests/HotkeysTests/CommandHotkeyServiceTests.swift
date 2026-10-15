@@ -66,4 +66,20 @@ struct CommandHotkeyServiceTests {
         #expect(rig.source.subscriptions == [.standard])
         withExtendedLifetime(events) {}
     }
+
+    @Test("a command hotkey whose modifiers nest with the dictation one is not listened to; dictation wins")
+    func overlappingCombosAreRefused() async {
+        let rig = HotkeyRig(permissions: [.inputMonitoring: .granted])
+        let dictation = HotkeyConfiguration(
+            kind: .modifierOnly, combo: HotkeyCombo(keyCode: nil, modifiers: [.control, .option]))
+        rig.settings.set(true, for: CommandSettings.enabled)
+        rig.settings.setHotkey(dictation, for: .dictate)
+
+        let events = rig.service.events()
+        await rig.source.waitForSubscriptions(1)
+        await Task.yield()
+
+        #expect(rig.source.subscriptions == [dictation])
+        withExtendedLifetime(events) {}
+    }
 }

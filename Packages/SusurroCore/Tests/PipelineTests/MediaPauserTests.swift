@@ -7,9 +7,19 @@ import Testing
 struct MediaPauserTests {
     private let playback = FakeMediaPlayback()
     private let settings = InMemorySettingsStore()
+    /// Returns at once from the hold threshold, so a recording that starts is past it as soon as the pauser looks.
+    private let sleeper = FakeSleeper()
 
-    private func pauser() -> MediaPauser {
-        MediaPauser(playback: playback, settings: settings)
+    private func pauser(sleeper: FakeSleeper? = nil) -> MediaPauser {
+        let sleeper = sleeper ?? self.sleeper
+        return MediaPauser(
+            playback: playback, settings: settings, delay: .milliseconds(300), sleep: { try await sleeper.sleep($0) })
+    }
+
+    /// Starts a recording and waits until the pauser has looked at the media.
+    private func start(_ pauser: MediaPauser, _ state: PipelineState = .starting) async {
+        await pauser.observe(state)
+        await pauser.settle()
     }
 
     private func enable() {
@@ -21,7 +31,7 @@ struct MediaPauserTests {
         playback.playing = true
         let pauser = pauser()
 
-        await pauser.observe(.starting)
+        await start(pauser)
         await pauser.observe(.recording(.hold))
         await pauser.observe(.transcribing(progress: nil))
 
@@ -35,7 +45,7 @@ struct MediaPauserTests {
         playback.playing = true
         let pauser = pauser()
 
-        await pauser.observe(.starting)
+        await start(pauser)
         #expect(playback.toggles == 1)
         await pauser.observe(.recording(.hold))
         await pauser.observe(.recording(.handsFree))
@@ -54,7 +64,7 @@ struct MediaPauserTests {
         enable()
         let pauser = pauser()
 
-        await pauser.observe(.starting)
+        await start(pauser)
         await pauser.observe(.recording(.hold))
         await pauser.observe(.idle)
 
@@ -68,11 +78,11 @@ struct MediaPauserTests {
         playback.playing = true
         let pauser = pauser()
 
-        await pauser.observe(.starting)
+        await start(pauser)
         await pauser.observe(.idle)
         #expect(playback.toggles == 2)
 
-        await pauser.observe(.recording(.hold))
+        await start(pauser, .recording(.hold))
         await pauser.observe(.error(.microphoneNotGranted))
         #expect(playback.toggles == 4)
     }
@@ -83,7 +93,7 @@ struct MediaPauserTests {
         playback.playing = true
         let pauser = pauser()
 
-        await pauser.observe(.starting)
+        await start(pauser)
         settings.set(false, for: MediaSettings.pauseWhileDictating)
         await pauser.observe(.idle)
 
@@ -109,13 +119,49 @@ struct MediaPauserTests {
         playback.playing = true
         let pauser = pauser()
 
-        await pauser.observe(.starting)
+        await start(pauser)
         await pauser.observe(.idle)
         playback.playing = false
-        await pauser.observe(.starting)
+        await start(pauser)
         await pauser.observe(.idle)
 
         #expect(playback.checks == 2)
+        #expect(playback.toggles == 2)
+    }
+
+    @Test("a tap, which ends before the hold threshold, touches no media: no blip, and a double tap pauses nothing")
+    func tapTouchesNothing() async {
+        enable()
+        playback.playing = true
+        let sleeper = FakeSleeper(blocksPauses: true)
+        let pauser = pauser(sleeper: sleeper)
+
+        await pauser.observe(.starting)
+        await sleeper.entered(.milliseconds(300)).wait()
+        await pauser.observe(.idle)
+        sleeper.fire(.milliseconds(300))
+        await pauser.settle()
+
+        #expect(playback.toggles == 0)
+        #expect(playback.checks == 0)
+    }
+
+    @Test("media is paused only once the press has lasted the hold threshold")
+    func pausesAfterTheHoldThreshold() async {
+        enable()
+        playback.playing = true
+        let sleeper = FakeSleeper(blocksPauses: true)
+        let pauser = pauser(sleeper: sleeper)
+
+        await pauser.observe(.starting)
+        await sleeper.entered(.milliseconds(300)).wait()
+        #expect(playback.checks == 0)
+        await pauser.observe(.recording(.hold))
+        sleeper.fire(.milliseconds(300))
+        await pauser.settle()
+        #expect(playback.toggles == 1)
+
+        await pauser.observe(.transcribing(progress: nil))
         #expect(playback.toggles == 2)
     }
 }

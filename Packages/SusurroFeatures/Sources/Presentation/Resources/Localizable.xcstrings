@@ -715,6 +715,23 @@
         }
       }
     },
+    "history.retry.command" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A command cannot be run again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un comando no se puede volver a ejecutar."
+          }
+        }
+      }
+    },
     "history.retry.noAudio" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3142,6 +3159,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Este atajo se pulsa una vez, así que necesita una tecla. Mantén las teclas modificadoras y pulsa una tecla."
+          }
+        }
+      }
+    },
+    "settings.hotkey.rejection.overlaps" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These modifier keys are part of another Susurro shortcut, so pressing one would start the other. Press another one."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Estas teclas modificadoras forman parte de otro atajo de Susurro, así que al pulsar uno se activaría el otro. Pulsa otro."
           }
         }
       }

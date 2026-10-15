@@ -15,7 +15,9 @@ import Foundation
 /// from there, from the history record to the inserted text, is the `DictationPipeline`.
 ///
 /// As the key goes down the coordinator notes the app in front, which the text is pasted into, and starts capturing the
-/// context of the dictation; both travel with the job.
+/// context of the dictation; both travel with the job. The key of a command starts the capture at once too: its checks
+/// and the read of the selection run alongside it, and are waited for only before the recording is queued. A command
+/// with nothing to rewrite ends its recording as soon as that is known, keeps no audio, and says why.
 ///
 /// Every wait is bounded, so the coordinator always returns to idle.
 public actor DictationCoordinator {
@@ -35,6 +37,9 @@ public actor DictationCoordinator {
         case discard
         /// Esc: the recording is kept as a cancelled record and is not processed.
         case cancel
+        /// A command that cannot run, or has nothing to rewrite: the recording is thrown away, with no history, and the
+        /// state says why.
+        case refuse(PipelineState)
 
         var isJob: Bool {
             if case .submit = self { return true }
@@ -112,8 +117,15 @@ public actor DictationCoordinator {
     /// Keeps the two hotkeys apart: while one is held, or its recording goes on, the other goes nowhere.
     private var gate = RoleGate()
     /// What the recording that is starting or running is for: a dictation, or a command with the selection it was said
-    /// over.
+    /// over. A command is a dictation here until its selection is read (`commandStart`).
     private var recordingIntent = DictationIntent.dictate
+    /// The checks and the selection read of the command being recorded, which run while it records. Nil for a dictation,
+    /// and once the result has been taken.
+    private var commandStart: Task<CommandStage.Start, Never>?
+    /// Why the command being recorded cannot run, once its start has said so.
+    private var commandRefusal: PipelineState?
+    /// Counts the presses that start a capture, so that a command start that ends late for an earlier one is ignored.
+    private var presses = 0
     /// The load progress of the model while the running job waits for it.
     private var jobProgress: Double?
     /// The one shutdown, so that every caller waits for the same work.
@@ -196,6 +208,7 @@ public actor DictationCoordinator {
             timers.cancelAll()
             sessionEvents?.cancel()
             dropContextJob()
+            dropCommandStart()
             shutdownTask = Task { await self.finishShutdown(wasRecording: wasRecording) }
         }
         await shutdownTask?.value
@@ -269,20 +282,18 @@ public actor DictationCoordinator {
         phase = .starting
         pendingEnd = nil
         submittedRecordingCancelled = false
+        presses &+= 1
+        dropCommandStart()
         beginKeyPress()
         var failure = await startFailure()
         guard phase == .starting else { return }  // shut down meanwhile
         recordingIntent = .dictate
         if failure == nil, role == .command {
-            switch await commandStart() {
-            case .selection(let selection): recordingIntent = .command(selection: selection)
-            case .failure(let error): failure = error
-            case .notice(let notice):
-                guard phase == .starting else { return }
-                // Nothing to rewrite: the reducer never hears of the press, and nothing is recorded.
-                return await settle(.notice(.command(notice)))
+            if let command = pipeline.command, command.isEnabled() {
+                beginCommandStart(command)
+            } else {
+                failure = .commandUnavailable(.turnedOff)
             }
-            guard phase == .starting else { return }
         }
         await run(.down(at: time, startFailure: failure))
     }
@@ -299,10 +310,59 @@ public actor DictationCoordinator {
         }
     }
 
-    /// What a command needs as its key goes down. Without command mode in the pipeline it is turned off.
-    private func commandStart() async -> CommandStage.Start {
-        guard let command = pipeline.command else { return .failure(.commandUnavailable(.turnedOff)) }
-        return await command.start(permissions: permissions, sleep: sleep)
+    // MARK: Command start
+
+    /// Starts what a command needs as its key goes down (Accessibility, the model, and the selection) without holding
+    /// the capture back: every read is bounded, but together they can take seconds, and the first words of the
+    /// instruction are said meanwhile.
+    private func beginCommandStart(_ command: CommandStage) {
+        let press = presses
+        let permissions = permissions
+        let sleep = sleep
+        commandStart = Task {
+            let start = await command.start(permissions: permissions, sleep: sleep)
+            await self.commandStartFinished(start, press: press)
+            return start
+        }
+    }
+
+    /// A command that cannot run ends its recording as soon as that is known. One whose capture is still starting is
+    /// ended once it has started.
+    private func commandStartFinished(_ start: CommandStage.Start, press: Int) async {
+        guard press == presses, commandStart != nil, let refusal = Self.refusal(of: start) else { return }
+        commandRefusal = refusal
+        await endRefusedCommand()
+    }
+
+    private func endRefusedCommand() async {
+        guard let refusal = commandRefusal, phase == .capturing, activation.phase.isRecording else { return }
+        await dispatch(.captureFailed)
+        beginEnding(.refuse(refusal))
+    }
+
+    /// Waits for the start of the command being recorded, and returns why it cannot run, if it cannot. A command whose
+    /// start allows it gets its selection as its intent.
+    private func resolveCommandStart() async -> PipelineState? {
+        guard let pending = commandStart else { return nil }
+        let start = await pending.value
+        commandStart = nil
+        commandRefusal = nil
+        if case .selection(let selection) = start { recordingIntent = .command(selection: selection) }
+        return Self.refusal(of: start)
+    }
+
+    private func dropCommandStart() {
+        commandStart?.cancel()
+        commandStart = nil
+        commandRefusal = nil
+    }
+
+    private static func refusal(of start: CommandStage.Start) -> PipelineState? {
+        switch start {
+        case .selection: nil
+        case .failure(let error): .error(error)
+        case .notice(let notice): .notice(.command(notice))
+        }
     }
 
     /// The key of a dictation went down. The text that waits for the key waits for this press. The key of an earlier
@@ -383,8 +443,8 @@ public actor DictationCoordinator {
     private func beginContextCapture() async {
         dropContextJob()
         dictationTarget = await frontmost?.current()
-        // A command needs the app it was said in and nothing more: its selection is read already, and it has no style.
-        guard recordingIntent == .dictate else { return }
+        // A command needs the app it was said in and nothing more: its selection is read apart, and it has no style.
+        guard recordingIntent == .dictate, commandStart == nil else { return }
         contextJob = context.map { ContextJob(app: dictationTarget, pipeline: $0) }
         vocabularyJob = vocabulary.map { VocabularyJob(context: contextJob, pipeline: $0) }
     }
@@ -463,6 +523,8 @@ public actor DictationCoordinator {
             if let pending = pendingEnd {
                 pendingEnd = nil
                 await beginEnding(pending)?.value
+            } else if commandRefusal != nil {
+                await endRefusedCommand()
             }
         } catch {
             await captureCouldNotStart(error)
@@ -572,13 +634,17 @@ public actor DictationCoordinator {
     /// a tap away, keeps a cancelled recording, or queues a submitted one.
     private func finishRecording(_ end: RecordingEnd) async {
         guard let recording = session else { return await settle(endsJob: end.isJob) }
-        if case .discard = end {
-            await abandon(recording)
-            session = nil
-            sessionEvents = nil
-            guard phase == .finishing else { return }  // shut down meanwhile
-            return await settle()
+        switch end {
+        case .discard: return await throwAway(recording)
+        case .refuse(let state): return await throwAway(recording, showing: state)
+        case .submit, .cancel: break
         }
+        // A command whose selection is still being read is waited for here, before anything is kept. One that cannot run
+        // keeps no audio; Esc on it shows nothing more.
+        if let refusal = await resolveCommandStart() {
+            return await throwAway(recording, showing: end.isJob ? refusal : nil, endsJob: end.isJob)
+        }
+        guard phase == .finishing else { return }  // shut down meanwhile
         let result: RecordingResult
         // The reducer has already measured a hold by its key, so a submitted recording keeps whatever audio it got. A
         // recording that Esc cancels keeps the minimum: a blip is no record.
@@ -625,6 +691,17 @@ public actor DictationCoordinator {
                 verified, waitingFor: release, target: target, context: context, vocabulary: vocabulary,
                 intent: recordingIntent)
         }
+    }
+
+    /// Throws the recording away, with its file, and ends the cycle with `state`, if any.
+    private func throwAway(_ recording: RecordingSession, showing state: PipelineState? = nil, endsJob: Bool = false)
+        async
+    {
+        await abandon(recording)
+        session = nil
+        sessionEvents = nil
+        guard phase == .finishing else { return }  // shut down meanwhile
+        await settle(state, endsJob: endsJob)
     }
 
     /// Best effort: a recording whose capture does not stop in time is abandoned. The file it wrote is deleted.
@@ -785,6 +862,7 @@ public actor DictationCoordinator {
         if endsJob { await dispatch(.jobFinished) }
         guard phase != .stopped else { return }
         dropContextJob()
+        dropCommandStart()
         recordingState = nil
         phase = .idle
         if let outcome {

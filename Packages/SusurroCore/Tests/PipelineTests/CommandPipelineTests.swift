@@ -17,14 +17,14 @@ struct CommandPipelineTests {
 
     private struct Fixture {
         let rewriter: FakeSelectionRewriter
-        let reader: FakeFocusedContextReader
+        let reader: any FocusedContextReader
         let clipboard = FakeClipboardWriter()
         let settings = InMemorySettingsStore()
         var harness: CoordinatorHarness
 
         init(
             rewriter: FakeSelectionRewriter = FakeSelectionRewriter(reply: .text(CommandPipelineTests.result)),
-            reader: FakeFocusedContextReader = FakeFocusedContextReader(selection: CommandPipelineTests.selection),
+            reader: any FocusedContextReader = FakeFocusedContextReader(selection: CommandPipelineTests.selection),
             enabled: Bool = true,
             permissions: [Permission: PermissionStatus] = [.microphone: .granted, .accessibility: .granted],
             transcript: String = CommandPipelineTests.instruction,
@@ -235,8 +235,8 @@ struct CommandPipelineTests {
         let states = await f.harness.read(through: .idle)
 
         #expect(states.contains(.error(.commandUnavailable(reason))))
-        #expect(f.harness.capture.startCount == 0)
         #expect(f.harness.history.allRecords.isEmpty)
+        #expect(f.harness.recordings.finished.isEmpty)
     }
 
     @Test(
@@ -258,8 +258,72 @@ struct CommandPipelineTests {
         await f.letGo()
 
         #expect(states.contains(.notice(.command(notice))))
-        #expect(f.harness.capture.startCount == 0)
         #expect(f.harness.history.allRecords.isEmpty)
+        #expect(f.harness.recordings.finished.isEmpty)
+    }
+
+    @Test("the command key starts the capture at once, while the selection is still being read")
+    func capturesWhileReadingTheSelection() async {
+        let reader = GatedFocusedContextReader(FocusedContext(selectedText: Self.selection))
+        var f = await Fixture(reader: reader)
+
+        // The first words of the instruction are heard while the app is still being asked for its selection.
+        await f.press()
+        #expect(f.harness.capture.startCount == 1)
+        reader.release()
+        await f.letGo()
+        let states = await f.harness.read(through: .idle)
+
+        #expect(states.contains(.replaced))
+        #expect(f.rewriter.requests == [LocalCommandRequest(instruction: Self.instruction, selection: Self.selection)])
+    }
+
+    @Test("a selection read that finds nothing to rewrite ends the recording with the notice, and keeps nothing")
+    func endsTheRecordingWithoutASelection() async {
+        let reader = GatedFocusedContextReader(FocusedContext(fieldText: "abc", selection: 1..<1))
+        var f = await Fixture(reader: reader)
+        await f.press()
+
+        reader.release()
+        let states = await f.harness.read(through: .idle)
+        await f.letGo()
+
+        #expect(states.contains(.notice(.command(.noSelection))))
+        #expect(f.harness.history.allRecords.isEmpty)
+        #expect(f.harness.recordings.finished.isEmpty)
+        #expect(f.harness.recordings.aborted.count == 1)
+        #expect(f.rewriter.requests.isEmpty)
+    }
+
+    @Test("a selection read that is still running when the key comes up is waited for before the job is queued")
+    func waitsForTheSelectionOnRelease() async {
+        let reader = GatedFocusedContextReader(FocusedContext(selectedText: Self.selection))
+        var f = await Fixture(reader: reader)
+        await f.press()
+
+        // The release returns once the recording is finished, which waits for the selection.
+        let coordinator = f.harness.sut
+        let release = Task {
+            await coordinator.handle(
+                .up(at: DictationCoordinatorTests.pressTime + .milliseconds(1_200), role: .command))
+        }
+        reader.release()
+        await release.value
+        let states = await f.harness.read(through: .idle)
+
+        #expect(states.contains(.replaced))
+        #expect(f.harness.inserter.insertedTexts == [Self.result])
+    }
+
+    @Test("the key-down reads only the selection: no window title, no page address")
+    func readsTheSelectionOnly() async {
+        let reader = FakeFocusedContextReader(selection: Self.selection)
+        var f = await Fixture(reader: reader)
+
+        _ = await f.command()
+
+        #expect(reader.callCount == 0)
+        #expect(reader.selectionCallCount == 2)  // at key-down, and again before the paste
     }
 
     // MARK: Roles
@@ -340,5 +404,28 @@ struct CommandPipelineTests {
             await Task.yield()
         }
         return condition()
+    }
+}
+
+/// A reader whose first read waits until the test releases it, as a slow app answers Accessibility.
+private final class GatedFocusedContextReader: FocusedContextReader {
+    private let context: FocusedContext?
+    private let gate = Gate()
+
+    init(_ context: FocusedContext?) {
+        self.context = context
+    }
+
+    func release() { gate.open() }
+
+    func snapshot() async -> FocusedContext? {
+        await selectionSnapshot()
+    }
+
+    func selectionSnapshot() async -> FocusedContext? {
+        await gate.wait()
+        // Every later read answers at once.
+        gate.open()
+        return context
     }
 }

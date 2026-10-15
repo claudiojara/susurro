@@ -72,7 +72,8 @@ struct AppEnvironmentExtrasTests {
         f.environment.start()
 
         f.hotkeys.send(.down(at: Self.pressTime))
-        await f.eventually("the media to pause") { f.media.toggles == 1 }
+        // The media is paused once the press has lasted the hold threshold, so a tap sends nothing.
+        await f.advance(by: .milliseconds(100), until: "the media to pause") { f.media.toggles == 1 }
         f.capture.emit(AudioChunk(samples: [Float](repeating: 0.1, count: AudioClip.sampleRate)))
         await f.eventually("the recording indicator") { f.overlay.current == "Listening…" }
         f.hotkeys.send(.up(at: Self.pressTime + .milliseconds(1200)))

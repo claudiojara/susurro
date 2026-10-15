@@ -181,6 +181,11 @@ enum SettingsCopy {
             L10n.string(
                 "settings.hotkey.rejection.inUse",
                 "Another Susurro shortcut already uses these keys. Press another one.")
+        case .overlapsAnotherHotkey:
+            L10n.string(
+                "settings.hotkey.rejection.overlaps",
+                "These modifier keys are part of another Susurro shortcut, so pressing one would start the other. Press another one."
+            )
         }
     }
 

@@ -21,6 +21,7 @@ public enum PasteLastValidation {
     ) -> HotkeyRejection? {
         guard configuration.kind == .keyed else { return .needsKey }
         if configuration == dictation { return .sameAsDictation }
-        return HotkeyValidation.rejection(of: configuration, isTakenBySystem: isTakenBySystem, inUse: inUse)
+        return HotkeyValidation.rejection(
+            of: configuration, isTakenBySystem: isTakenBySystem, inUse: inUse + [dictation])
     }
 }

@@ -1,3 +1,4 @@
+import CoreTestSupport
 import Domain
 import Testing
 
@@ -37,5 +38,33 @@ struct HotkeyStatusTests {
         #expect(HotkeyStatus.evaluate(Self.fn, inputMonitoring: .granted, secureInputActive: true).secureInputWarning)
         #expect(
             !HotkeyStatus.evaluate(.standard, inputMonitoring: .granted, secureInputActive: false).secureInputWarning)
+    }
+}
+
+@Suite("Which hotkeys need Input Monitoring")
+struct HotkeysInputMonitoringTests {
+    private let settings = InMemorySettingsStore()
+    private let commandChord = HotkeyCombo(keyCode: nil, modifiers: [.command, .option])
+
+    @Test("the default hotkeys need no Input Monitoring")
+    func defaults() {
+        #expect(!settings.hotkeysNeedInputMonitoring)
+    }
+
+    @Test("a modifier-only dictation hotkey needs it")
+    func dictation() {
+        settings.set(HotkeyKind.modifierOnly, for: HotkeySettings.kind)
+
+        #expect(settings.hotkeysNeedInputMonitoring)
+    }
+
+    @Test("a modifier-only command hotkey needs it only while command mode is on")
+    func command() {
+        settings.set(HotkeyKind.modifierOnly, for: HotkeySettings.commandKind)
+        settings.set(commandChord, for: HotkeySettings.commandCombo)
+        #expect(!settings.hotkeysNeedInputMonitoring)
+
+        settings.set(true, for: CommandSettings.enabled)
+        #expect(settings.hotkeysNeedInputMonitoring)
     }
 }
