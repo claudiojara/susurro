@@ -25,8 +25,9 @@ struct MenuPreferencesTests {
         #expect(
             items.map(\.title) == [
                 "Clean up text (adds a few seconds)", "Use app context", "Use screen text (OCR)",
+                "Command mode on the selection (adds seconds)",
             ])
-        #expect(items.map(\.isOn) == [false, true, false])
+        #expect(items.map(\.isOn) == [false, true, false, false])
         #expect(items.allSatisfy { $0.note == nil })
     }
 
@@ -47,6 +48,14 @@ struct MenuPreferencesTests {
         let preferences = MenuPreferences(
             settings: settings, ocr: OCRPreferenceController(settings: settings, monitor: rig.monitor))
         #expect(preferences.items[0].isOn)
+    }
+
+    @Test("the command mode switch writes command.enabled, which the hotkey service follows")
+    func commandModeSwitch() async {
+        let sut = make()
+        await sut.preferences.set(.commandMode, to: true)
+        #expect(sut.settings.value(for: CommandSettings.enabled))
+        #expect(sut.preferences.items[3].isOn)
     }
 
     @Test("the app context switch writes context.useAppContext")
@@ -80,7 +89,7 @@ struct MenuPreferencesTests {
     func menuModelRoutes() async {
         let sut = make()
         let model = MenuModel(monitor: sut.rig.monitor, preferences: sut.preferences)
-        #expect(model.content.preferences.map(\.kind) == [.cleanup, .appContext, .screenText])
+        #expect(model.content.preferences.map(\.kind) == [.cleanup, .appContext, .screenText, .commandMode])
         await model.setPreference(.cleanup, to: true)
         #expect(model.content.preferences[0].isOn)
     }

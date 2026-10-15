@@ -10,6 +10,15 @@ public enum DictationStatus: String, Sendable, Equatable, CaseIterable {
     case cancelled
 }
 
+/// What an attempt was for.
+public enum DictationKind: String, Sendable, Equatable, CaseIterable {
+    /// Text dictated at the cursor.
+    case dictation
+    /// An instruction said over a selection (command mode). Its record keeps the instruction as `rawText` and its audio,
+    /// and neither the selection nor the result: both are text of the field.
+    case command
+}
+
 /// What happened to the final text once it left the pipeline.
 public enum DictationDelivery: String, Sendable, Equatable, CaseIterable {
     case inserted
@@ -64,6 +73,8 @@ public struct DictationRecord: Sendable, Equatable, Identifiable {
     /// What went wrong when the status is `failed`: the name of a `PipelineError.kind`, or `interruptedFailure`. Never
     /// the text of an error, which can quote what the user said.
     public var failure: String?
+    /// Whether the attempt was a dictation or a command.
+    public var kind: DictationKind
 
     public init(
         id: UUID = UUID(),
@@ -85,7 +96,8 @@ public struct DictationRecord: Sendable, Equatable, Identifiable {
         delivery: DictationDelivery? = nil,
         audioURL: URL? = nil,
         audioExpired: Bool = false,
-        failure: String? = nil
+        failure: String? = nil,
+        kind: DictationKind = .dictation
     ) {
         self.id = id
         self.createdAt = createdAt
@@ -107,6 +119,7 @@ public struct DictationRecord: Sendable, Equatable, Identifiable {
         self.audioURL = audioURL
         self.audioExpired = audioExpired
         self.failure = failure
+        self.kind = kind
     }
 
     /// Whether the audio can still be used to retry the dictation.

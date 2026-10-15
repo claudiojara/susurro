@@ -307,6 +307,23 @@
         }
       }
     },
+    "history.failure.commandNoResult" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The model gave no usable result, so the text was left as is."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El modelo no dio un resultado útil, así que el texto quedó como estaba."
+          }
+        }
+      }
+    },
     "history.failure.interrupted" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -473,6 +490,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "El texto quedó en el portapapeles."
+          }
+        }
+      }
+    },
+    "history.note.command" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A command over a selection. The selection and the result are not kept."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un comando sobre una selección. No se guardan ni la selección ni el resultado."
           }
         }
       }
@@ -1106,6 +1140,23 @@
         }
       }
     },
+    "menu.preference.commandMode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Command mode on the selection (adds seconds)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modo comando sobre la selección (añade segundos)"
+          }
+        }
+      }
+    },
     "menu.preference.screenText" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1582,6 +1633,108 @@
         }
       }
     },
+    "overlay.command.noResult" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No result; the text was left as is"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin resultado; el texto quedó como estaba"
+          }
+        }
+      }
+    },
+    "overlay.command.noSelection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select text, then hold the command key"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selecciona texto y mantén pulsada la tecla de comando"
+          }
+        }
+      }
+    },
+    "overlay.command.secure" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Password fields are never read"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los campos de contraseña nunca se leen"
+          }
+        }
+      }
+    },
+    "overlay.command.selectionChanged" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selection changed; result on clipboard"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La selección cambió; el resultado está en el portapapeles"
+          }
+        }
+      }
+    },
+    "overlay.command.tooLong" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The selection is too long for a command"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La selección es demasiado larga para un comando"
+          }
+        }
+      }
+    },
+    "overlay.command.unreadable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read the selection. Check Accessibility in the Susurro menu."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo leer la selección. Revisa Accesibilidad en el menú de Susurro."
+          }
+        }
+      }
+    },
     "overlay.error.capture" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1646,6 +1799,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "El servicio de voz no tiene clave de API."
+          }
+        }
+      }
+    },
+    "overlay.error.commandAccessibility" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Command mode needs Accessibility."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El modo comando necesita Accesibilidad."
+          }
+        }
+      }
+    },
+    "overlay.error.commandModel" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence is not available."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence no está disponible."
+          }
+        }
+      }
+    },
+    "overlay.error.commandOff" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Command mode is off."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El modo comando está desactivado."
           }
         }
       }
@@ -2177,6 +2381,40 @@
         }
       }
     },
+    "overlay.replaced" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Replaced · ⌘Z undoes"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reemplazado · ⌘Z deshace"
+          }
+        }
+      }
+    },
+    "overlay.rewriting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rewriting… Esc cancels"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reescribiendo… Esc cancela"
+          }
+        }
+      }
+    },
     "overlay.starting" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2479,6 +2717,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Chat de trabajo"
+          }
+        }
+      }
+    },
+    "settings.command.modelUnavailable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence is not available on this Mac now, so command mode cannot rewrite text."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Intelligence no está disponible ahora en este Mac, así que el modo comando no puede reescribir texto."
           }
         }
       }
@@ -2853,6 +3108,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "fn no se puede combinar con una tecla. Pulsa fn sola o usa otra tecla modificadora."
+          }
+        }
+      }
+    },
+    "settings.hotkey.rejection.inUse" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another Susurro shortcut already uses these keys. Press another one."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otro atajo de Susurro ya usa estas teclas. Pulsa otro."
           }
         }
       }

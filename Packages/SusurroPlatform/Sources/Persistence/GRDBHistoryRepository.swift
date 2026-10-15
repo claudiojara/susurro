@@ -150,7 +150,7 @@ public final class GRDBHistoryRepository: HistoryRepository {
     private static let columns = [
         "id", "createdAt", "durationMs", "status", "rawText", "cleanedText", "finalText", "asrProvider",
         "cleanerProvider", "fallbackReason", "appName", "bundleID", "urlHost", "category", "tone", "styleSource",
-        "delivery", "audioPath", "audioExpired", "failure",
+        "delivery", "audioPath", "audioExpired", "failure", "kind",
     ]
 
     private static func values(of record: DictationRecord) -> [(any DatabaseValueConvertible)?] {
@@ -161,7 +161,7 @@ public final class GRDBHistoryRepository: HistoryRepository {
             record.rawText, record.cleanedText, record.finalText, record.asrProvider?.rawValue,
             record.cleanerProvider, record.fallbackReason, record.appName, record.bundleID, record.urlHost,
             record.category, record.tone, record.styleSource, record.delivery?.rawValue, record.audioURL?.path,
-            record.audioExpired, record.failure,
+            record.audioExpired, record.failure, record.kind.rawValue,
         ]
         return values
     }
@@ -169,7 +169,9 @@ public final class GRDBHistoryRepository: HistoryRepository {
     /// The record a row holds, or nil for one that is not a record this version can read, such as one with a status a
     /// newer version of the app wrote. Such a row is left out of the lists and is not touched.
     private static func record(from row: Row) -> DictationRecord? {
-        guard let id = UUID(uuidString: row["id"]), let status = DictationStatus(rawValue: row["status"]) else {
+        guard let id = UUID(uuidString: row["id"]), let status = DictationStatus(rawValue: row["status"]),
+            let kind = DictationKind(rawValue: row["kind"])
+        else {
             return nil
         }
         let milliseconds: Int64 = row["durationMs"]
@@ -193,7 +195,8 @@ public final class GRDBHistoryRepository: HistoryRepository {
             delivery: (row["delivery"] as String?).flatMap(DictationDelivery.init(rawValue:)),
             audioURL: (row["audioPath"] as String?).map { URL(filePath: $0) },
             audioExpired: row["audioExpired"],
-            failure: row["failure"]
+            failure: row["failure"],
+            kind: kind
         )
     }
 }

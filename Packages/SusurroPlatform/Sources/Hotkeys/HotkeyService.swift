@@ -1,7 +1,9 @@
 import Domain
 import Synchronization
 
-/// The hotkey of the app as a `HotkeySource`, configured by the user's settings (`hotkey.kind` and `hotkey.combo`).
+/// The hotkeys of the app as a `HotkeySource`, configured by the user's settings (`hotkey.kind` and `hotkey.combo`, and
+/// for command mode `hotkey.commandKind` and `hotkey.commandCombo`, listened to while `command.enabled` is on). Both go
+/// into one stream, and each event carries the `HotkeyRole` of the hotkey that gave it.
 ///
 /// Nothing is registered until `events()` is called. Then the service reads the configuration and listens for it. A
 /// keyed hotkey needs no permission. A modifier-only or fn hotkey is not armed until Input Monitoring is granted: the
@@ -93,49 +95,70 @@ public final class HotkeyService: HotkeySource {
             configuration, inputMonitoring: inputMonitoring, secureInputActive: secureInput.isActive())
     }
 
-    /// Listens for the configured hotkey and follows changes of it, until the stream is no longer read.
+    /// The hotkey of each role that is to be listened to: the dictation one always, and the command one while command
+    /// mode is on and it differs from the dictation one (the settings refuse equal hotkeys; this keeps an old pair apart).
+    private func wantedHotkeys() -> [HotkeyRole: HotkeyConfiguration] {
+        let dictation = settings.hotkeyConfiguration(for: .dictate)
+        var wanted: [HotkeyRole: HotkeyConfiguration] = [.dictate: dictation]
+        let command = settings.hotkeyConfiguration(for: .command)
+        if settings.value(for: CommandSettings.enabled), command != dictation { wanted[.command] = command }
+        return wanted
+    }
+
+    /// Listens for the configured hotkeys and follows changes of them, until the stream is no longer read.
     private func supervise(
         changes: AsyncStream<SettingChange>, into continuation: AsyncStream<HotkeyEvent>.Continuation
     ) async {
         let (triggers, trigger) = AsyncStream.makeStream(of: Void.self)
         let forwarding = Task {
-            for await change in changes where change.name.hasPrefix("hotkey.") { trigger.yield() }
+            for await change in changes where change.name.hasPrefix("hotkey.") || change.name.hasPrefix("command.") {
+                trigger.yield()
+            }
         }
         trigger.yield()
-        var listening: Task<Void, Never>?
+        var listening: [HotkeyRole: Task<Void, Never>] = [:]
         var rechecking: Task<Void, Never>?
-        var current: (configuration: HotkeyConfiguration, isArmed: Bool)?
+        var current: [HotkeyRole: (configuration: HotkeyConfiguration, isArmed: Bool)] = [:]
         defer {
             forwarding.cancel()
-            listening?.cancel()
+            listening.values.forEach { $0.cancel() }
             rechecking?.cancel()
             trigger.finish()
         }
         for await _ in triggers {
-            let configuration = settings.hotkeyConfiguration()
-            let isArmed = await status(of: configuration).arming == .armed
+            var wanted: [HotkeyRole: (configuration: HotkeyConfiguration, isArmed: Bool)] = [:]
+            for (role, configuration) in wantedHotkeys() {
+                wanted[role] = (configuration, await status(of: configuration).arming == .armed)
+            }
             rechecking?.cancel()
             rechecking = nil
-            if !isArmed {
+            if wanted.values.contains(where: { !$0.isArmed }) {
                 rechecking = Task { [sleep, recheckInterval] in
                     guard (try? await sleep(recheckInterval)) != nil, !Task.isCancelled else { return }
                     trigger.yield()
                 }
             }
-            if let current, current.configuration == configuration, current.isArmed == isArmed { continue }
-            current = (configuration, isArmed)
-            listening?.cancel()
-            listening = isArmed ? listen(to: configuration, into: continuation) : nil
+            for role in HotkeyRole.allCases {
+                let want = wanted[role]
+                let have = current[role]
+                if want?.configuration == have?.configuration, want?.isArmed == have?.isArmed { continue }
+                current[role] = want
+                listening.removeValue(forKey: role)?.cancel()
+                if let want, want.isArmed {
+                    listening[role] = listen(to: want.configuration, role: role, into: continuation)
+                }
+            }
         }
     }
 
     private func listen(
-        to configuration: HotkeyConfiguration, into continuation: AsyncStream<HotkeyEvent>.Continuation
+        to configuration: HotkeyConfiguration, role: HotkeyRole,
+        into continuation: AsyncStream<HotkeyEvent>.Continuation
     ) -> Task<Void, Never> {
         let transitions = source.transitions(for: configuration)
         return Task { [now] in
             var mapper = HotkeyEventMapper(
-                modifierTarget: configuration.kind == .modifierOnly ? configuration.combo.modifiers : nil)
+                modifierTarget: configuration.kind == .modifierOnly ? configuration.combo.modifiers : nil, role: role)
             for await transition in transitions {
                 if let event = mapper.map(transition, at: now()) { continuation.yield(event) }
             }

@@ -36,6 +36,17 @@ struct LastDictationTests {
         #expect(await last().text() == "newest")
     }
 
+    @Test("a command is never the last dictation, even one whose record had text")
+    func skipsCommands() async throws {
+        try await record("dictated", age: 30)
+        let command = DictationRecord(
+            createdAt: Date(timeIntervalSince1970: 1_800_000_000 - 10), duration: .seconds(2), status: .succeeded,
+            rawText: "make it formal", finalText: "make it formal", kind: .command)
+        try await repository.insert(command)
+
+        #expect(await last().text() == "dictated")
+    }
+
     @Test("a dictation that succeeded with no text is skipped for the one before it")
     func skipsEmptyText() async throws {
         try await record("kept", age: 30)

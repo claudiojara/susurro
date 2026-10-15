@@ -1,7 +1,16 @@
-/// A hotkey transition. `at` is a monotonic timestamp (time since an arbitrary origin); only differences matter.
+/// What a hotkey is for. Each role has a hotkey of its own, and the presses of one never finish a press of the other.
+public enum HotkeyRole: String, Sendable, Equatable, CaseIterable {
+    /// Hold to dictate: the text goes in at the cursor.
+    case dictate
+    /// Hold to say an instruction that rewrites the selected text (command mode).
+    case command
+}
+
+/// A hotkey transition. `at` is a monotonic timestamp (time since an arbitrary origin); only differences matter. `role`
+/// says which hotkey it was.
 public enum HotkeyEvent: Sendable, Equatable {
-    case down(at: Duration)
-    case up(at: Duration)
+    case down(at: Duration, role: HotkeyRole = .dictate)
+    case up(at: Duration, role: HotkeyRole = .dictate)
     /// Escape was pressed. The source delivers it only while Esc is armed (`HotkeySource.setEscapeArmed`), so it never
     /// reaches the coordinator, and never gets swallowed from other apps, while nothing is in flight.
     case escape

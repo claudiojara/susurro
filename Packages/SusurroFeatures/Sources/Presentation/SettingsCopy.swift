@@ -177,6 +177,10 @@ enum SettingsCopy {
             L10n.string(
                 "settings.hotkey.rejection.sameAsDictation",
                 "The dictation hotkey already uses this shortcut. Press another one.")
+        case .alreadyInUse:
+            L10n.string(
+                "settings.hotkey.rejection.inUse",
+                "Another Susurro shortcut already uses these keys. Press another one.")
         }
     }
 

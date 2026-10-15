@@ -372,3 +372,94 @@ struct PasteLastRecorderTests {
         #expect(model.state.canRestoreDefault == false)
     }
 }
+
+@MainActor
+@Suite("Hotkey recorder view model for command mode", .timeLimit(.minutes(1)))
+struct CommandHotkeyRecorderViewModelTests {
+    private static let f5 = 96
+
+    private func until(_ condition: @MainActor () -> Bool) async {
+        while !condition() { await Task.yield() }
+    }
+
+    private func commandModel(_ rig: RecorderRig) -> HotkeyRecorderViewModel {
+        HotkeyRecorderViewModel(binding: .command(rig.settings), source: rig.source, isTakenBySystem: { _ in false })
+    }
+
+    @Test("the command recorder stores the command hotkey and leaves the dictation one alone")
+    func storesTheCommandHotkey() async {
+        let rig = RecorderRig()
+        let model = commandModel(rig)
+        model.begin()
+
+        rig.source.send(.key(code: Self.f5, modifiers: []))
+        await until { model.state.phase == .idle }
+
+        let f5 = HotkeyConfiguration(kind: .keyed, combo: HotkeyCombo(keyCode: Self.f5, modifiers: []))
+        #expect(rig.settings.hotkeyConfiguration(for: .command) == f5)
+        #expect(rig.settings.hotkeyConfiguration() == .standard)
+        #expect(model.state.canRestoreDefault)
+    }
+
+    @Test("a hotkey that the other role uses is refused with the reason, and the recorder goes on listening")
+    func refusesTheOtherRolesHotkey() async {
+        let rig = RecorderRig()
+        let model = commandModel(rig)
+        model.begin()
+
+        rig.source.send(.key(code: 2, modifiers: [.control, .option]))
+        await until { model.state.rejection != nil }
+
+        #expect(model.state.rejection == SettingsCopy.rejection(.alreadyInUse))
+        #expect(rig.settings.hotkeyConfiguration(for: .command) == .command)
+        #expect(rig.source.isListening)
+    }
+
+    @Test("the dictation recorder refuses the command hotkey too")
+    func dictationRefusesTheCommandHotkey() async {
+        let rig = RecorderRig()
+        let model = rig.model()
+        model.begin()
+
+        rig.source.send(.key(code: 2, modifiers: [.control, .option, .shift]))
+        await until { model.state.rejection != nil }
+
+        #expect(model.state.rejection == SettingsCopy.rejection(.alreadyInUse))
+    }
+
+    @Test("restoring the default of the command recorder removes only the command keys")
+    func restoresTheCommandDefault() {
+        let rig = RecorderRig()
+
+        commandModel(rig).restoreDefault()
+
+        #expect(Set(rig.settings.removed) == ["hotkey.commandKind", "hotkey.commandCombo"])
+    }
+
+    @Test("no shortcut of the app can take the keys of another: the paste last shortcut is refused too")
+    func refusesThePasteLastShortcut() async {
+        let rig = RecorderRig()
+        rig.settings.set(HotkeyCombo(keyCode: 9, modifiers: [.control, .option]), for: PasteLastSettings.combo)
+        let model = commandModel(rig)
+        model.begin()
+
+        rig.source.send(.key(code: 9, modifiers: [.control, .option]))
+        await until { model.state.rejection != nil }
+
+        #expect(model.state.rejection == SettingsCopy.rejection(.alreadyInUse))
+    }
+
+    @Test("the paste last shortcut cannot take the command hotkey")
+    func pasteLastRefusesTheCommandHotkey() async {
+        let rig = RecorderRig()
+        let model = HotkeyRecorderViewModel(
+            binding: .pasteLast(rig.settings), source: rig.source, isTakenBySystem: { _ in false })
+        model.begin()
+
+        rig.source.send(.key(code: 2, modifiers: [.control, .option, .shift]))
+        await until { model.state.rejection != nil }
+
+        #expect(model.state.rejection == SettingsCopy.rejection(.alreadyInUse))
+        #expect(rig.settings.value(for: PasteLastSettings.combo) == nil)
+    }
+}

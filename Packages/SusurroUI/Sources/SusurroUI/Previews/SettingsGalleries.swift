@@ -148,6 +148,21 @@ import SwiftUI
         }
     }
 
+    extension CommandModeSection {
+        struct Gallery: View {
+            @Environment(\.theme) private var theme
+
+            var body: some View {
+                HStack(alignment: .top, spacing: theme.spacing(.lg)) {
+                    CommandModeSection<EmptyView>(SettingsFixtures.commandMode, actions: .none) { EmptyView() }
+                    CommandModeSection<EmptyView>(SettingsFixtures.commandModeUnavailable, actions: .none) {
+                        EmptyView()
+                    }
+                }
+            }
+        }
+    }
+
     extension HotkeyRecorder {
         struct Gallery: View {
             @Environment(\.theme) private var theme

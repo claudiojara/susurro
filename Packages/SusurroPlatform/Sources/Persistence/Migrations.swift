@@ -7,35 +7,44 @@ enum HistoryMigrations {
 
     static func migrator() -> DatabaseMigrator {
         var migrator = DatabaseMigrator()
-        migrator.registerMigration("v1") { db in
-            try db.create(table: tableName) { table in
-                table.primaryKey("id", .text)
-                // Seconds since 1970 as a real number, so a date reads back exactly as it was written.
-                table.column("createdAt", .double).notNull()
-                table.column("durationMs", .integer).notNull()
-                table.column("status", .text).notNull()
-                table.column("rawText", .text)
-                table.column("cleanedText", .text)
-                table.column("finalText", .text)
-                table.column("asrProvider", .text)
-                table.column("cleanerProvider", .text)
-                table.column("fallbackReason", .text)
-                table.column("appName", .text)
-                table.column("bundleID", .text)
-                table.column("urlHost", .text)
-                table.column("category", .text)
-                table.column("tone", .text)
-                table.column("styleSource", .text)
-                table.column("delivery", .text)
-                // The path of the stored audio, or null once it expired or when there is none.
-                table.column("audioPath", .text)
-                table.column("audioExpired", .boolean).notNull().defaults(to: false)
-                // The name of the failure, never the text of an error.
-                table.column("failure", .text)
+        migrator.registerMigration("v1", migrate: createV1)
+        // What an attempt was for: a dictation, or a command over a selection. The records before it were dictations.
+        migrator.registerMigration("v2") { db in
+            try db.alter(table: tableName) { table in
+                table.add(column: "kind", .text).notNull().defaults(to: "dictation")
             }
-            try db.create(index: "dictationsByCreatedAt", on: tableName, columns: ["createdAt", "id"])
-            try db.create(index: "dictationsByStatus", on: tableName, columns: ["status"])
         }
         return migrator
+    }
+
+    /// The table as the first version created it.
+    static func createV1(_ db: Database) throws {
+        try db.create(table: tableName) { table in
+            table.primaryKey("id", .text)
+            // Seconds since 1970 as a real number, so a date reads back exactly as it was written.
+            table.column("createdAt", .double).notNull()
+            table.column("durationMs", .integer).notNull()
+            table.column("status", .text).notNull()
+            table.column("rawText", .text)
+            table.column("cleanedText", .text)
+            table.column("finalText", .text)
+            table.column("asrProvider", .text)
+            table.column("cleanerProvider", .text)
+            table.column("fallbackReason", .text)
+            table.column("appName", .text)
+            table.column("bundleID", .text)
+            table.column("urlHost", .text)
+            table.column("category", .text)
+            table.column("tone", .text)
+            table.column("styleSource", .text)
+            table.column("delivery", .text)
+            // The path of the stored audio, or null once it expired or when there is none.
+            table.column("audioPath", .text)
+            table.column("audioExpired", .boolean).notNull().defaults(to: false)
+            // The name of the failure, never the text of an error.
+            table.column("failure", .text)
+        }
+        try db.create(index: "dictationsByCreatedAt", on: tableName, columns: ["createdAt", "id"])
+        try db.create(index: "dictationsByStatus", on: tableName, columns: ["status"])
     }
 }

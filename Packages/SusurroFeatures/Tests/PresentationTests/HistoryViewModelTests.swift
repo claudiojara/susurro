@@ -380,6 +380,28 @@ struct HistoryViewModelTests {
         #expect(model.state.errorMessage == HistoryCopy.historyUnreadable)
     }
 
+    // MARK: Commands
+
+    @Test("a command shows its instruction and says it was a command, and one that replaced nothing says why")
+    func commands() {
+        let mapper = HistoryRowMapper(calendar: Self.calendar, locale: Locale(identifier: "en_GB"))
+        let now = Date(timeIntervalSince1970: 1_800_000_000)
+        let replaced = DictationRecord(
+            createdAt: now, duration: .seconds(2), status: .succeeded, rawText: "make it formal", delivery: .inserted,
+            kind: .command)
+        var unchanged = replaced
+        unchanged.status = .failed
+        unchanged.failure = "commandNoResult"
+        unchanged.delivery = nil
+
+        let row = mapper.row(for: replaced, now: now)
+
+        #expect(row.text == "make it formal")
+        #expect(row.note == HistoryCopy.command)
+        #expect(mapper.row(for: unchanged, now: now).note?.hasPrefix(HistoryCopy.command) == true)
+        #expect(mapper.row(for: unchanged, now: now).note?.contains(HistoryCopy.failure("commandNoResult")) == true)
+    }
+
     // MARK: Timestamps
 
     @Test("a dictation of today, yesterday, this year, and an earlier year each get their form of the date")

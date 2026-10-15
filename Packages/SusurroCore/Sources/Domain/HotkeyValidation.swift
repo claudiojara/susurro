@@ -16,14 +16,27 @@ public enum HotkeyRejection: Sendable, Equatable, CaseIterable {
     case needsKey
     /// The dictation hotkey already uses the combo.
     case sameAsDictation
+    /// Another hotkey of the app (dictation or command mode) is already this one.
+    case alreadyInUse
 }
 
 /// The rules a hotkey has to follow. A pure function, so that the settings and the tests share them.
 public enum HotkeyValidation {
     /// Why `configuration` is not allowed, or nil when it is.
-    /// - Parameter isTakenBySystem: Whether an enabled shortcut of the system already uses the combo. It is asked only
-    ///   about a keyed combo that passed every other rule.
+    /// - Parameters:
+    ///   - isTakenBySystem: Whether an enabled shortcut of the system already uses the combo. It is asked only about a
+    ///     keyed combo that passed every other rule.
+    ///   - inUse: The hotkeys of the app's other roles. A hotkey equal to one of them is refused, once it passed the
+    ///     rules above.
     public static func rejection(
+        of configuration: HotkeyConfiguration, isTakenBySystem: (HotkeyCombo) -> Bool,
+        inUse: [HotkeyConfiguration] = []
+    ) -> HotkeyRejection? {
+        if let rejection = ruleRejection(of: configuration, isTakenBySystem: isTakenBySystem) { return rejection }
+        return inUse.contains(configuration) ? .alreadyInUse : nil
+    }
+
+    private static func ruleRejection(
         of configuration: HotkeyConfiguration, isTakenBySystem: (HotkeyCombo) -> Bool
     ) -> HotkeyRejection? {
         let combo = configuration.combo

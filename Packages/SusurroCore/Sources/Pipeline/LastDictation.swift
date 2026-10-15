@@ -21,9 +21,9 @@ public enum LastDictationOutcome: Sendable, Equatable {
     }
 }
 
-/// Pastes or copies the final text of the most recent dictation that succeeded, as the history kept it. The paste goes
-/// through the same inserter as a dictation, so it waits its turn behind one, and the user's clipboard comes back after
-/// it. The text goes wherever the focus is: no target app is checked.
+/// Pastes or copies the final text of the most recent dictation that succeeded, as the history kept it; a command is
+/// never one. The paste goes through the same inserter as a dictation, so it waits its turn behind one, and the user's
+/// clipboard comes back after it. The text goes wherever the focus is: no target app is checked.
 public struct LastDictation: Sendable {
     private let repository: any HistoryRepository
     private let inserter: any TextInserter
@@ -49,7 +49,10 @@ public struct LastDictation: Sendable {
         var offset = 0
         while offset < searchLimit {
             guard let page = try? await repository.page(offset: offset, limit: pageSize) else { return nil }
-            let found = page.first { $0.status == .succeeded && !($0.finalText ?? "").isEmpty }
+            // A command keeps no text of its own: its instruction is not something to paste.
+            let found = page.first {
+                $0.kind == .dictation && $0.status == .succeeded && !($0.finalText ?? "").isEmpty
+            }
             if let text = found?.finalText { return text }
             if page.count < pageSize { return nil }
             offset += page.count

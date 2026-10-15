@@ -162,7 +162,7 @@ public final class OverlayViewModel: OverlayViewModeling {
     private func replacesAHeldState(_ pipeline: PipelineState) -> Bool {
         switch pipeline {
         case .starting, .recording, .error: true
-        case .inserted, .notice, .idle, .transcribing, .polishing: false
+        case .inserted, .replaced, .notice, .idle, .transcribing, .polishing, .rewriting: false
         }
     }
 

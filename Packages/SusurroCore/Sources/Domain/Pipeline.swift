@@ -17,6 +17,8 @@ public enum NoticeKind: Sendable, Equatable {
     case noLastDictation
     /// The last dictation was put on the clipboard from the menu.
     case lastDictationCopied
+    /// About a command over the selection.
+    case command(CommandNotice)
 }
 
 /// Where the user goes to recover from an error.
@@ -52,6 +54,8 @@ public enum PipelineError: Error, Sendable, Equatable {
     case providerNotUsable(ProviderBlocker)
     /// The recording could not be written to disk and verified, so it was not transcribed. The text is the reason.
     case persistenceFailed(String)
+    /// A command was asked for and cannot run. Nothing was recorded.
+    case commandUnavailable(CommandUnavailableReason)
 
     public enum Stage: Sendable, Equatable {
         case readiness
@@ -77,12 +81,14 @@ public enum PipelineError: Error, Sendable, Equatable {
         case .notInserted(let reason): "notInserted.\(reason)"
         case .persistenceFailed: "persistenceFailed"
         case .providerNotUsable(let blocker): "providerNotUsable.\(blocker)"
+        case .commandUnavailable(let reason): "commandUnavailable.\(reason)"
         }
     }
 
     public var remedy: Remedy {
         switch self {
-        case .microphoneNotGranted: .permissions
+        case .microphoneNotGranted, .commandUnavailable(.accessibilityMissing): .permissions
+        case .commandUnavailable: .settings
         case .recognizerNotInstalled, .providerNotUsable: .settings
         case .cloudKeyMissing: .addKey
         case .recognizerUnavailable(_, let retryable): retryable ? .retry : .settings
@@ -103,7 +109,11 @@ public enum PipelineState: Sendable, Equatable {
     case transcribing(progress: Double?)
     /// The transcript is being cleaned up: punctuation, filler words, and the tone of the app it goes to.
     case polishing
+    /// A command is rewriting the selection with the on-device model. Esc cancels it.
+    case rewriting
     case inserted
+    /// A command replaced the selection with its result. One undo of the app brings the selection back.
+    case replaced
     case notice(NoticeKind)
     case error(PipelineError)
 }

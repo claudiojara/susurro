@@ -13,9 +13,10 @@ struct OverlayTiming: Equatable, Sendable {
     func dwell(for state: PipelineState) -> Duration? {
         switch state {
         case .inserted: inserted
+        case .replaced: notice
         case .notice: notice
         case .error: error
-        case .idle, .starting, .recording, .transcribing, .polishing: nil
+        case .idle, .starting, .recording, .transcribing, .polishing, .rewriting: nil
         }
     }
 }

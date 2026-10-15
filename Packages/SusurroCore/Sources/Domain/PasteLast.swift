@@ -12,14 +12,15 @@ public protocol ShortcutPressSource: Sendable {
     func presses() -> AsyncStream<Void>
 }
 
-/// The rules of the paste last dictation shortcut: those of every hotkey, a key to tap, and not the dictation hotkey.
+/// The rules of the paste last dictation shortcut: those of every hotkey, a key to tap, not the dictation hotkey, and
+/// none of the app's other hotkeys (`inUse`, such as the command one).
 public enum PasteLastValidation {
     public static func rejection(
         of configuration: HotkeyConfiguration, dictation: HotkeyConfiguration,
-        isTakenBySystem: (HotkeyCombo) -> Bool
+        isTakenBySystem: (HotkeyCombo) -> Bool, inUse: [HotkeyConfiguration] = []
     ) -> HotkeyRejection? {
         guard configuration.kind == .keyed else { return .needsKey }
         if configuration == dictation { return .sameAsDictation }
-        return HotkeyValidation.rejection(of: configuration, isTakenBySystem: isTakenBySystem)
+        return HotkeyValidation.rejection(of: configuration, isTakenBySystem: isTakenBySystem, inUse: inUse)
     }
 }

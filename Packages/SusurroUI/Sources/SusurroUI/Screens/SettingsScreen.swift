@@ -3,7 +3,8 @@ import SwiftUI
 
 /// The settings: a bar of tabs and the tab in use. The window has the size the theme says and does not change from one
 /// tab to the next, so a tab with more in it scrolls. A pure function of the state and the theme: what the controls do
-/// is passed in, and the hotkey recorder is a slot the app fills.
+/// is passed in, and the hotkey recorder is a slot the app fills, as are the cards the Hotkey tab shows below the
+/// shortcuts (`hotkeyCards`), such as command mode.
 struct SettingsScreen<Recorder: View>: View {
     @Environment(\.theme) private var theme
     @Environment(\.staticControls) private var isStatic
@@ -13,15 +14,19 @@ struct SettingsScreen<Recorder: View>: View {
     private let recorder: Recorder
     /// The recorder of the shortcut that pastes the last dictation, a slot the app fills like `recorder`.
     private let pasteLastRecorder: AnyView
+    /// More cards of the Hotkey tab, below the shortcuts, which the app fills.
+    private let hotkeyCards: AnyView
 
     init(
         state: SettingsViewState, actions: SettingsActions, tab: SettingsTab = .general,
-        pasteLastRecorder: AnyView = AnyView(EmptyView()), @ViewBuilder recorder: () -> Recorder
+        pasteLastRecorder: AnyView = AnyView(EmptyView()), hotkeyCards: AnyView = AnyView(EmptyView()),
+        @ViewBuilder recorder: () -> Recorder
     ) {
         self.state = state
         self.actions = actions
         self.recorder = recorder()
         self.pasteLastRecorder = pasteLastRecorder
+        self.hotkeyCards = hotkeyCards
         _tab = State(initialValue: tab)
     }
 
@@ -63,6 +68,7 @@ struct SettingsScreen<Recorder: View>: View {
             VStack(spacing: theme.spacing(.md)) {
                 HotkeySection(state.hotkey, actions: actions.hotkey) { recorder }
                 PasteLastSection(state.pasteLast) { pasteLastRecorder }
+                hotkeyCards
             }
         case .style: StyleTableEditor(state.style, actions: actions.style)
         case .dictionary: DictionaryTab(state.dictionary, actions: actions.dictionary)

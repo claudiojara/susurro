@@ -108,7 +108,12 @@ public actor DictationCoordinator {
     /// The jobs that are queued or running, oldest first.
     private var jobs: [UUID] = []
     /// The recordings of the jobs that have not started, so that a cancelled one still gets its record.
-    private var unstarted: [UUID: VerifiedRecording] = [:]
+    private var unstarted: [UUID: (recording: VerifiedRecording, kind: DictationKind)] = [:]
+    /// Keeps the two hotkeys apart: while one is held, or its recording goes on, the other goes nowhere.
+    private var gate = RoleGate()
+    /// What the recording that is starting or running is for: a dictation, or a command with the selection it was said
+    /// over.
+    private var recordingIntent = DictationIntent.dictate
     /// The load progress of the model while the running job waits for it.
     private var jobProgress: Double?
     /// The one shutdown, so that every caller waits for the same work.
@@ -224,9 +229,18 @@ public actor DictationCoordinator {
     /// the event is applied, before any transcription it starts has finished.
     public func handle(_ event: HotkeyEvent) async {
         guard phase != .stopped else { return }
+        switch gate.decide(event, phase: activation.phase) {
+        case .drop:
+            return
+        case .closeWindowThenAdmit:
+            timers.cancel(.doubleTap)
+            await dispatch(.doubleTapTimeout)
+        case .admit:
+            break
+        }
         switch event {
-        case .down(let time): await pressed(at: time)
-        case .up(let time): await released(at: time)
+        case .down(let time, let role): await pressed(at: time, role: role)
+        case .up(let time, let role): await released(at: time, role: role)
         case .escape: await run(.escape)
         }
     }
@@ -241,7 +255,7 @@ public actor DictationCoordinator {
 
     // MARK: Events
 
-    private func pressed(at time: Duration) async {
+    private func pressed(at time: Duration, role: HotkeyRole) async {
         guard activation.startsCaptureOnPress else {
             if activation.acceptsPress { beginKeyPress() }
             return await run(.down(at: time))
@@ -256,15 +270,39 @@ public actor DictationCoordinator {
         pendingEnd = nil
         submittedRecordingCancelled = false
         beginKeyPress()
-        let failure = await startFailure()
+        var failure = await startFailure()
         guard phase == .starting else { return }  // shut down meanwhile
+        recordingIntent = .dictate
+        if failure == nil, role == .command {
+            switch await commandStart() {
+            case .selection(let selection): recordingIntent = .command(selection: selection)
+            case .failure(let error): failure = error
+            case .notice(let notice):
+                guard phase == .starting else { return }
+                // Nothing to rewrite: the reducer never hears of the press, and nothing is recorded.
+                return await settle(.notice(.command(notice)))
+            }
+            guard phase == .starting else { return }
+        }
         await run(.down(at: time, startFailure: failure))
     }
 
-    private func released(at time: Duration) async {
+    private func released(at time: Duration, role: HotkeyRole) async {
         keyIsDown = false
         keyUp.finish()
         await run(.up(at: time))
+        // Command mode is hold only: a tap of its key ends there, so a second tap starts a hold of its own and never
+        // hands-free. The reducer is the same for both keys; its double-tap window is closed here.
+        if role == .command, case .awaitingSecondTap = activation.phase {
+            timers.cancel(.doubleTap)
+            await dispatch(.doubleTapTimeout)
+        }
+    }
+
+    /// What a command needs as its key goes down. Without command mode in the pipeline it is turned off.
+    private func commandStart() async -> CommandStage.Start {
+        guard let command = pipeline.command else { return .failure(.commandUnavailable(.turnedOff)) }
+        return await command.start(permissions: permissions, sleep: sleep)
     }
 
     /// The key of a dictation went down. The text that waits for the key waits for this press. The key of an earlier
@@ -345,6 +383,8 @@ public actor DictationCoordinator {
     private func beginContextCapture() async {
         dropContextJob()
         dictationTarget = await frontmost?.current()
+        // A command needs the app it was said in and nothing more: its selection is read already, and it has no style.
+        guard recordingIntent == .dictate else { return }
         contextJob = context.map { ContextJob(app: dictationTarget, pipeline: $0) }
         vocabularyJob = vocabulary.map { VocabularyJob(context: contextJob, pipeline: $0) }
     }
@@ -567,7 +607,7 @@ public actor DictationCoordinator {
             return await settle(.error(.captureFailed(message)), endsJob: end.isJob)
         case .recorded(let verified, let notice):
             if !end.isJob || submittedRecordingCancelled {
-                await pipeline.keepCancelled(verified)
+                await pipeline.keepCancelled(verified, kind: recordingIntent.kind)
                 return await settle(endsJob: end.isJob)
             }
             if let notice { publish(.notice(notice)) }
@@ -582,7 +622,8 @@ public actor DictationCoordinator {
             recordingState = nil
             phase = .idle
             await enqueue(
-                verified, waitingFor: release, target: target, context: context, vocabulary: vocabulary)
+                verified, waitingFor: release, target: target, context: context, vocabulary: vocabulary,
+                intent: recordingIntent)
         }
     }
 
@@ -611,17 +652,17 @@ public actor DictationCoordinator {
     /// Queues a finished recording behind the ones before it.
     private func enqueue(
         _ recording: VerifiedRecording, waitingFor release: AsyncStream<Void>?, target: AppIdentity?,
-        context: ContextJob?, vocabulary: VocabularyJob?
+        context: ContextJob?, vocabulary: VocabularyJob?, intent: DictationIntent
     ) async {
         let id = recording.id.rawValue
         jobs.append(id)
-        unstarted[id] = recording
+        unstarted[id] = (recording, intent.kind)
         showJob(.transcribing(progress: nil))
         var waitForRelease: (@Sendable () async throws -> Void)?
         if let release { waitForRelease = { try await self.waitForKeyRelease(release) } }
         let job = DictationJob(
             recording: recording, waitForKeyRelease: waitForRelease, target: target, context: context,
-            vocabulary: vocabulary)
+            vocabulary: vocabulary, intent: intent)
         await queue.enqueue(id) { await self.run(job) }
     }
 
@@ -638,7 +679,7 @@ public actor DictationCoordinator {
             // It never started, so the pipeline has not made its record: the audio is kept as a cancelled one.
             jobs.removeAll { $0 == newest }
             await queue.cancel(newest)
-            await pipeline.keepCancelled(waiting)
+            await pipeline.keepCancelled(waiting.recording, kind: waiting.kind)
             await dispatch(.jobFinished)
             publish(restingState())
         } else {
@@ -675,7 +716,7 @@ public actor DictationCoordinator {
         publish(state)
         publish(restingState())
         switch state {
-        case .inserted, .notice(.copiedToClipboard): return .succeeded
+        case .inserted, .replaced, .notice(.copiedToClipboard), .notice(.command(.selectionChanged)): return .succeeded
         case .notice: return .noSpeech
         default: return .failed
         }

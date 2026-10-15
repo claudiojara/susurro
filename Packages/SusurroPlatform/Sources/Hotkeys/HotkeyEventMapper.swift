@@ -17,10 +17,14 @@ enum KeyTransition: Sendable, Equatable {
 struct HotkeyEventMapper: Sendable {
     private var isHeld = false
     private let modifierTarget: HotkeyModifiers?
+    private let role: HotkeyRole
 
-    /// - Parameter modifierTarget: The modifiers of a modifier-only hotkey. Nil for a keyed one, which ignores flags.
-    init(modifierTarget: HotkeyModifiers? = nil) {
+    /// - Parameters:
+    ///   - modifierTarget: The modifiers of a modifier-only hotkey. Nil for a keyed one, which ignores flags.
+    ///   - role: The role of the hotkey, which every event it gives carries.
+    init(modifierTarget: HotkeyModifiers? = nil, role: HotkeyRole = .dictate) {
         self.modifierTarget = modifierTarget
+        self.role = role
     }
 
     /// Returns the event for `transition`, or nil when it repeats or has no matching press.
@@ -39,12 +43,12 @@ struct HotkeyEventMapper: Sendable {
     private mutating func press(at time: Duration) -> HotkeyEvent? {
         guard !isHeld else { return nil }
         isHeld = true
-        return .down(at: time)
+        return .down(at: time, role: role)
     }
 
     private mutating func release(at time: Duration) -> HotkeyEvent? {
         guard isHeld else { return nil }
         isHeld = false
-        return .up(at: time)
+        return .up(at: time, role: role)
     }
 }

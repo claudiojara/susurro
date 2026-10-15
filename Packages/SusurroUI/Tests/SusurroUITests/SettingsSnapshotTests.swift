@@ -17,6 +17,7 @@ struct SettingsSnapshotTests {
     nonisolated private static let sections: [SettingsCanvas] = [
         .general, .generalPinned, .providers, .hotkey, .hotkeyWarnings, .hotkeyRecording, .appearance,
     ]
+    nonisolated private static let commandMode: [SettingsCanvas] = [.commandMode, .commandModeUnavailable]
     nonisolated private static let recorders: [SettingsCanvas] = [
         .recorderIdle, .recorderCustom, .recorderListening, .recorderHolding, .recorderRefused,
     ]
@@ -40,6 +41,11 @@ struct SettingsSnapshotTests {
 
     @Test("the General, Providers, Hotkey, and Appearance sections", arguments: sections, Probe.schemes)
     func sections(canvas: SettingsCanvas, scheme: ColorScheme) {
+        assertViewSnapshot(of: canvas.view, size: canvas.size, scheme: scheme, named: "\(canvas)-\(scheme.pictureName)")
+    }
+
+    @Test("the command mode card, on and with Apple Intelligence unavailable", arguments: commandMode, Probe.schemes)
+    func commandMode(canvas: SettingsCanvas, scheme: ColorScheme) {
         assertViewSnapshot(of: canvas.view, size: canvas.size, scheme: scheme, named: "\(canvas)-\(scheme.pictureName)")
     }
 
