@@ -255,10 +255,52 @@ public nonisolated struct DictionarySettingsState: Equatable, Sendable {
     public let terms: [String]
     /// Why the last change was refused, or nil.
     public let error: String?
+    public let replacements: [ReplacementRowState]
+    /// Why the last change to a replacement rule was refused, or nil.
+    public let replacementError: String?
+    public let snippets: [SnippetRowState]
+    /// Why the last change to a snippet was refused, or nil.
+    public let snippetError: String?
+    /// Whether hesitations and simple self-corrections are removed.
+    public let removesFillers: Bool
 
-    public init(terms: [String], error: String?) {
+    public init(
+        terms: [String], error: String?, replacements: [ReplacementRowState] = [], replacementError: String? = nil,
+        snippets: [SnippetRowState] = [], snippetError: String? = nil, removesFillers: Bool = true
+    ) {
         self.terms = terms
         self.error = error
+        self.replacements = replacements
+        self.replacementError = replacementError
+        self.snippets = snippets
+        self.snippetError = snippetError
+        self.removesFillers = removesFillers
+    }
+}
+
+/// A replacement rule as the Dictionary tab lists it: what is said and how it is written.
+public nonisolated struct ReplacementRowState: Equatable, Sendable, Identifiable {
+    public let spoken: String
+    public let written: String
+
+    public var id: String { spoken }
+
+    public init(spoken: String, written: String) {
+        self.spoken = spoken
+        self.written = written
+    }
+}
+
+/// A voice snippet as the Dictionary tab lists it: the phrase that triggers it and the text it inserts.
+public nonisolated struct SnippetRowState: Equatable, Sendable, Identifiable {
+    public let trigger: String
+    public let text: String
+
+    public var id: String { trigger }
+
+    public init(trigger: String, text: String) {
+        self.trigger = trigger
+        self.text = text
     }
 }
 
@@ -347,6 +389,15 @@ public protocol SettingsViewModeling: AnyObject {
     func addTerm(_ term: String)
     func editTerm(_ old: String, to new: String)
     func removeTerm(_ term: String)
+    func addReplacement(spoken: String, written: String)
+    /// Replaces the rule for `old` with a new spoken and written form.
+    func editReplacement(_ old: String, spoken: String, written: String)
+    func removeReplacement(_ spoken: String)
+    func addSnippet(trigger: String, text: String)
+    /// Replaces the snippet of `old` with a new trigger and text.
+    func editSnippet(_ old: String, trigger: String, text: String)
+    func removeSnippet(_ trigger: String)
+    func setRemoveFillers(_ isOn: Bool)
 
     // Appearance
     func selectTheme(_ id: String)

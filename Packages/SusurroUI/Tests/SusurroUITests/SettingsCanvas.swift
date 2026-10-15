@@ -17,6 +17,7 @@ enum SettingsCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
     case recorderIdle, recorderCustom, recorderListening, recorderHolding, recorderRefused
     case styleSeeds, styleOverrides
     case dictionaryEmpty, dictionaryPopulated
+    case replacementsEmpty, replacementsPopulated, snippetsEmpty, snippetsPopulated, fillers
     case appearance
     case audio, audioMissing
     case pasteLast, pasteLastUnassigned
@@ -52,6 +53,11 @@ enum SettingsCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
         case .styleOverrides: CGSize(width: Self.sectionWidth, height: 988)
         case .dictionaryEmpty: CGSize(width: Self.sectionWidth, height: 195)
         case .dictionaryPopulated: CGSize(width: Self.sectionWidth, height: 301)
+        case .replacementsEmpty: CGSize(width: Self.sectionWidth, height: 200)
+        case .replacementsPopulated: CGSize(width: Self.sectionWidth, height: 260)
+        case .snippetsEmpty: CGSize(width: Self.sectionWidth, height: 222)
+        case .snippetsPopulated: CGSize(width: Self.sectionWidth, height: 338)
+        case .fillers: CGSize(width: Self.sectionWidth, height: 150)
         case .appearance: CGSize(width: Self.sectionWidth, height: 236)
         case .audio: CGSize(width: Self.sectionWidth, height: 272)
         case .audioMissing: CGSize(width: Self.sectionWidth, height: 298)
@@ -94,6 +100,11 @@ enum SettingsCanvas: CaseIterable, Sendable, CustomTestStringConvertible {
         case .styleOverrides: AnyView(StyleTableEditor(SettingsFixtures.styleWithOverrides, actions: .none))
         case .dictionaryEmpty: AnyView(DictionaryEditor(SettingsFixtures.dictionaryEmpty, actions: .none))
         case .dictionaryPopulated: AnyView(DictionaryEditor(SettingsFixtures.dictionary, actions: .none))
+        case .replacementsEmpty: AnyView(ReplacementRulesEditor(SettingsFixtures.textRulesEmpty, actions: .none))
+        case .replacementsPopulated: AnyView(ReplacementRulesEditor(SettingsFixtures.textRules, actions: .none))
+        case .snippetsEmpty: AnyView(SnippetsEditor(SettingsFixtures.textRulesEmpty, actions: .none))
+        case .snippetsPopulated: AnyView(SnippetsEditor(SettingsFixtures.textRules, actions: .none))
+        case .fillers: AnyView(FillerRemovalCard(isOn: true) { _ in })
         case .appearance: AnyView(AppearanceSection(SettingsFixtures.appearance, actions: .none))
         case .audio: AnyView(AudioSection(SettingsFixtures.audio, actions: .none))
         case .audioMissing: AnyView(AudioSection(SettingsFixtures.audioMissing, actions: .none))

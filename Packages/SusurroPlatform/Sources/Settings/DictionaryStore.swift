@@ -6,7 +6,7 @@ import Synchronization
 /// (`dictionary.terms`), so it persists with the other settings and survives a relaunch. Terms keep the spelling the user
 /// typed; two terms that differ only in case are one term.
 public final class DictionaryStore: UserDictionary, DictionaryTermStore {
-    private let settings: any SettingsStore
+    let settings: any SettingsStore
     /// Serializes a read-change-write, so two edits at once cannot lose one of them.
     private let edits = Mutex(())
 
@@ -57,10 +57,15 @@ public final class DictionaryStore: UserDictionary, DictionaryTermStore {
     }
 
     private func edit(_ change: (inout [String]) throws -> Void) throws {
+        try edit(DictionarySettings.terms, change)
+    }
+
+    /// Reads, changes, and writes one list of the dictionary under the lock. A change that throws writes nothing.
+    func edit<Value>(_ key: SettingKey<Value>, _ change: (inout Value) throws -> Void) throws {
         try edits.withLock { _ in
-            var terms = settings.value(for: DictionarySettings.terms)
-            try change(&terms)
-            settings.set(terms, for: DictionarySettings.terms)
+            var value = settings.value(for: key)
+            try change(&value)
+            settings.set(value, for: key)
         }
     }
 

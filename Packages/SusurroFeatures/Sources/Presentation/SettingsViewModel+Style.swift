@@ -92,9 +92,7 @@ extension SettingsViewModel {
 
     // MARK: Dictionary
 
-    var dictionaryState: DictionarySettingsState {
-        DictionarySettingsState(terms: dependencies.dictionary.terms(), error: dictionaryError)
-    }
+    // The state of the whole tab is in `+TextRules`.
 
     public func addTerm(_ term: String) {
         perform { try dependencies.dictionary.add(term) }

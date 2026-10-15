@@ -39,6 +39,24 @@ public protocol DictionaryTermStore: Sendable {
     /// Replaces `old` with `new`. The new term follows the same rules as an added one. A missing `old` changes nothing.
     func edit(_ old: String, to new: String) throws
     func remove(_ term: String)
+
+    /// The replacement rules, in the order they were added.
+    func replacements() -> [ReplacementRule]
+    /// Throws `DictionaryError` when a form is empty or too long, or another rule has the same spoken form (case and
+    /// accents ignored).
+    func addReplacement(_ rule: ReplacementRule) throws
+    /// Replaces the rule for `spoken` with `rule`, in the same place. A missing rule changes nothing.
+    func editReplacement(_ spoken: String, to rule: ReplacementRule) throws
+    func removeReplacement(_ spoken: String)
+
+    /// The voice snippets, in the order they were added.
+    func snippets() -> [VoiceSnippet]
+    /// Throws `DictionaryError` when the trigger or the text is empty or too long, or another snippet has the same
+    /// trigger (case and accents ignored).
+    func addSnippet(_ snippet: VoiceSnippet) throws
+    /// Replaces the snippet of `trigger` with `snippet`, in the same place. A missing snippet changes nothing.
+    func editSnippet(_ trigger: String, to snippet: VoiceSnippet) throws
+    func removeSnippet(_ trigger: String)
 }
 
 /// Why a dictionary edit was refused.

@@ -235,6 +235,13 @@ import SwiftUI
         func addTerm(_ term: String) {}
         func editTerm(_ old: String, to new: String) {}
         func removeTerm(_ term: String) {}
+        func addReplacement(spoken: String, written: String) {}
+        func editReplacement(_ old: String, spoken: String, written: String) {}
+        func removeReplacement(_ spoken: String) {}
+        func addSnippet(trigger: String, text: String) {}
+        func editSnippet(_ old: String, trigger: String, text: String) {}
+        func removeSnippet(_ trigger: String) {}
+        func setRemoveFillers(_ isOn: Bool) {}
         func selectTheme(_ id: String) {}
         func setAppearance(_ id: String) {}
         func selectMicrophone(_ id: String) {}

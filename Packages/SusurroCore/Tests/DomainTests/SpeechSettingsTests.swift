@@ -46,7 +46,8 @@ struct SpeechSettingsTests {
 
     @Test("no two settings share a storage name")
     func uniqueNames() throws {
-        try requireUniqueStorageNames(SpeechSettings.all + CleanupSettings.all + GeneralSettings.all)
+        try requireUniqueStorageNames(
+            SpeechSettings.all + CleanupSettings.all + GeneralSettings.all + TextRuleSettings.all)
     }
 
     @Test("an account is named as the Keychain item the user fills in")

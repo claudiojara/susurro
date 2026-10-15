@@ -8,6 +8,13 @@ public protocol EntityTagger: Sendable {
 /// order the user keeps them.
 public protocol UserDictionary: Sendable {
     func terms() -> [String]
+    /// What the recognizer boosts and the cleaner is told to spell as given: the terms, then the written forms of the
+    /// replacement rules that have a letter in them. The terms alone unless an implementation adds more.
+    func vocabularyTerms() -> [String]
+}
+
+extension UserDictionary {
+    public func vocabularyTerms() -> [String] { terms() }
 }
 
 /// The bounds of the vocabulary that the recognizer and the cleaner receive, and of the terms the user can keep.

@@ -43,6 +43,36 @@ public struct DictionaryActions {
     public var add: (String) -> Void
     public var edit: (_ old: String, _ new: String) -> Void
     public var remove: (String) -> Void
+    public var addReplacement: (_ spoken: String, _ written: String) -> Void
+    public var editReplacement: (_ old: String, _ spoken: String, _ written: String) -> Void
+    public var removeReplacement: (_ spoken: String) -> Void
+    public var addSnippet: (_ trigger: String, _ text: String) -> Void
+    public var editSnippet: (_ old: String, _ trigger: String, _ text: String) -> Void
+    public var removeSnippet: (_ trigger: String) -> Void
+    public var removeFillers: (Bool) -> Void
+
+    public init(
+        add: @escaping (String) -> Void, edit: @escaping (_ old: String, _ new: String) -> Void,
+        remove: @escaping (String) -> Void,
+        addReplacement: @escaping (_ spoken: String, _ written: String) -> Void = { _, _ in },
+        editReplacement: @escaping (_ old: String, _ spoken: String, _ written: String) -> Void = { _, _, _ in },
+        removeReplacement: @escaping (_ spoken: String) -> Void = { _ in },
+        addSnippet: @escaping (_ trigger: String, _ text: String) -> Void = { _, _ in },
+        editSnippet: @escaping (_ old: String, _ trigger: String, _ text: String) -> Void = { _, _, _ in },
+        removeSnippet: @escaping (_ trigger: String) -> Void = { _ in },
+        removeFillers: @escaping (Bool) -> Void = { _ in }
+    ) {
+        self.add = add
+        self.edit = edit
+        self.remove = remove
+        self.addReplacement = addReplacement
+        self.editReplacement = editReplacement
+        self.removeReplacement = removeReplacement
+        self.addSnippet = addSnippet
+        self.editSnippet = editSnippet
+        self.removeSnippet = removeSnippet
+        self.removeFillers = removeFillers
+    }
 
     public static let none = DictionaryActions(add: { _ in }, edit: { _, _ in }, remove: { _ in })
 }
@@ -83,7 +113,14 @@ public struct SettingsActions {
             addOverride: { model.addOverride(identifier: $0, isSite: $1, category: $2, tone: $3) },
             removeOverride: { model.removeOverride($0) })
         dictionary = DictionaryActions(
-            add: { model.addTerm($0) }, edit: { model.editTerm($0, to: $1) }, remove: { model.removeTerm($0) })
+            add: { model.addTerm($0) }, edit: { model.editTerm($0, to: $1) }, remove: { model.removeTerm($0) },
+            addReplacement: { model.addReplacement(spoken: $0, written: $1) },
+            editReplacement: { model.editReplacement($0, spoken: $1, written: $2) },
+            removeReplacement: { model.removeReplacement($0) },
+            addSnippet: { model.addSnippet(trigger: $0, text: $1) },
+            editSnippet: { model.editSnippet($0, trigger: $1, text: $2) },
+            removeSnippet: { model.removeSnippet($0) },
+            removeFillers: { model.setRemoveFillers($0) })
         appearance = AppearanceActions(theme: { model.selectTheme($0) }, mode: { model.setAppearance($0) })
         audio = AudioActions(microphone: { model.selectMicrophone($0) }, pauseMedia: { model.setPauseMedia($0) })
     }

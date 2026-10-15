@@ -55,10 +55,11 @@ struct VocabularyJob: Sendable {
         task?.cancel()
     }
 
-    /// The user's dictionary alone, as the vocabulary holds it (trimmed, without repeats, within the limits), for the
-    /// recognizer to rescore against. The names around the cursor and on the screen are not in it.
+    /// The user's dictionary alone (its terms and the written forms of its replacement rules), as the vocabulary holds it
+    /// (trimmed, without repeats, within the limits), for the recognizer to rescore against. The names around the cursor
+    /// and on the screen are not in it.
     var dictionaryTerms: [String] {
-        pipeline.builder.build(VocabularySources(dictionary: pipeline.dictionary.terms()))
+        pipeline.builder.build(VocabularySources(dictionary: pipeline.dictionary.vocabularyTerms()))
     }
 
     /// The vocabulary now. The dictionary is always in it. The names around the cursor are in it when the context was
@@ -66,7 +67,7 @@ struct VocabularyJob: Sendable {
     func terms(for context: DictationContext?) -> [String] {
         pipeline.builder.build(
             VocabularySources(
-                dictionary: pipeline.dictionary.terms(),
+                dictionary: pipeline.dictionary.vocabularyTerms(),
                 beforeCursor: context?.beforeCursor ?? "",
                 afterCursor: context?.afterCursor ?? "",
                 selection: context?.selection ?? "",

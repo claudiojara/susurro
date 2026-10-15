@@ -3350,6 +3350,108 @@
         }
       }
     },
+    "settings.replacements.duplicate" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "That spoken form already has a rule."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esa forma hablada ya tiene una regla."
+          }
+        }
+      }
+    },
+    "settings.replacements.empty" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter both the spoken and the written form."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escribe la forma hablada y la escrita."
+          }
+        }
+      }
+    },
+    "settings.replacements.tooLong" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A form can have at most %lld characters."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una forma puede tener como máximo %lld caracteres."
+          }
+        }
+      }
+    },
+    "settings.snippets.duplicate" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another snippet has that trigger phrase."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otro fragmento ya tiene esa frase de activación."
+          }
+        }
+      }
+    },
+    "settings.snippets.empty" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a trigger phrase and the text to insert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escribe la frase de activación y el texto que se inserta."
+          }
+        }
+      }
+    },
+    "settings.snippets.tooLong" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A trigger can have at most %1$lld characters, and a snippet at most %2$lld."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una frase de activación puede tener como máximo %1$lld caracteres, y un fragmento como máximo %2$lld."
+          }
+        }
+      }
+    },
     "settings.style.kind.app" : {
       "extractionState" : "manual",
       "localizations" : {

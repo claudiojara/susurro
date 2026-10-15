@@ -34,6 +34,17 @@ private final class SpySettingsModel: SettingsViewModeling {
     func addTerm(_ term: String) { calls.append("addTerm \(term)") }
     func editTerm(_ old: String, to new: String) { calls.append("editTerm \(old) \(new)") }
     func removeTerm(_ term: String) { calls.append("removeTerm \(term)") }
+    func addReplacement(spoken: String, written: String) { calls.append("addReplacement \(spoken) \(written)") }
+    func editReplacement(_ old: String, spoken: String, written: String) {
+        calls.append("editReplacement \(old) \(spoken) \(written)")
+    }
+    func removeReplacement(_ spoken: String) { calls.append("removeReplacement \(spoken)") }
+    func addSnippet(trigger: String, text: String) { calls.append("addSnippet \(trigger) \(text)") }
+    func editSnippet(_ old: String, trigger: String, text: String) {
+        calls.append("editSnippet \(old) \(trigger) \(text)")
+    }
+    func removeSnippet(_ trigger: String) { calls.append("removeSnippet \(trigger)") }
+    func setRemoveFillers(_ isOn: Bool) { calls.append("removeFillers \(isOn)") }
     func selectTheme(_ id: String) { calls.append("theme \(id)") }
     func setAppearance(_ id: String) { calls.append("appearance \(id)") }
     func refresh() async { calls.append("refresh") }
@@ -116,6 +127,27 @@ struct SettingsContainerTests {
                 "tone email casual", "override com.apple.Notes false - casual", "removeOverride app:com.apple.Notes",
                 "addTerm Acme", "editTerm Acme ACME", "removeTerm ACME", "theme ocean", "appearance dark",
                 "inputMonitoring",
+            ])
+    }
+
+    @Test("the actions of the replacement rules, the snippets, and the filler switch reach the model")
+    func textRuleActionsReachTheModel() {
+        let model = SpySettingsModel(SettingsFixtures.screen)
+        let actions = SettingsActions(model: model).dictionary
+
+        actions.addReplacement("jira", "Jira")
+        actions.editReplacement("jira", "jira", "JIRA")
+        actions.removeReplacement("jira")
+        actions.addSnippet("firma", "Claudio")
+        actions.editSnippet("firma", "mi firma", "Claudio J.")
+        actions.removeSnippet("mi firma")
+        actions.removeFillers(false)
+
+        #expect(
+            model.calls == [
+                "addReplacement jira Jira", "editReplacement jira jira JIRA", "removeReplacement jira",
+                "addSnippet firma Claudio", "editSnippet firma mi firma Claudio J.", "removeSnippet mi firma",
+                "removeFillers false",
             ])
     }
 
