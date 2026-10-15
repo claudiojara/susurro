@@ -48,14 +48,34 @@ extension SettingsStore {
             || (value(for: CommandSettings.enabled) && hotkeyConfiguration(for: .command).needsInputMonitoring)
     }
 
-    /// The shortcuts of the app that a new hotkey for `role` must not repeat: the hotkeys of the other roles, in the order
-    /// of the roles, then the paste last dictation shortcut when one is assigned.
+    /// The shortcuts of the app that a new hotkey for `role` must not repeat: the hotkeys of the other roles that are
+    /// listened to (the dictation one always, the command one while command mode is on), in the order of the roles, then
+    /// the paste last dictation shortcut when one is assigned. A hotkey that is not listened to takes no keys, so a
+    /// clash with it is told only once it is turned on (`commandHotkeyClashes`).
     public func shortcutsInUse(except role: HotkeyRole) -> [HotkeyConfiguration] {
-        var inUse = HotkeyRole.allCases.filter { $0 != role }.map { hotkeyConfiguration(for: $0) }
+        var inUse = HotkeyRole.allCases.filter { $0 != role && isActive($0) }.map { hotkeyConfiguration(for: $0) }
         if let pasteLast = value(for: PasteLastSettings.combo) {
             inUse.append(HotkeyConfiguration(kind: .keyed, combo: pasteLast))
         }
         return inUse
+    }
+
+    /// Whether command mode is on and its hotkey repeats, or nests with, another shortcut of the app. It can happen when
+    /// the hotkey was stored while command mode was off; the hotkey service then does not listen to it, and the card says
+    /// so.
+    public var commandHotkeyClashes: Bool {
+        guard isActive(.command) else { return false }
+        let command = hotkeyConfiguration(for: .command)
+        let others = shortcutsInUse(except: .command)
+        return others.contains(command) || others.contains(where: command.overlaps)
+    }
+
+    /// Whether the hotkey of a role is listened to.
+    private func isActive(_ role: HotkeyRole) -> Bool {
+        switch role {
+        case .dictate: true
+        case .command: value(for: CommandSettings.enabled)
+        }
     }
 
     /// Stores the dictation hotkey.

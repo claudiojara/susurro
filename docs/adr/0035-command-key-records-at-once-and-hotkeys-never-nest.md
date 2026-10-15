@@ -30,17 +30,20 @@ reader's lighter `selectionSnapshot()` (secure flag, `AXSelectedText`, and the f
 text is given; no window title, no page address). As soon as that task says the command cannot run, the recording ends
 (`captureFailed` to the reducer, the file is thrown away) and the notice or error shows. Otherwise the coordinator waits
 for it before the recording is queued, so a command never reaches the pipeline without its selection. A tap, or Esc on
-a command with nothing to rewrite, keeps nothing.
+a command with nothing to rewrite, keeps nothing; a tap still shows the notice, as a hold does.
 
 A modifier-only hotkey whose modifiers are a subset of another hotkey's, or a hotkey that contains a modifier-only one's
-modifiers, is refused (`HotkeyRejection.overlapsAnotherHotkey`), against every hotkey of the app, like duplicates. Two
-keyed hotkeys never overlap. `HotkeyService` drops a command hotkey that overlaps the dictation one, as it drops an equal
-one, so a pair stored before this rule keeps dictation working.
+modifiers, is refused (`HotkeyRejection.overlapsAnotherHotkey`), against every active shortcut of the app, like
+duplicates: the dictation hotkey, the command hotkey only while command mode is on, and the paste last shortcut only when
+assigned. Two keyed hotkeys never overlap. `HotkeyService` drops a command hotkey that overlaps or equals the dictation
+one, so dictation keeps working; the command mode card then warns that the shortcut overlaps another one
+(`SettingsStore.commandHotkeyClashes`), so it is never dropped in silence.
 
 ### Consequences
 
 - Good: no words are lost at the start of an instruction; the Accessibility work at key-down is smaller.
 - Good: no hotkey can start the wrong role.
 - Bad: a command with nothing selected opens the microphone briefly before its notice shows.
-- Bad: a modifier-only dictation hotkey such as Control+Option is refused while the command hotkey (default
-  Control+Option+Shift+D) contains it, even with command mode off; the user changes the command hotkey first.
+- Bad: with command mode off, a dictation hotkey such as Control+Option may take keys that the stored command hotkey
+  (default Control+Option+Shift+D) nests with. Turning command mode on then shows a warning on the card and the command
+  hotkey is not listened to until the user records another one.

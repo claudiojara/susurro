@@ -883,3 +883,13 @@ Slices 2–9 were delivered together in #68 (fast track, strict TDD, no per-PR r
 - [x] RF1.5 RED+GREEN: Retry is unavailable for command records (`HistoryCopy.retryCommand`) and `RetryService` refuses them (`RetryRefusal.command`).
 - [x] RF1.6 DOC: ADR 0035, "The command key records at once, and modifier-only hotkeys never nest with another".
 - [ ] RF1.7 VERIFY: Manual: set the command hotkey to ⌃⌥ (modifier-only) and see it refused while dictation is ⌃⌥D; with Input Monitoring off, set a modifier-only command hotkey, turn command mode on, and see the warning in the card and Input Monitoring in the onboarding; hold the command key and start speaking at once, and see the first words in the instruction; with media playing and the pause on, tap the dictation key and hear no blip.
+
+## Follow-ups of the final verification
+
+### PR VF1: Flaky tests, hotkeys of active roles only, and the command tap notice
+
+- [x] VF1.1 TEST: `CorrectionReceiptTests` blocks the 300 ms context deadline (`FakeSleeper(blocksPauses: true)`), so it no longer races the context task; `LocalWhisperCLITests` is serialized and waits up to 10 s.
+- [x] VF1.2 RED+GREEN: `SettingsStore.shortcutsInUse(except:)` lists the command hotkey only while command mode is on (the paste last shortcut only when assigned), and the paste last recorder follows the same rule.
+- [x] VF1.3 RED+GREEN: `SettingsStore.commandHotkeyClashes`; the command mode card warns ("This shortcut overlaps another Susurro shortcut; choose a different one", `en`/`es`) when command mode is on and its hotkey repeats or nests with another shortcut. ADR 0035 updated.
+- [x] VF1.4 RED+GREEN: A tap of the command key with nothing to rewrite shows the notice, as a hold does.
+- [ ] VF1.5 VERIFY: Manual: with command mode off, set the dictation hotkey to ⌃⌥⇧D, turn command mode on, and see the warning on the card; record another command hotkey and see it go away; tap the command key with nothing selected and see the notice.

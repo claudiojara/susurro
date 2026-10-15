@@ -96,9 +96,9 @@ func isAlive(pid: Int32) -> Bool {
     kill(pid, 0) == 0
 }
 
-/// Waits up to two seconds for a condition that another thread makes true.
+/// Waits up to ten seconds for a condition that another thread makes true (a loaded CI runner can be slow).
 func eventually(_ condition: () -> Bool) async -> Bool {
-    for _ in 0..<400 {
+    for _ in 0..<2000 {
         if condition() { return true }
         try? await Task.sleep(for: .milliseconds(5))
     }

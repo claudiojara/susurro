@@ -33,7 +33,8 @@ struct CorrectionReceiptTests {
         let frontmost = await MainActor.run { FakeFrontmostAppProvider(.mail) }
         return await CoordinatorHarness(
             recognizer: FakeRecognizer(transcript: CorrectionWatchTests.inserted), inserter: inserter, history: history,
-            frontmost: frontmost, context: ContextPipeline(source: FakeContextSource(context: context)),
+            sleeper: FakeSleeper(blocksPauses: true), frontmost: frontmost,
+            context: ContextPipeline(source: FakeContextSource(context: context)),
             corrections: watch)
     }
 

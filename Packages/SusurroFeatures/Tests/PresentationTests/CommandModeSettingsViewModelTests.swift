@@ -105,4 +105,21 @@ struct CommandModeSettingsViewModelTests {
         await until { sut.state.permissionWarning != nil }
         following.cancel()
     }
+
+    @Test("turning command mode on with a stored command hotkey that clashes with another shortcut warns on the card")
+    func overlapWarning() async {
+        settings.setHotkey(.command, for: .dictate)
+        let sut = model()
+        let following = Task { await sut.follow() }
+        await until { sut.hasReadPermissions }
+        #expect(sut.state.hotkeyWarning == nil, "off: the command hotkey is not listened to")
+
+        settings.set(true, for: CommandSettings.enabled)
+        await until { sut.state.hotkeyWarning != nil }
+        #expect(sut.state.hotkeyWarning == CommandModeCopy.hotkeyOverlap)
+
+        settings.resetHotkey(for: .dictate)
+        await until { sut.state.hotkeyWarning == nil }
+        following.cancel()
+    }
 }

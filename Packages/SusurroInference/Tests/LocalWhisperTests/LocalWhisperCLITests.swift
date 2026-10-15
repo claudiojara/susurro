@@ -6,7 +6,7 @@ import Testing
 @testable import LocalWhisper
 
 /// The threat matrix of the subprocess: what an argument can do, which paths are run, and how a run ends.
-@Suite("Local Whisper command line tool", .timeLimit(.minutes(1)))
+@Suite("Local Whisper command line tool", .serialized, .timeLimit(.minutes(1)))
 struct LocalWhisperCLITests {
     private let tools = FakeTools.shared
 

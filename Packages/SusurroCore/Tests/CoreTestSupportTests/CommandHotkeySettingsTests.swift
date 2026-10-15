@@ -35,16 +35,42 @@ struct CommandHotkeySettingsTests {
         #expect(store.hotkeyConfiguration(for: .command) == .command)
     }
 
-    @Test("the hotkeys of the other roles and the paste last shortcut are the ones a new hotkey must not repeat")
+    @Test("the active hotkeys of the other roles and the paste last shortcut are the ones a new hotkey must not repeat")
     func others() {
         let store = InMemorySettingsStore()
 
         #expect(store.shortcutsInUse(except: .command) == [.standard])
+        #expect(store.shortcutsInUse(except: .dictate) == [], "the command hotkey is not listened to while it is off")
+
+        store.set(true, for: CommandSettings.enabled)
         #expect(store.shortcutsInUse(except: .dictate) == [.command])
 
         let pasteLast = HotkeyCombo(keyCode: 9, modifiers: [.control, .option])
         store.set(pasteLast, for: PasteLastSettings.combo)
         #expect(
             store.shortcutsInUse(except: .dictate) == [.command, HotkeyConfiguration(kind: .keyed, combo: pasteLast)])
+    }
+
+    @Test("a command hotkey stored while command mode was off clashes with another shortcut only once it is turned on")
+    func commandClash() {
+        let store = InMemorySettingsStore()
+        store.setHotkey(.command, for: .dictate)
+
+        #expect(store.commandHotkeyClashes == false, "off: nothing is listened to, so nothing clashes")
+
+        store.set(true, for: CommandSettings.enabled)
+        #expect(store.commandHotkeyClashes, "the same hotkey as dictation")
+
+        let chord = HotkeyConfiguration(
+            kind: .modifierOnly, combo: HotkeyCombo(keyCode: nil, modifiers: [.control, .option]))
+        store.setHotkey(chord, for: .command)
+        #expect(store.commandHotkeyClashes, "its modifiers are held on the way to the dictation hotkey")
+
+        store.resetHotkey(for: .dictate)
+        store.setHotkey(.command, for: .command)
+        #expect(store.commandHotkeyClashes == false)
+
+        store.set(HotkeyConfiguration.command.combo, for: PasteLastSettings.combo)
+        #expect(store.commandHotkeyClashes, "the same keys as the paste last shortcut")
     }
 }

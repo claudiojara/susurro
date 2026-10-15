@@ -11,12 +11,18 @@ public nonisolated struct CommandModeSettingsState: Equatable, Sendable {
     public let warning: String?
     /// The command hotkey is made only of modifier keys and Input Monitoring is not allowed, so it is not listened to.
     public let permissionWarning: HotkeyWarning?
+    /// Command mode is on but its hotkey repeats or nests with another shortcut of the app, so it is not listened to.
+    public let hotkeyWarning: String?
 
-    public init(isEnabled: Bool, shortcut: [String], warning: String?, permissionWarning: HotkeyWarning? = nil) {
+    public init(
+        isEnabled: Bool, shortcut: [String], warning: String?, permissionWarning: HotkeyWarning? = nil,
+        hotkeyWarning: String? = nil
+    ) {
         self.isEnabled = isEnabled
         self.shortcut = shortcut
         self.warning = warning
         self.permissionWarning = permissionWarning
+        self.hotkeyWarning = hotkeyWarning
     }
 }
 
