@@ -29,7 +29,8 @@ The second option, as the reviewed design's v1 simplification:
   the double-tap window closes the window first. The command hotkey is hold only: the coordinator closes the double-tap
   window after a command tap. Every shortcut of the app (dictation, command, paste last dictation) refuses the keys of
   the others (`HotkeyRejection.alreadyInUse`).
-- **Selection.** Read through Accessibility at key-down, before anything is recorded (`SelectionReader`: `AXSelectedText`,
+- **Selection.** (Amended by ADR 0035: the read now runs alongside the capture, and a refusal ends the recording and
+  keeps no audio.) Read through Accessibility at key-down, before anything is recorded (`SelectionReader`: `AXSelectedText`,
   else the selected range of the field, in UTF-16 units), capped at 1,500 characters. No selection, a secure field, an
   over-long or unreadable selection show a notice and record nothing. No ⌘C fallback and no generate-at-cursor in v1.
 - **Rewrite.** On device only: `LocalCommandRequest` has no cloud variant and `CommandStage` refuses a rewriter that is

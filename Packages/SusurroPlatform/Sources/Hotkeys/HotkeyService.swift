@@ -96,12 +96,15 @@ public final class HotkeyService: HotkeySource {
     }
 
     /// The hotkey of each role that is to be listened to: the dictation one always, and the command one while command
-    /// mode is on and it differs from the dictation one (the settings refuse equal hotkeys; this keeps an old pair apart).
+    /// mode is on and it neither equals nor overlaps the dictation one (the settings refuse such pairs; this keeps a pair
+    /// stored before that apart, and the dictation hotkey wins).
     private func wantedHotkeys() -> [HotkeyRole: HotkeyConfiguration] {
         let dictation = settings.hotkeyConfiguration(for: .dictate)
         var wanted: [HotkeyRole: HotkeyConfiguration] = [.dictate: dictation]
         let command = settings.hotkeyConfiguration(for: .command)
-        if settings.value(for: CommandSettings.enabled), command != dictation { wanted[.command] = command }
+        if settings.value(for: CommandSettings.enabled), command != dictation, !command.overlaps(dictation) {
+            wanted[.command] = command
+        }
         return wanted
     }
 

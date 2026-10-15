@@ -142,6 +142,20 @@ struct RetryServiceTests {
         #expect(try await service.retry(UUID()) == .refused(.recordNotFound))
     }
 
+    @Test("retry is refused for a command record, which stays as it was")
+    func commandRefused() async throws {
+        var command = try await failedRecord()
+        command.kind = .command
+        try await repository.update(command)
+        let reprocessor = FakeDictationReprocessor(text: "x")
+
+        let result = try await makeService(reprocessor).retry(command.id)
+
+        #expect(result == .refused(.command))
+        #expect(reprocessor.reprocessedRecords.isEmpty)
+        #expect(try await repository.record(id: command.id) == command)
+    }
+
     @Test("while a retry runs the record shows processing, and a second retry of it is refused")
     func processingWhileRetrying() async throws {
         let record = try await failedRecord()

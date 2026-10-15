@@ -68,6 +68,42 @@ struct AppEnvironmentTests {
         await f.environment.shutdown()
     }
 
+    @Test("a modifier-only command hotkey asks for Input Monitoring while command mode is on, and only then")
+    func commandHotkeyKindFollowsIntoThePermissions() async {
+        let f = AppEnvironmentFixture()
+        f.settings.set(HotkeyKind.modifierOnly, for: HotkeySettings.commandKind)
+        f.settings.set(HotkeyCombo(keyCode: nil, modifiers: [.command, .option]), for: HotkeySettings.commandCombo)
+        f.environment.start()
+        await f.eventually("the first read") { f.environment.monitor.hasReadStatuses }
+        #expect(!f.environment.monitor.requested.contains(.inputMonitoring))
+
+        f.settings.set(true, for: CommandSettings.enabled)
+        await f.eventually("Input Monitoring to be asked for") {
+            f.environment.monitor.requested.contains(.inputMonitoring)
+        }
+
+        f.settings.set(HotkeyKind.keyed, for: HotkeySettings.commandKind)
+        await f.eventually("Input Monitoring to be dropped") {
+            !f.environment.monitor.requested.contains(.inputMonitoring)
+        }
+        await f.environment.shutdown()
+    }
+
+    @Test("a modifier-only command hotkey stored with command mode on asks for Input Monitoring from launch")
+    func commandHotkeyKindAtLaunch() async {
+        let f = AppEnvironmentFixture()
+        f.settings.set(true, for: CommandSettings.enabled)
+        f.settings.set(HotkeyKind.modifierOnly, for: HotkeySettings.commandKind)
+        f.settings.set(HotkeyCombo(keyCode: nil, modifiers: [.command, .option]), for: HotkeySettings.commandCombo)
+
+        f.environment.start()
+
+        await f.eventually("Input Monitoring to be asked for") {
+            f.environment.monitor.requested.contains(.inputMonitoring)
+        }
+        await f.environment.shutdown()
+    }
+
     // MARK: Onboarding window
 
     @Test("the window opens at launch when a required permission is missing")

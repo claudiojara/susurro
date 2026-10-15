@@ -9,11 +9,14 @@ public nonisolated struct CommandModeSettingsState: Equatable, Sendable {
     public let shortcut: [String]
     /// Why command mode cannot work on this Mac, such as Apple Intelligence being off, or nil.
     public let warning: String?
+    /// The command hotkey is made only of modifier keys and Input Monitoring is not allowed, so it is not listened to.
+    public let permissionWarning: HotkeyWarning?
 
-    public init(isEnabled: Bool, shortcut: [String], warning: String?) {
+    public init(isEnabled: Bool, shortcut: [String], warning: String?, permissionWarning: HotkeyWarning? = nil) {
         self.isEnabled = isEnabled
         self.shortcut = shortcut
         self.warning = warning
+        self.permissionWarning = permissionWarning
     }
 }
 
@@ -22,6 +25,8 @@ public nonisolated struct CommandModeSettingsState: Equatable, Sendable {
 public protocol CommandModeSettingsModeling: AnyObject {
     var state: CommandModeSettingsState { get }
     func setEnabled(_ enabled: Bool)
+    /// Asks the system for Input Monitoring, which a modifier-only command hotkey needs.
+    func requestInputMonitoring() async
     /// Follows the settings while the card is on screen, so a change made elsewhere (the menu) shows.
     func follow() async
 }
@@ -29,15 +34,19 @@ public protocol CommandModeSettingsModeling: AnyObject {
 /// What the card can ask for, as closures, so that the view is a pure function of its state and its actions.
 public struct CommandModeActions {
     public var setEnabled: (Bool) -> Void
+    public var requestInputMonitoring: () -> Void
 
     public static let none = CommandModeActions(setEnabled: { _ in })
 
-    public init(setEnabled: @escaping (Bool) -> Void) {
+    public init(setEnabled: @escaping (Bool) -> Void, requestInputMonitoring: @escaping () -> Void = {}) {
         self.setEnabled = setEnabled
+        self.requestInputMonitoring = requestInputMonitoring
     }
 
     @MainActor
     public init(model: any CommandModeSettingsModeling) {
-        self.init(setEnabled: { model.setEnabled($0) })
+        self.init(
+            setEnabled: { model.setEnabled($0) },
+            requestInputMonitoring: { Task { await model.requestInputMonitoring() } })
     }
 }

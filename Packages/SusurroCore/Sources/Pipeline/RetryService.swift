@@ -12,6 +12,8 @@ public enum RetryRefusal: Sendable, Equatable {
     case stillProcessing
     /// A retry of this record is already running.
     case alreadyRetrying
+    /// The record is a command: running its instruction again as a dictation would rewrite it into one.
+    case command
 }
 
 public enum RetryResult: Sendable, Equatable {
@@ -50,6 +52,7 @@ public actor RetryService {
         defer { retrying.remove(id) }
 
         guard let original = try await repository.record(id: id) else { return .refused(.recordNotFound) }
+        if original.kind == .command { return .refused(.command) }
         if original.status == .processing { return .refused(.stillProcessing) }
         if original.audioExpired { return .refused(.audioExpired) }
         guard let url = original.audioURL else { return .refused(.noAudio) }

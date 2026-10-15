@@ -19,6 +19,14 @@ struct CommandModeSection<Recorder: View>: View {
     var body: some View {
         VStack(spacing: theme.spacing(.md)) {
             if let warning = state.warning { Banner(warning) }
+            if let warning = state.permissionWarning {
+                VStack(alignment: .leading, spacing: theme.spacing(.sm)) {
+                    Banner(warning.message)
+                    if let title = warning.actionTitle {
+                        ActionButton(title, kind: .primary, action: actions.requestInputMonitoring)
+                    }
+                }
+            }
             SettingsCard(Copy.title, footer: Copy.footer) {
                 SettingsToggle(Copy.toggle, detail: Copy.detail, isOn: state.isEnabled, onChange: actions.setEnabled)
                 HStack(spacing: theme.spacing(.md)) {

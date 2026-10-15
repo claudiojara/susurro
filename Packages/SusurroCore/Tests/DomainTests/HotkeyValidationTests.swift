@@ -128,7 +128,48 @@ struct HotkeyDuplicateValidationTests {
             kind: .modifierOnly, combo: HotkeyCombo(keyCode: nil, modifiers: [.control, .option]))
 
         #expect(rejection(of: chord, inUse: [chord]) == .alreadyInUse)
-        #expect(rejection(of: chord, inUse: [.standard]) == nil)
+        #expect(rejection(of: chord, inUse: [.command]) == .overlapsAnotherHotkey)
+    }
+
+    private static func modifierOnly(_ modifiers: HotkeyModifiers) -> HotkeyConfiguration {
+        HotkeyConfiguration(kind: .modifierOnly, combo: HotkeyCombo(keyCode: nil, modifiers: modifiers))
+    }
+
+    @Test("a modifier-only chord whose keys are part of another role's hotkey is refused, either way round")
+    func nestedModifierChords() {
+        let controlOption = Self.modifierOnly([.control, .option])
+        let controlOptionShift = Self.modifierOnly([.control, .option, .shift])
+
+        // Pressing Control, Option, Shift in that order passes through Control+Option.
+        #expect(rejection(of: controlOptionShift, inUse: [controlOption]) == .overlapsAnotherHotkey)
+        #expect(rejection(of: controlOption, inUse: [controlOptionShift]) == .overlapsAnotherHotkey)
+        // Control+Option alone would take the keys a keyed Control+Option+D starts with, and the other way round.
+        #expect(rejection(of: controlOption, inUse: [.standard]) == .overlapsAnotherHotkey)
+        #expect(rejection(of: .standard, inUse: [controlOption]) == .overlapsAnotherHotkey)
+        #expect(rejection(of: .command, inUse: [controlOption]) == .overlapsAnotherHotkey)
+    }
+
+    @Test("chords that do not nest are allowed, and two keyed hotkeys never overlap")
+    func disjointChords() {
+        let controlOption = Self.modifierOnly([.control, .option])
+        let function = Self.modifierOnly(.function)
+        let commandOption = Self.modifierOnly([.command, .option])
+
+        #expect(rejection(of: function, inUse: [.standard, .command, controlOption]) == nil)
+        #expect(rejection(of: commandOption, inUse: [.standard, controlOption]) == nil)
+        #expect(rejection(of: .command, inUse: [.standard]) == nil)
+        #expect(Self.modifierOnly([.control, .shift]).overlaps(controlOption) == false)
+    }
+
+    @Test("the paste last shortcut cannot hold the keys of a modifier-only dictation hotkey")
+    func pasteLastAgainstModifierOnlyDictation() {
+        let pasteLast = HotkeyConfiguration(
+            kind: .keyed, combo: HotkeyCombo(keyCode: 9, modifiers: [.control, .option]))
+
+        #expect(
+            PasteLastValidation.rejection(
+                of: pasteLast, dictation: Self.modifierOnly([.control, .option]), isTakenBySystem: { _ in false })
+                == .overlapsAnotherHotkey)
     }
 
     @Test("the paste last shortcut cannot take the command hotkey either")

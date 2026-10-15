@@ -75,6 +75,16 @@ public struct FocusedContext: Sendable, Equatable {
 /// means nothing could be read at all.
 public protocol FocusedContextReader: Sendable {
     func snapshot() async -> FocusedContext?
+    /// A lighter read for command mode, which needs the selection only: whether the field is secure, the selected text,
+    /// and the field with its range only when the selected text is not given. No window title, no page address.
+    func selectionSnapshot() async -> FocusedContext?
+}
+
+extension FocusedContextReader {
+    /// A reader with no lighter read reads it all.
+    public func selectionSnapshot() async -> FocusedContext? {
+        await snapshot()
+    }
 }
 
 /// Everything the pipeline knows about where the text goes, for one dictation: the app, the page, and the text around the

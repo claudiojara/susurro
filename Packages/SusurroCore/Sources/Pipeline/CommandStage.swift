@@ -4,7 +4,9 @@ import TextShaping
 /// Command mode: the instruction said while the command hotkey is held rewrites the selected text, and the result
 /// replaces the selection (ADR 0033).
 ///
-/// The selection is read as the key goes down (`start`), before anything is recorded. Once the instruction is
+/// The selection is read as the key goes down (`start`), while the instruction is already being recorded: the
+/// coordinator waits for it only before the recording is queued, or ends the recording when there is nothing to rewrite.
+/// The read is the reader's lighter one (`FocusedContextReader.selectionSnapshot`). Once the instruction is
 /// transcribed, `run` hands both to the on-device model within a limit that grows with their length, checks the reply
 /// (`CommandOutputGuard`), reads the selection again, and pastes the result over it only when it is still the one the
 /// command was said over: a paste over a live selection replaces it, and one undo of the app brings it back. A selection
@@ -154,7 +156,7 @@ public struct CommandStage: Sendable {
     ) async -> SelectionCapture {
         let reader = reader
         let snapshot = try? await withDeadline(DictationLimits.statusTimeout, stage: .capture, sleep: sleep) {
-            await reader.snapshot()
+            await reader.selectionSnapshot()
         }
         return SelectionReader.capture(from: snapshot ?? nil, limit: limit)
     }

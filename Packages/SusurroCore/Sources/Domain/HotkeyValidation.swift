@@ -18,6 +18,9 @@ public enum HotkeyRejection: Sendable, Equatable, CaseIterable {
     case sameAsDictation
     /// Another hotkey of the app (dictation or command mode) is already this one.
     case alreadyInUse
+    /// The modifier keys of a modifier-only hotkey are part of another hotkey of the app, or the other way round: pressing
+    /// one passes through the other, which would start first.
+    case overlapsAnotherHotkey
 }
 
 /// The rules a hotkey has to follow. A pure function, so that the settings and the tests share them.
@@ -26,14 +29,15 @@ public enum HotkeyValidation {
     /// - Parameters:
     ///   - isTakenBySystem: Whether an enabled shortcut of the system already uses the combo. It is asked only about a
     ///     keyed combo that passed every other rule.
-    ///   - inUse: The hotkeys of the app's other roles. A hotkey equal to one of them is refused, once it passed the
-    ///     rules above.
+    ///   - inUse: The hotkeys of the app's other roles. A hotkey equal to one of them, or whose modifier chord nests with
+    ///     one of them (`HotkeyConfiguration.overlaps`), is refused once it passed the rules above.
     public static func rejection(
         of configuration: HotkeyConfiguration, isTakenBySystem: (HotkeyCombo) -> Bool,
         inUse: [HotkeyConfiguration] = []
     ) -> HotkeyRejection? {
         if let rejection = ruleRejection(of: configuration, isTakenBySystem: isTakenBySystem) { return rejection }
-        return inUse.contains(configuration) ? .alreadyInUse : nil
+        if inUse.contains(configuration) { return .alreadyInUse }
+        return inUse.contains(where: configuration.overlaps) ? .overlapsAnotherHotkey : nil
     }
 
     private static func ruleRejection(
@@ -52,5 +56,19 @@ public enum HotkeyValidation {
             if !isFunctionKey && !isStrong { return .needsStrongerModifiers }
             return isTakenBySystem(combo) ? .takenBySystem : nil
         }
+    }
+}
+
+extension HotkeyConfiguration {
+    /// Whether this hotkey and `other` cannot both be listened to: one of them is modifier-only and its modifiers are all
+    /// held while the other is pressed. A modifier-only hotkey starts as soon as its exact modifiers are down, so it would
+    /// fire on the way to the other one (Control+Option on the way to Control+Option+Shift, or to Control+Option+D).
+    /// Two keyed hotkeys never overlap, and two equal hotkeys are a duplicate, not an overlap.
+    public func overlaps(_ other: HotkeyConfiguration) -> Bool {
+        guard self != other else { return false }
+        let mine = combo.modifiers
+        let theirs = other.combo.modifiers
+        return (kind == .modifierOnly && theirs.isSuperset(of: mine))
+            || (other.kind == .modifierOnly && mine.isSuperset(of: theirs))
     }
 }

@@ -121,6 +121,7 @@ struct HistoryRowMapper: Sendable {
     }
 
     private func retryUnavailableReason(_ record: DictationRecord) -> String? {
+        if record.kind == .command { return HistoryCopy.retryCommand }
         if record.audioExpired { return HistoryCopy.retryAudioExpired }
         if record.audioURL == nil { return HistoryCopy.retryNoAudio }
         return nil
