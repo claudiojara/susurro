@@ -295,6 +295,40 @@ struct CommandPipelineTests {
         #expect(f.rewriter.requests.isEmpty)
     }
 
+    @Test("a tap of the command key with nothing to rewrite shows the notice too, as a hold does, and keeps nothing")
+    func tapWithoutASelection() async {
+        let reader = GatedFocusedContextReader(FocusedContext(fieldText: "abc", selection: 1..<1))
+        var f = await Fixture(reader: reader)
+        await f.press()
+
+        // The key comes up before the selection is read: a tap, which would throw the recording away in silence.
+        let coordinator = f.harness.sut
+        let release = Task {
+            await coordinator.handle(.up(at: DictationCoordinatorTests.pressTime + .milliseconds(100), role: .command))
+        }
+        reader.release()
+        await release.value
+        let states = await f.harness.read(through: .idle)
+
+        #expect(states.contains(.notice(.command(.noSelection))))
+        #expect(f.harness.history.allRecords.isEmpty)
+        #expect(f.harness.recordings.finished.isEmpty)
+        #expect(f.rewriter.requests.isEmpty)
+    }
+
+    @Test("a tap of the command key over a selection shows nothing: it is thrown away like a dictation tap")
+    func tapWithASelection() async {
+        var f = await Fixture()
+        await f.press()
+
+        await f.letGo(after: 100)
+        let states = await f.harness.read(through: .idle)
+
+        #expect(!states.contains { if case .notice = $0 { true } else { false } })
+        #expect(f.harness.history.allRecords.isEmpty)
+        #expect(f.rewriter.requests.isEmpty)
+    }
+
     @Test("a selection read that is still running when the key comes up is waited for before the job is queued")
     func waitsForTheSelectionOnRelease() async {
         let reader = GatedFocusedContextReader(FocusedContext(selectedText: Self.selection))

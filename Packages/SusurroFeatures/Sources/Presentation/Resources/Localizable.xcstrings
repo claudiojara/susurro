@@ -2738,6 +2738,23 @@
         }
       }
     },
+    "settings.command.hotkeyOverlap" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This shortcut overlaps another Susurro shortcut; choose a different one."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este atajo se superpone con otro atajo de Susurro; elige uno distinto."
+          }
+        }
+      }
+    },
     "settings.command.modelUnavailable" : {
       "extractionState" : "manual",
       "localizations" : {

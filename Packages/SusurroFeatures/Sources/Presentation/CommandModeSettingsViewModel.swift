@@ -4,8 +4,8 @@ import SusurroUI
 
 /// The command mode card of the settings: the switch (`command.enabled`), the command hotkey as key caps, a warning
 /// when Apple Intelligence cannot rewrite on this Mac, and one when the command hotkey is made only of modifier keys and
-/// Input Monitoring is not allowed, so it is not listened to. The recorder of the command hotkey is a `HotkeyRecorderViewModel`
-/// for the command role, in the card's slot.
+/// Input Monitoring is not allowed, so it is not listened to, or when it clashes with another shortcut of the app. The
+/// recorder of the command hotkey is a `HotkeyRecorderViewModel` for the command role, in the card's slot.
 @MainActor
 @Observable
 public final class CommandModeSettingsViewModel: CommandModeSettingsModeling {
@@ -50,7 +50,8 @@ public final class CommandModeSettingsViewModel: CommandModeSettingsModeling {
             : nil
         return CommandModeSettingsState(
             isEnabled: isEnabled, shortcut: shortcut(configuration),
-            warning: isModelAvailable ? nil : CommandModeCopy.modelUnavailable, permissionWarning: permissionWarning)
+            warning: isModelAvailable ? nil : CommandModeCopy.modelUnavailable, permissionWarning: permissionWarning,
+            hotkeyWarning: settings.commandHotkeyClashes ? CommandModeCopy.hotkeyOverlap : nil)
     }
 
     public func setEnabled(_ enabled: Bool) {
@@ -69,7 +70,7 @@ public final class CommandModeSettingsViewModel: CommandModeSettingsModeling {
         isModelAvailable = await modelAvailable()
         await readInputMonitoring()
         for await change in changes
-        where change.name.hasPrefix("command.") || change.name.hasPrefix("hotkey.command") {
+        where ["command.", "hotkey.", "pasteLast."].contains(where: change.name.hasPrefix) {
             // The permission may have been granted in System Settings since it was read.
             await readInputMonitoring()
         }
@@ -87,5 +88,11 @@ enum CommandModeCopy {
         L10n.string(
             "settings.command.modelUnavailable",
             "Apple Intelligence is not available on this Mac now, so command mode cannot rewrite text.")
+    }
+
+    static var hotkeyOverlap: String {
+        L10n.string(
+            "settings.command.hotkeyOverlap", "This shortcut overlaps another Susurro shortcut; choose a different one."
+        )
     }
 }

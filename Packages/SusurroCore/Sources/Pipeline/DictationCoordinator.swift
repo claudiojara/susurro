@@ -635,7 +635,8 @@ public actor DictationCoordinator {
     private func finishRecording(_ end: RecordingEnd) async {
         guard let recording = session else { return await settle(endsJob: end.isJob) }
         switch end {
-        case .discard: return await throwAway(recording)
+        // A tap keeps nothing, but a tap of the command key with nothing to rewrite says so, as a hold does.
+        case .discard: return await throwAway(recording, showing: await resolveCommandStart())
         case .refuse(let state): return await throwAway(recording, showing: state)
         case .submit, .cancel: break
         }

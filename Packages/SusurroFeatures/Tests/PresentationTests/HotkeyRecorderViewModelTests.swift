@@ -415,9 +415,10 @@ struct CommandHotkeyRecorderViewModelTests {
         #expect(rig.source.isListening)
     }
 
-    @Test("the dictation recorder refuses the command hotkey too")
+    @Test("while command mode is on, the dictation recorder refuses the command hotkey too")
     func dictationRefusesTheCommandHotkey() async {
         let rig = RecorderRig()
+        rig.settings.set(true, for: CommandSettings.enabled)
         let model = rig.model()
         model.begin()
 
@@ -425,6 +426,18 @@ struct CommandHotkeyRecorderViewModelTests {
         await until { model.state.rejection != nil }
 
         #expect(model.state.rejection == SettingsCopy.rejection(.alreadyInUse))
+    }
+
+    @Test("while command mode is off, its hotkey is not listened to, so the dictation recorder may take its keys")
+    func dictationTakesTheKeysOfAnOffCommandHotkey() async {
+        let rig = RecorderRig()
+        let model = rig.model()
+        model.begin()
+
+        rig.source.send(.key(code: 2, modifiers: [.control, .option, .shift]))
+        await until { model.state.phase == .idle }
+
+        #expect(rig.settings.hotkeyConfiguration() == .command)
     }
 
     @Test("restoring the default of the command recorder removes only the command keys")
@@ -449,9 +462,10 @@ struct CommandHotkeyRecorderViewModelTests {
         #expect(model.state.rejection == SettingsCopy.rejection(.alreadyInUse))
     }
 
-    @Test("the paste last shortcut cannot take the command hotkey")
+    @Test("while command mode is on, the paste last shortcut cannot take the command hotkey")
     func pasteLastRefusesTheCommandHotkey() async {
         let rig = RecorderRig()
+        rig.settings.set(true, for: CommandSettings.enabled)
         let model = HotkeyRecorderViewModel(
             binding: .pasteLast(rig.settings), source: rig.source, isTakenBySystem: { _ in false })
         model.begin()
@@ -461,5 +475,18 @@ struct CommandHotkeyRecorderViewModelTests {
 
         #expect(model.state.rejection == SettingsCopy.rejection(.alreadyInUse))
         #expect(rig.settings.value(for: PasteLastSettings.combo) == nil)
+    }
+
+    @Test("while command mode is off, the paste last shortcut may take the keys of its hotkey")
+    func pasteLastTakesTheKeysOfAnOffCommandHotkey() async {
+        let rig = RecorderRig()
+        let model = HotkeyRecorderViewModel(
+            binding: .pasteLast(rig.settings), source: rig.source, isTakenBySystem: { _ in false })
+        model.begin()
+
+        rig.source.send(.key(code: 2, modifiers: [.control, .option, .shift]))
+        await until { model.state.phase == .idle }
+
+        #expect(rig.settings.value(for: PasteLastSettings.combo) == HotkeyConfiguration.command.combo)
     }
 }

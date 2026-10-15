@@ -19,6 +19,7 @@ struct CommandModeSection<Recorder: View>: View {
     var body: some View {
         VStack(spacing: theme.spacing(.md)) {
             if let warning = state.warning { Banner(warning) }
+            if let warning = state.hotkeyWarning { Banner(warning) }
             if let warning = state.permissionWarning {
                 VStack(alignment: .leading, spacing: theme.spacing(.sm)) {
                     Banner(warning.message)

@@ -139,7 +139,7 @@ public struct HotkeyBinding {
         hold(.command, settings)
     }
 
-    /// A hotkey that is held: the rules of every hotkey, and none of the app's other shortcuts.
+    /// A hotkey that is held: the rules of every hotkey, and none of the app's other shortcuts that are listened to.
     private static func hold(_ role: HotkeyRole, _ settings: any SettingsStore) -> HotkeyBinding {
         HotkeyBinding(
             isDefault: { settings.hotkeyConfiguration(for: role) == .defaultHotkey(for: role) },
@@ -162,7 +162,9 @@ public struct HotkeyBinding {
             rejection: {
                 PasteLastValidation.rejection(
                     of: $0, dictation: settings.hotkeyConfiguration(), isTakenBySystem: $1,
-                    inUse: [settings.hotkeyConfiguration(for: .command)])
+                    // The command hotkey takes its keys only while command mode is on.
+                    inUse: settings.value(for: CommandSettings.enabled)
+                        ? [settings.hotkeyConfiguration(for: .command)] : [])
             },
             restoreTitle: { SettingsCopy.removeShortcut })
     }
